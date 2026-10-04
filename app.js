@@ -37,6 +37,11 @@
   // Потолок на случай, если наличие не указано
   const QTY_MAX = 99;
 
+  // Особый пользователь: ник золотом, а вместо настоящего идентификатора
+  // показывается и копируется подменный. Никаких подписей про статус.
+  const PREMIUM_ID = 1621490024;
+  const PREMIUM_ALIAS = '7777777777';
+
   // Балансы брать пока неоткуда — появится счёт, подставить сюда
   const STARS = 0;
   const COUPONS = 0;
@@ -966,7 +971,11 @@
     const user = tgUser();
     const owned = OWNED.gifts.length + OWNED.nft.length;
 
-    document.getElementById('prf-name').textContent = userTitle(user);
+    const premium = Boolean(user) && user.id === PREMIUM_ID;
+
+    const name = document.getElementById('prf-name');
+    name.textContent = userTitle(user);
+    name.dataset.premium = String(premium);
     document.getElementById('prf-count').textContent =
       formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
 
@@ -980,13 +989,17 @@
 
     const id = document.getElementById('prf-id');
     const copy = document.getElementById('prf-copy');
-    id.textContent = user ? String(user.id) : '—';
+
+    // Копируется ровно то, что показано, иначе в буфере окажется не то,
+    // что человек видел на экране
+    const shownId = user ? (premium ? PREMIUM_ALIAS : String(user.id)) : null;
+    id.textContent = shownId || '—';
     copy.hidden = !user;
 
     function copyId() {
-      if (!user) return;
+      if (!shownId) return;
 
-      const value = String(user.id);
+      const value = shownId;
 
       const done = () => {
         haptic('success');
