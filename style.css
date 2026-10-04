@@ -1,7 +1,6 @@
 :root {
   --font-sf-pro: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --color-text: #fff;
-  --accent: #ffcc00;
 
   /* Telegram отдаёт отступ под системную панель; env() — фоллбэк для браузера */
   --safe-area-bottom: max(var(--tg-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
