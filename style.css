@@ -385,6 +385,18 @@ body {
 .gift__badge[data-kind="sold"]    { --ribbon-fill: url(#ribbon-sold); }
 .gift__badge[data-kind="time"]    { --ribbon-fill: url(#ribbon-time); }
 
+/* Редкость: чем выше, тем тревожнее цвет */
+.gift__badge[data-kind="rare"]   { --ribbon-fill: url(#ribbon-rare); }
+.gift__badge[data-kind="epic"]   { --ribbon-fill: url(#ribbon-epic); }
+.gift__badge[data-kind="legend"] { --ribbon-fill: url(#ribbon-legend); }
+
+/* У самой редкой ленты вдобавок золотая обводка. Толщина делится на масштаб,
+   иначе на уменьшенной карточке она бы утолщалась вместе с лентой. */
+.gift__badge[data-kind="legend"] .gift__ribbon {
+  stroke: #f3c969;
+  stroke-width: calc(1.4 / var(--ribbon-scale));
+}
+
 .gift__ribbon {
   grid-area: 1 / 1;
   width: 100%;
@@ -1106,9 +1118,12 @@ body {
   position: absolute;
   inset: 0;
   background-image: url("gifts/pattern.png");
-  background-size: cover;
+  /* Мельче, чем было: картинка рисуется уменьшенной и замощается. Кубы
+     редкие и полупрозрачные, поэтому стыки плитки глазом не ловятся. */
+  background-size: 58% auto;
+  background-repeat: repeat;
   background-position: center;
-  opacity: 0.35;
+  opacity: 0.3;
   pointer-events: none;
 }
 
@@ -1158,7 +1173,7 @@ body {
 .own-card__acts {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 
 .own-act {
@@ -1166,14 +1181,14 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 62px;
+  gap: 5px;
+  height: 50px;
   padding: 0 10px;
   border: 0;
-  border-radius: 16px;
+  border-radius: 14px;
   color: #fff;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 14px;
   cursor: pointer;
   transition: transform 0.12s ease;
 }
@@ -1189,8 +1204,8 @@ body {
 }
 
 .own-act svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 
 .own-title {

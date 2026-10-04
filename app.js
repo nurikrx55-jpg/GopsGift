@@ -12,21 +12,59 @@
   // Сколько висит всплывающее уведомление
   const TOAST_MS = 1900;
 
-  // Витрина подарков. art — распакованный .tgs: Lottie-JSON рядом в gifts/
-  const GIFTS = [
-    {
-      id: 'beetle',
-      name: 'Beetle',
-      art: 'gifts/beetle.json',
-      price: 2000,
-      badge: 'limited',
-      kind: 'default',
-      note: 'Подарок скоро можно будет улучшить, продать и выпустить как NFT',
-      left: 2,
-      total: 200,
+  // Единый каталог подарков. Витрина и профиль ссылаются на одни и те же
+  // записи, поэтому плашка редкости не может разойтись: купленный подарок
+  // показывает ровно ту же, что была на витрине.
+  const NFT_NOTE = 'Подарок скоро можно будет улучшить, продать и выпустить как NFT';
+
+  const CATALOG = {
+    gamepad: {
+      id: 'gamepad',
+      name: 'Gamepad',
+      art: 'gifts/gamepad.json',
+      price: 299,
+      badge: 'Premium',
+      kind: 'legend',
+      note: NFT_NOTE,
+      owner: '—',
+      left: 12,
+      total: 500,
+      status: 'Non-Unique'
+    },
+    corgi: {
+      id: 'corgi',
+      name: 'Corgi',
+      art: 'gifts/corgi.json',
+      price: 199,
+      badge: 'Эпический',
+      kind: 'epic',
+      note: NFT_NOTE,
+      owner: '—',
+      left: 340,
+      total: 2000,
+      status: 'Non-Unique'
+    },
+    bee: {
+      id: 'bee',
+      name: 'Bumblebee',
+      art: 'gifts/bee.json',
+      price: 99,
+      badge: 'Редкий',
+      kind: 'rare',
+      note: NFT_NOTE,
+      owner: '—',
+      left: 4210,
+      total: 10000,
       status: 'Non-Unique'
     }
-  ];
+  };
+
+  // Витрина
+  const GIFTS = [CATALOG.gamepad, CATALOG.corgi, CATALOG.bee];
+
+  // Подарки пользователя по разделам переключателя. Класть сюда записи из
+  // CATALOG, а не копии — иначе плашка снова разойдётся.
+  const OWNED = { gifts: [], nft: [] };
 
   // Насколько утянуть лист вниз, чтобы он закрылся
   const SHEET_CLOSE_DRAG = 110;
@@ -46,14 +84,6 @@
   const STARS = 0;
   const COUPONS = 0;
   // Подарки пользователя по разделам переключателя
-  const OWNED = {
-    gifts: [
-      { id: 'beetle-1', name: 'Beetle', art: 'gifts/beetle.json', price: 2000, badge: 'limited', kind: 'default', owner: '—', left: 2, total: 200 },
-      { id: 'beetle-2', name: 'Beetle', art: 'gifts/beetle.json', price: 2000, badge: 'premium', kind: 'premium', owner: '—', left: 54, total: 1000 },
-      { id: 'beetle-3', name: 'Beetle', art: 'gifts/beetle.json', price: 2000, badge: 'sold out', kind: 'sold', owner: '—', left: 0, total: 500 }
-    ],
-    nft: []
-  };
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
