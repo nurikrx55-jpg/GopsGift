@@ -385,17 +385,10 @@ body {
 .gift__badge[data-kind="sold"]    { --ribbon-fill: url(#ribbon-sold); }
 .gift__badge[data-kind="time"]    { --ribbon-fill: url(#ribbon-time); }
 
-/* Редкость: чем выше, тем тревожнее цвет */
+/* Редкость: зелёная, фиолетовая, жёлтая. Без обводок — только заливка */
 .gift__badge[data-kind="rare"]   { --ribbon-fill: url(#ribbon-rare); }
 .gift__badge[data-kind="epic"]   { --ribbon-fill: url(#ribbon-epic); }
 .gift__badge[data-kind="legend"] { --ribbon-fill: url(#ribbon-legend); }
-
-/* У самой редкой ленты вдобавок золотая обводка. Толщина делится на масштаб,
-   иначе на уменьшенной карточке она бы утолщалась вместе с лентой. */
-.gift__badge[data-kind="legend"] .gift__ribbon {
-  stroke: #f3c969;
-  stroke-width: calc(1.4 / var(--ribbon-scale));
-}
 
 .gift__ribbon {
   grid-area: 1 / 1;
