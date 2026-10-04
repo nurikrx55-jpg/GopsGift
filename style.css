@@ -1,0 +1,93 @@
+:root {
+  --bg: #0d0d0f;
+  --fg: #f2f2f7;
+  --surface: rgba(255, 255, 255, 0.08);
+  --surface-border: rgba(255, 255, 255, 0.14);
+
+  /* Telegram-отступы под «чёлку» и системные элементы; env() — фоллбэк для браузера */
+  --safe-top: max(var(--tg-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
+  --safe-right: max(var(--tg-safe-area-inset-right, 0px), env(safe-area-inset-right, 0px));
+  --safe-bottom: max(var(--tg-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  --safe-left: max(var(--tg-safe-area-inset-left, 0px), env(safe-area-inset-left, 0px));
+  --content-top: var(--tg-content-safe-area-inset-top, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.stage {
+  /* --tg-viewport-stable-height не прыгает при открытой клавиатуре */
+  min-height: var(--tg-viewport-stable-height, 100dvh);
+  display: grid;
+  place-items: center;
+  padding: calc(var(--safe-top) + var(--content-top)) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+.greeting {
+  margin: 0;
+  font-size: clamp(2.25rem, 12vw, 4rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  user-select: none;
+}
+
+.fs-btn {
+  position: fixed;
+  top: calc(var(--safe-top) + var(--content-top) + 12px);
+  right: calc(var(--safe-right) + 12px);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.fs-btn:active {
+  transform: scale(0.92);
+}
+
+.fs-btn[hidden] {
+  display: none;
+}
+
+.fs-btn__icon {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* В обычном режиме показываем «развернуть», в полноэкранном — «свернуть» */
+.fs-btn__exit,
+.fs-btn[aria-pressed="true"] .fs-btn__enter {
+  display: none;
+}
+
+.fs-btn[aria-pressed="true"] .fs-btn__exit {
+  display: block;
+}
