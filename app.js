@@ -12,8 +12,26 @@
 
   // Витрина подарков. art — распакованный .tgs: Lottie-JSON рядом в gifts/
   const GIFTS = [
-    { id: 'beetle', name: 'Beetle', art: 'gifts/beetle.json', price: 2000, badge: 'limited', kind: 'default' }
+    {
+      id: 'beetle',
+      name: 'Beetle',
+      art: 'gifts/beetle.json',
+      price: 2000,
+      badge: 'limited',
+      kind: 'default',
+      note: 'Подарок скоро можно будет улучшить, продать и выпустить как NFT',
+      left: 2,
+      total: 200,
+      status: 'Non-Unique'
+    }
   ];
+
+  // Насколько утянуть лист вниз, чтобы он закрылся
+  const SHEET_CLOSE_DRAG = 110;
+  // Резкий рывок закрывает, даже если утянули недалеко
+  const SHEET_FLING = 0.7;
+  // Остаток меньше этой доли — показываем, что подарок на исходе
+  const SCARCE_SHARE = 0.1;
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
@@ -25,6 +43,9 @@
   const sliderTrack = document.getElementById('slider-track');
   const sliderDots = document.getElementById('slider-dots');
   const giftsGrid = document.getElementById('gifts');
+  const sheet = document.getElementById('sheet');
+  const sheetPanel = sheet && sheet.querySelector('.sheet__panel');
+  const sheetScroll = sheet && sheet.querySelector('.sheet__scroll');
 
   let current = 0;
 
@@ -288,6 +309,18 @@
       card.appendChild(badge);
     }
 
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.addEventListener('click', () => {
+      haptic('light');
+      openSheet(gift);
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      openSheet(gift);
+    });
+
     const price = document.createElement('span');
     price.className = 'gift__price';
 
@@ -364,6 +397,208 @@
     holders.forEach((holder) => observer.observe(holder));
   }
 
+  // --- Карточка подарка крупным планом ---
+
+  let sheetPlayer = null;   // отдельный экземпляр анимации, живёт только пока лист открыт
+  let sheetGift = null;
+
+  function fillSheet(gift) {
+    document.getElementById('sheet-title').textContent = gift.name;
+    document.getElementById('sheet-note').textContent = gift.note || '';
+    document.getElementById('sheet-status').textContent = gift.status || '—';
+    document.getElementById('sheet-price').textContent = formatPrice(gift.price);
+    document.getElementById('sheet-buy-price').textContent = formatPrice(gift.price);
+
+    const badge = document.getElementById('sheet-badge');
+    badge.hidden = !gift.badge;
+    if (gift.badge) {
+      badge.dataset.kind = gift.kind || 'default';
+      document.getElementById('sheet-badge-label').textContent = gift.badge;
+    }
+
+    const known = typeof gift.left === 'number' && typeof gift.total === 'number';
+    const left = document.getElementById('sheet-left');
+    const gauge = document.getElementById('sheet-gauge');
+
+    left.textContent = known ? formatPrice(gift.left) + ' из ' + formatPrice(gift.total) : '—';
+    gauge.hidden = !known;
+
+    if (known) {
+      const rest = gift.total ? gift.left / gift.total : 0;
+      // Шкала показывает разобранное, а не остаток: при 2 из 200 полоска в
+      // полтора процента читалась бы как сбой, а не как «почти всё ушло»
+      const taken = Math.min(Math.max(1 - rest, 0), 1);
+
+      gauge.dataset.scarce = String(rest <= SCARCE_SHARE);
+      gauge.setAttribute('aria-label',
+        'Разобрано ' + (gift.total - gift.left) + ' из ' + gift.total);
+
+      // Ширину ставим после открытия — иначе шкала появится уже заполненной
+      document.getElementById('sheet-gauge-fill').style.width = '0%';
+      sheet.dataset.fill = (taken * 100).toFixed(1) + '%';
+    }
+  }
+
+  function openSheet(gift) {
+    if (!sheet || sheet.dataset.open === 'true') return;
+
+    sheetGift = gift;
+    fillSheet(gift);
+
+    sheet.hidden = false;
+    sheet.dataset.open = 'true';
+    // Сцена под листом не должна прокручиваться вместе с ним
+    if (stage) stage.style.overflow = 'hidden';
+
+    // Между снятием hidden и классом браузер обязан пересчитать стили, иначе
+    // перехода не будет. Читаем размер — это форсирует пересчёт синхронно;
+    // через requestAnimationFrame было бы ненадёжно: в фоновой вкладке кадры
+    // не идут, и лист открылся бы рывком.
+    void sheetPanel.offsetHeight;
+
+    sheet.classList.add('is-open');
+    if (sheet.dataset.fill) {
+      document.getElementById('sheet-gauge-fill').style.width = sheet.dataset.fill;
+    }
+
+    if (window.lottie) {
+      sheetPlayer = window.lottie.loadAnimation({
+        container: document.getElementById('sheet-art'),
+        renderer: 'canvas',
+        loop: true,
+        autoplay: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+        path: gift.art,
+        rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
+      });
+    }
+  }
+
+  function closeSheet() {
+    if (!sheet || sheet.dataset.open !== 'true') return;
+
+    sheet.dataset.open = 'false';
+    sheet.classList.remove('is-open', 'is-dragging');
+    sheetPanel.style.transform = '';
+
+    const done = () => {
+      sheet.hidden = true;
+      if (stage) stage.style.overflow = '';
+      if (sheetPlayer) {
+        sheetPlayer.destroy();
+        sheetPlayer = null;
+      }
+      sheetGift = null;
+    };
+
+    // Ждём конец выезда, но не полагаемся на событие целиком
+    let fired = false;
+    const onEnd = (event) => {
+      if (event.target !== sheetPanel || event.propertyName !== 'transform') return;
+      fired = true;
+      sheetPanel.removeEventListener('transitionend', onEnd);
+      done();
+    };
+    sheetPanel.addEventListener('transitionend', onEnd);
+    setTimeout(() => {
+      if (fired) return;
+      sheetPanel.removeEventListener('transitionend', onEnd);
+      done();
+    }, 500);
+  }
+
+  // Утягивание листа вниз пальцем
+  function initSheetDrag() {
+    let pointerId = null;
+    let startY = 0;
+    let startAt = 0;
+    let shift = 0;
+    let dragging = false;
+
+    sheetPanel.addEventListener('pointerdown', (event) => {
+      if (pointerId !== null || sheet.dataset.open !== 'true') return;
+      // Если содержимое прокручено, жест принадлежит ему, а не листу
+      if (sheetScroll.scrollTop > 0) return;
+
+      pointerId = event.pointerId;
+      startY = event.clientY;
+      startAt = event.timeStamp;
+      shift = 0;
+      dragging = false;
+    });
+
+    sheetPanel.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== pointerId) return;
+
+      const dy = event.clientY - startY;
+      // Вверх лист не тянется
+      if (dy <= 0 && !dragging) return;
+
+      if (!dragging) {
+        if (dy < DRAG_THRESHOLD) return;
+        dragging = true;
+        sheet.classList.add('is-dragging');
+        try {
+          sheetPanel.setPointerCapture(pointerId);
+        } catch (_) {}
+      }
+
+      shift = Math.max(dy, 0);
+      sheetPanel.style.transform = 'translateY(' + shift + 'px)';
+    });
+
+    function release(event) {
+      if (event.pointerId !== pointerId) return;
+
+      try {
+        if (sheetPanel.hasPointerCapture(pointerId)) {
+          sheetPanel.releasePointerCapture(pointerId);
+        }
+      } catch (_) {}
+      pointerId = null;
+
+      if (!dragging) return;
+      dragging = false;
+      sheet.classList.remove('is-dragging');
+
+      const speed = shift / Math.max(event.timeStamp - startAt, 1);
+      if (shift > SHEET_CLOSE_DRAG || speed > SHEET_FLING) {
+        haptic('light');
+        closeSheet();
+      } else {
+        // Не дотянули — лист возвращается на место
+        sheetPanel.style.transform = '';
+      }
+    }
+
+    sheetPanel.addEventListener('pointerup', release);
+    sheetPanel.addEventListener('pointercancel', release);
+  }
+
+  function initSheet() {
+    if (!sheet) return;
+
+    sheet.querySelectorAll('[data-sheet-close]').forEach((node) => {
+      node.addEventListener('click', () => {
+        haptic('light');
+        closeSheet();
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeSheet();
+    });
+
+    document.getElementById('sheet-buy').addEventListener('click', () => {
+      haptic('light');
+      // Оплата появится вместе с серверной частью
+      if (tg && tg.showAlert && sheetGift) {
+        tg.showAlert('Покупка «' + sheetGift.name + '» скоро заработает');
+      }
+    });
+
+    initSheetDrag();
+  }
+
   function initGifts() {
     if (!giftsGrid) return;
 
@@ -394,5 +629,6 @@
   initNav();
   initSlider();
   initGifts();
+  initSheet();
   initSplash();
 })();

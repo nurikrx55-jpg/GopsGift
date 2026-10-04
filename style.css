@@ -4,6 +4,9 @@
   /* Палитра карточек — из присланного образца */
   --secondary-bg: #1a1a1a;
   --gold: #443926;
+  --hint: #98989e;
+  --accent: #3e88f7;
+  --gift-bg: radial-gradient(50% 50% at 50% 50%, #6f6f6f 0%, #282829 100%);
 
   /* Telegram отдаёт отступ под системную панель; env() — фоллбэк для браузера */
   --safe-area-bottom: max(var(--tg-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
@@ -345,17 +348,18 @@ body {
    углы остаются целыми и обрезка не нужна. */
 .gift__badge {
   --ribbon-fill: url(#ribbon-default);
+  --ribbon-scale: 1;
 
   position: absolute;
-  top: 15.49px;
-  right: -20.68px;
-  width: 98px;
-  height: 26px;
+  top: calc(15.49px * var(--ribbon-scale));
+  right: calc(-20.68px * var(--ribbon-scale));
+  width: calc(98px * var(--ribbon-scale));
+  height: calc(26px * var(--ribbon-scale));
   transform: rotate(45deg);
 
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: calc(11px * var(--ribbon-scale));
   font-weight: 600;
   line-height: 1;
   color: #fff;
@@ -411,4 +415,275 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Карточка подарка крупным планом */
+
+.sheet[hidden] {
+  display: none;
+}
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  /* Выше плавающей навигации */
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.32s ease;
+}
+
+.sheet.is-open .sheet__backdrop {
+  opacity: 1;
+}
+
+.sheet__panel {
+  position: relative;
+  width: min(520px, 100%);
+  max-height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--secondary-bg);
+  border-radius: 24px 24px 0 0;
+  padding-bottom: max(16px, var(--safe-area-bottom));
+  /* Закрыта — уведена за нижний край; выезд и возврат идут одной кривой */
+  transform: translateY(100%);
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.sheet.is-open .sheet__panel {
+  transform: translateY(0);
+}
+
+/* Во время перетаскивания позицию задаёт палец, анимация мешает */
+.sheet.is-dragging .sheet__panel {
+  transition: none;
+}
+
+.sheet__head {
+  position: relative;
+  flex: none;
+  padding: 10px 16px 0;
+  display: grid;
+  place-items: center;
+}
+
+/* Ручка — подсказка, что лист можно утянуть вниз */
+.sheet__grabber {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.sheet__close {
+  position: absolute;
+  top: 4px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.12s ease;
+}
+
+.sheet__close:active {
+  transform: scale(0.9);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.sheet__close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+}
+
+.sheet__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 16px 0;
+  scrollbar-width: none;
+}
+
+.sheet__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Подложка под анимацию — градиент из присланной палитры */
+.sheet__stage {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: 20px;
+  background: var(--gift-bg);
+  display: grid;
+  place-items: center;
+}
+
+.sheet__art {
+  width: 62%;
+  aspect-ratio: 1;
+}
+
+.sheet__art canvas,
+.sheet__art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sheet__badge {
+  --ribbon-scale: 1.45;
+}
+
+.sheet__title {
+  margin: 18px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+
+.sheet__note {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--hint);
+}
+
+.sheet__specs {
+  margin: 20px 0 0;
+  padding: 4px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sheet__spec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+}
+
+/* Разделители только между строками — у крайних их быть не должно */
+.sheet__spec + .sheet__spec,
+.sheet__gauge + .sheet__spec {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.sheet__spec dt {
+  font-size: 15px;
+  color: var(--hint);
+}
+
+.sheet__spec dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Остаток виден глазом, а не только числом */
+.sheet__gauge {
+  height: 5px;
+  margin: 0 0 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.sheet__gauge-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  /* Ширину ставит app.js; заполняется уже после открытия листа */
+  width: 0;
+  transition: width 0.6s 0.15s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s ease;
+}
+
+/* Подарок на исходе — подсветка становится тревожной */
+.sheet__gauge[data-scarce="true"] .sheet__gauge-fill {
+  background: #f6b329;
+}
+
+.sheet__price {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.sheet__foot {
+  flex: none;
+  padding: 14px 16px 0;
+}
+
+.sheet__buy {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.2s ease;
+}
+
+.sheet__buy:active {
+  transform: scale(0.98);
+  filter: brightness(0.92);
+}
+
+.sheet__buy-star {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Карточка на витрине откликается на нажатие */
+.gift {
+  cursor: pointer;
+  transition: transform 0.16s ease;
+}
+
+.gift:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet__backdrop,
+  .sheet__panel,
+  .sheet__gauge-fill {
+    transition-duration: 0.01ms;
+  }
 }
