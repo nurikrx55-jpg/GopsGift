@@ -37,7 +37,8 @@
   // Потолок на случай, если наличие не указано
   const QTY_MAX = 99;
 
-  // Купоны брать пока неоткуда — появится счёт, подставить сюда
+  // Балансы брать пока неоткуда — появится счёт, подставить сюда
+  const STARS = 0;
   const COUPONS = 0;
   // Подарки пользователя по разделам переключателя
   const OWNED = { gifts: [], nft: [] };
@@ -401,16 +402,59 @@
     }
   }
 
+  // Один прогон и остановка на последнем кадре — так ведут себя все анимации
+  // в приложении, кроме той, что в раскрытой карточке.
+  function playOnce(container, path) {
+    if (!window.lottie) return null;
+
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const player = window.lottie.loadAnimation({
+      container: container,
+      renderer: 'canvas',
+      loop: false,
+      autoplay: !still,
+      path: path,
+      // Ретина: рисуем в большем разрешении, выше 2x смысла нет
+      rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
+    });
+
+    // У некоторых композиций нулевой кадр пустой: просто не запускать нельзя,
+    // иначе на месте анимации останется пустое место
+    if (still) {
+      player.addEventListener('DOMLoaded', () => {
+        player.goToAndStop(player.totalFrames - 1, true);
+      });
+    }
+
+    return player;
+  }
+
+  // Анимацию нельзя заводить, пока её контейнер не показался на экране: у
+  // скрытого блока нулевой размер, и lottie нарисует canvas шириной 0, который
+  // сам потом не пересчитает. Наблюдатель срабатывает только когда у элемента
+  // появился размер, и это разом решает обе задачи — и размер, и экономию.
+  function playWhenSeen(container, path, onReady) {
+    whenLottieReady(() => {
+      const observer = new IntersectionObserver((entries, obs) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+
+          obs.unobserve(entry.target);
+          const player = playOnce(entry.target, path);
+          if (onReady) onReady(player);
+        });
+      }, { rootMargin: '120px' });
+
+      observer.observe(container);
+      if (onReady) onReady(null, observer);
+    });
+  }
+
   // Анимацию заводим, только когда карточка показалась на экране: на витрине
-  // их будут десятки, грузить все разом незачем. Играет она один раз и замирает
-  // на последнем кадре — витрина не должна дёргаться без остановки.
+  // их будут десятки, грузить все разом незачем.
   function initGiftArt() {
     const holders = Array.from(giftsGrid.querySelectorAll('.gift__art'));
     if (!holders.length) return;
-
-    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    // Ретина: рисуем в большем разрешении, выше 2x смысла нет
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -418,23 +462,7 @@
 
         // Один прогон — наблюдать дальше не за чем
         observer.unobserve(entry.target);
-
-        const player = window.lottie.loadAnimation({
-          container: entry.target,
-          renderer: 'canvas',
-          loop: false,
-          autoplay: !still,
-          path: entry.target.dataset.art,
-          rendererSettings: { dpr: dpr }
-        });
-
-        // Композиция начинается с 60-го кадра, поэтому нулевой пустой: если
-        // просто не запускать анимацию, карточка осталась бы белой
-        if (still) {
-          player.addEventListener('DOMLoaded', () => {
-            player.goToAndStop(player.totalFrames - 1, true);
-          });
-        }
+        playOnce(entry.target, entry.target.dataset.art);
       });
     }, { rootMargin: '120px' });
 
@@ -727,23 +755,40 @@
     return [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Без имени';
   }
 
+  let emptyPlayer = null;
+  let emptyWatch = null;
+
   function emptyState() {
     const box = document.createElement('div');
     box.className = 'prf__empty';
-    box.innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
-      '<path d="M3.5 8.5h17v11a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M2.5 5.5h19v3h-19zM12 5.5V21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<path d="M12 5.5C9.5 5.5 7 5 7 3.6 7 2.7 7.8 2 8.8 2c1.9 0 3.2 3.5 3.2 3.5Zm0 0c2.5 0 5-.5 5-1.9 0-.9-.8-1.6-1.8-1.6C13.3 2 12 5.5 12 5.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '</svg>';
+
+    const art = document.createElement('div');
+    art.className = 'prf__empty-art';
 
     const title = document.createElement('b');
-    title.textContent = 'Пусто';
+    title.textContent = 'Нет подарков(';
 
-    const note = document.createElement('span');
-    note.textContent = 'Здесь появятся ваши подарки';
+    const line = document.createElement('p');
+    line.append('Подарки можно покупать в');
 
-    box.append(title, note);
+    const market = document.createElement('button');
+    market.type = 'button';
+    market.className = 'prf__market glass';
+    market.innerHTML = '<svg viewBox="0 0 643 617" aria-hidden="true"><use href="#logo"></use></svg>';
+    market.append('Market');
+    market.addEventListener('click', () => {
+      haptic('select');
+      selectTab(0);
+    });
+
+    line.appendChild(market);
+    box.append(art, title, line);
+
+    playWhenSeen(art, 'gifts/empty.json', (player, observer) => {
+      if (observer) emptyWatch = observer;
+      if (player) emptyPlayer = player;
+    });
+
     return box;
   }
 
@@ -751,6 +796,17 @@
     const list = document.getElementById('prf-list');
     const total = document.getElementById('prf-total');
     const items = OWNED[kind] || [];
+
+    // Старая анимация «пусто» уходит вместе с разметкой — плеер и наблюдателя
+    // снимаем сами, иначе они останутся висеть на выброшенном узле
+    if (emptyPlayer) {
+      emptyPlayer.destroy();
+      emptyPlayer = null;
+    }
+    if (emptyWatch) {
+      emptyWatch.disconnect();
+      emptyWatch = null;
+    }
 
     list.textContent = '';
     total.textContent = formatPrice(items.length) + ' ' + plural(items.length, 'подарок', 'подарка', 'подарков');
@@ -796,6 +852,15 @@
     return ok;
   }
 
+  function initHeader() {
+    const stars = document.getElementById('hdr-stars');
+    const coupons = document.getElementById('hdr-coupons');
+    if (!stars || !coupons) return;
+
+    stars.textContent = formatPrice(STARS);
+    coupons.textContent = formatPrice(COUPONS);
+  }
+
   function initProfile() {
     const tabs = document.getElementById('prf-tabs');
     if (!tabs) return;
@@ -803,7 +868,6 @@
     const user = tgUser();
     const owned = OWNED.gifts.length + OWNED.nft.length;
 
-    document.getElementById('prf-coupons').textContent = formatPrice(COUPONS);
     document.getElementById('prf-name').textContent = userTitle(user);
     document.getElementById('prf-count').textContent =
       formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
@@ -829,10 +893,6 @@
       const done = () => {
         haptic('success');
         toast('ID скопирован');
-        copy.dataset.done = 'true';
-        setTimeout(() => {
-          copy.dataset.done = 'false';
-        }, 1200);
       };
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -887,6 +947,7 @@
   initSlider();
   initGifts();
   initSheet();
+  initHeader();
   initProfile();
   initSplash();
 })();

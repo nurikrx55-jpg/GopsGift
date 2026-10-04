@@ -1,9 +1,9 @@
-/* SF Rounded Heavy — единственное начертание в проекте. Диапазон весов указан
-   целиком намеренно: иначе браузер начал бы доутолщать и без того жирные глифы
-   там, где стоит 600 или 700, и буквы бы поплыли. */
+/* SF Rounded Semibold — единственное начертание в проекте. Диапазон весов указан
+   целиком намеренно: иначе браузер доутолщал бы глифы там, где в стилях стоит
+   700, и буквы бы поплыли. */
 @font-face {
   font-family: "SF Rounded";
-  src: url("fonts/sf-rounded-heavy.woff2") format("woff2");
+  src: url("fonts/sf-rounded-semibold.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -25,6 +25,7 @@
   --safe-area-top: max(var(--tg-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
   --content-top: var(--tg-content-safe-area-inset-top, 0px);
 
+  --header-h: 44px;
   --tabs: 4;
   --ease: cubic-bezier(0.34, 1.2, 0.5, 1);
 }
@@ -61,11 +62,12 @@ body {
 
 .stage {
   height: var(--tg-viewport-stable-height, 100dvh);
+  /* Верхний отступ держит содержимое ниже шапки с балансами */
   /* Карточек станет много — прокрутку держим на сцене, body её запрещает */
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  padding-top: calc(var(--safe-area-top) + var(--content-top) + 16px);
+  padding-top: calc(var(--safe-area-top) + var(--content-top) + var(--header-h) + 14px);
   padding-bottom: calc(var(--safe-area-bottom) + 108px);
 }
 
@@ -787,32 +789,10 @@ body {
   display: block;
 }
 
-/* Купоны живут без подложки — только иконка и счёт */
-.prf__top {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0 20px;
-}
-
-.prf__coupons {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  line-height: 1;
-}
-
-.prf__coupon-icon {
-  width: 19px;
-  height: 19px;
-  display: block;
-  -webkit-user-drag: none;
-}
-
 .prf__card {
   display: grid;
   justify-items: center;
-  padding: 18px 16px 0;
+  padding: 4px 16px 0;
 }
 
 .prf__avatar {
@@ -862,10 +842,6 @@ body {
 
 .prf__copy:active {
   transform: scale(0.86);
-}
-
-.prf__copy[data-done="true"] {
-  color: #4cd964;
 }
 
 /* Переключатель «Подарки / NFT» */
@@ -944,16 +920,56 @@ body {
   color: var(--hint);
 }
 
-.prf__empty svg {
-  width: 56px;
-  height: 56px;
-  opacity: 0.45;
+.prf__empty-art {
+  width: 132px;
+  aspect-ratio: 1;
+}
+
+.prf__empty-art canvas,
+.prf__empty-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .prf__empty b {
-  font-size: 19px;
+  font-size: 21px;
   font-weight: inherit;
   color: #f5f5f7;
+}
+
+/* Текст и кнопка стоят одной строкой, как на образце */
+.prf__empty p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: -4px 0 0;
+}
+
+.prf__market {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 99em;
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.prf__market:active {
+  transform: scale(0.94);
+}
+
+.prf__market svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
 }
 
 /* Всплывающее уведомление */
@@ -998,4 +1014,37 @@ body {
   .toast {
     transition-duration: 0.01ms;
   }
+}
+
+/* Шапка с балансами */
+
+.hdr {
+  position: fixed;
+  top: calc(var(--safe-area-top) + var(--content-top));
+  left: 0;
+  right: 0;
+  z-index: 60;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 0 20px;
+  /* Ничего в шапке не нажимается — не перехватываем касания у содержимого */
+  pointer-events: none;
+}
+
+.hdr__balance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.hdr__icon {
+  width: 19px;
+  height: 19px;
+  display: block;
+  -webkit-user-drag: none;
 }
