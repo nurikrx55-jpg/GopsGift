@@ -35,6 +35,11 @@
   // Потолок на случай, если наличие не указано
   const QTY_MAX = 99;
 
+  // Купоны брать пока неоткуда — появится счёт, подставить сюда
+  const COUPONS = 0;
+  // Подарки пользователя по разделам переключателя
+  const OWNED = { gifts: [], nft: [] };
+
   const tg = window.Telegram && window.Telegram.WebApp;
 
   const nav = document.querySelector('._footer_1mfct_7');
@@ -683,6 +688,130 @@
     whenLottieReady(initGiftArt);
   }
 
+  // --- Профиль ---
+
+  function tgUser() {
+    return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+  }
+
+  function userTitle(user) {
+    if (!user) return 'Гость';
+    if (user.username) return '@' + user.username;
+    return [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Без имени';
+  }
+
+  function emptyState() {
+    const box = document.createElement('div');
+    box.className = 'prf__empty';
+    box.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+      '<path d="M3.5 8.5h17v11a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '<path d="M2.5 5.5h19v3h-19zM12 5.5V21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '<path d="M12 5.5C9.5 5.5 7 5 7 3.6 7 2.7 7.8 2 8.8 2c1.9 0 3.2 3.5 3.2 3.5Zm0 0c2.5 0 5-.5 5-1.9 0-.9-.8-1.6-1.8-1.6C13.3 2 12 5.5 12 5.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '</svg>';
+
+    const title = document.createElement('b');
+    title.textContent = 'Пусто';
+
+    const note = document.createElement('span');
+    note.textContent = 'Здесь появятся ваши подарки';
+
+    box.append(title, note);
+    return box;
+  }
+
+  function renderOwned(kind) {
+    const list = document.getElementById('prf-list');
+    const total = document.getElementById('prf-total');
+    const items = OWNED[kind] || [];
+
+    list.textContent = '';
+    total.textContent = formatPrice(items.length) + ' ' + plural(items.length, 'подарок', 'подарка', 'подарков');
+
+    if (!items.length) {
+      list.appendChild(emptyState());
+      return;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'gifts';
+    items.forEach((gift) => grid.appendChild(buildGift(gift)));
+    list.appendChild(grid);
+  }
+
+  // 1 подарок, 2 подарка, 5 подарков
+  function plural(n, one, few, many) {
+    const mod100 = n % 100;
+    const mod10 = n % 10;
+    if (mod100 >= 11 && mod100 <= 14) return many;
+    if (mod10 === 1) return one;
+    if (mod10 >= 2 && mod10 <= 4) return few;
+    return many;
+  }
+
+  function initProfile() {
+    const tabs = document.getElementById('prf-tabs');
+    if (!tabs) return;
+
+    const user = tgUser();
+    const owned = OWNED.gifts.length + OWNED.nft.length;
+
+    document.getElementById('prf-coupons').textContent = formatPrice(COUPONS);
+    document.getElementById('prf-name').textContent = userTitle(user);
+    document.getElementById('prf-count').textContent =
+      formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
+
+    const avatar = document.getElementById('prf-avatar');
+    if (user && user.photo_url) {
+      avatar.style.backgroundImage = 'url("' + user.photo_url + '")';
+    } else {
+      // Фотографии нет — показываем первую букву на градиенте
+      avatar.textContent = userTitle(user).replace('@', '').charAt(0).toUpperCase();
+    }
+
+    const id = document.getElementById('prf-id');
+    const copy = document.getElementById('prf-copy');
+    id.textContent = user ? String(user.id) : '—';
+    copy.hidden = !user;
+
+    function copyId() {
+      if (!user) return;
+      haptic('light');
+
+      const done = () => {
+        copy.dataset.done = 'true';
+        setTimeout(() => {
+          copy.dataset.done = 'false';
+        }, 1200);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(String(user.id)).then(done, () => {});
+      }
+    }
+
+    copy.addEventListener('click', copyId);
+    copy.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      copyId();
+    });
+
+    const buttons = Array.from(tabs.querySelectorAll('.prf-tabs__tab'));
+    buttons.forEach((button, index) => {
+      button.addEventListener('click', () => {
+        if (button.classList.contains('is-active')) return;
+
+        haptic('select');
+        buttons.forEach((other) => other.classList.toggle('is-active', other === button));
+        tabs.style.setProperty('--prf-index', String(index));
+        renderOwned(button.dataset.prfTab);
+      });
+    });
+
+    renderOwned('gifts');
+  }
+
   function initSplash() {
     if (!splash) return;
 
@@ -707,5 +836,6 @@
   initSlider();
   initGifts();
   initSheet();
+  initProfile();
   initSplash();
 })();

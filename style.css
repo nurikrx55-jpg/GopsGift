@@ -673,14 +673,14 @@ body {
 }
 
 /* Счётчик штук — высотой вровень с кнопкой покупки */
+/* Фон и ободок приходят из .glass — класс висит на элементе в разметке */
 .sheet__qty {
   flex: none;
   display: flex;
   align-items: center;
   height: 52px;
   padding: 0 2px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99em;
 }
 
 .sheet__qty-btn {
@@ -763,4 +763,192 @@ body {
   .sheet__gauge-fill {
     transition-duration: 0.01ms;
   }
+}
+
+/* Стеклянная поверхность: полупрозрачная подложка, размытие под ней и четыре
+   внутренние тени по краям — светлее сверху, глуше снизу. Отсюда ободок,
+   из-за которого поверхность читается как стекло, а не как серый прямоугольник. */
+.glass {
+  /* Запасной цвет для браузеров без color-mix */
+  background-color: rgba(30, 30, 30, 0.5);
+  background-color: color-mix(in srgb, #1e1e1e 50%, transparent);
+  -webkit-backdrop-filter: blur(13px) saturate(1.4);
+  backdrop-filter: blur(13px) saturate(1.4);
+  box-shadow:
+    inset 1.8px 3px 0 -2px rgba(255, 255, 255, 0.06),
+    inset 2px 2px 0 -2px rgba(255, 255, 255, 0.09),
+    inset -2px -2px 2px -2px rgba(255, 255, 255, 0.09),
+    inset -1.8px -3px 0 -2px rgba(255, 255, 255, 0.06);
+}
+
+/* Профиль */
+
+.stage[data-section="profile"] .pane[data-pane="profile"] {
+  display: block;
+}
+
+/* Купоны живут без подложки — только иконка и счёт */
+.prf__top {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 20px;
+}
+
+.prf__coupons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.prf__coupon-icon {
+  width: 26px;
+  height: 26px;
+  display: block;
+  -webkit-user-drag: none;
+}
+
+.prf__card {
+  display: grid;
+  justify-items: center;
+  padding: 18px 16px 0;
+}
+
+.prf__avatar {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  /* Фоллбэк, когда Telegram не отдал фотографию */
+  background: linear-gradient(160deg, #8fe06a, #58c24a);
+  background-size: cover;
+  background-position: center;
+  display: grid;
+  place-items: center;
+  font-size: 44px;
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.prf__name {
+  margin: 16px 0 0;
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.prf__meta {
+  margin: 7px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  color: var(--hint);
+}
+
+.prf__dot {
+  opacity: 0.55;
+}
+
+.prf__copy {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--hint);
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.12s ease;
+}
+
+.prf__copy:active {
+  transform: scale(0.86);
+}
+
+.prf__copy[data-done="true"] {
+  color: #4cd964;
+}
+
+/* Переключатель «Подарки / NFT» */
+.prf-tabs {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 52px;
+  margin: 26px 16px 0;
+  padding: 4px;
+  border-radius: 99em;
+}
+
+/* Капсула едет за --prf-index */
+.prf-tabs__thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 2);
+  border-radius: 99em;
+  background: rgba(255, 255, 255, 0.09);
+  transform: translateX(calc(var(--prf-index, 0) * 100%));
+  transition: transform 0.42s var(--ease);
+}
+
+.prf-tabs__tab {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 99em;
+  background: none;
+  color: var(--hint);
+  font-family: inherit;
+  font-size: 17px;
+  cursor: pointer;
+  transition: color 0.26s ease;
+}
+
+.prf-tabs__tab.is-active {
+  color: #f5f5f7;
+}
+
+.prf-tabs__tab svg {
+  width: 19px;
+  height: 19px;
+}
+
+.prf__total {
+  margin: 26px 0 0;
+  padding: 0 20px;
+  font-size: 19px;
+}
+
+.prf__list {
+  margin-top: 16px;
+}
+
+/* Разделов два, а сетка одна — переиспользуем витринную */
+.prf__list .gifts {
+  margin-top: 0;
+}
+
+.prf__empty {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 54px 24px 24px;
+  text-align: center;
+  color: var(--hint);
+}
+
+.prf__empty svg {
+  width: 56px;
+  height: 56px;
+  opacity: 0.45;
+}
+
+.prf__empty b {
+  font-size: 19px;
+  font-weight: inherit;
+  color: #f5f5f7;
 }

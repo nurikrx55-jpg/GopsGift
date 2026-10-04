@@ -64,6 +64,48 @@
 
       <div class="gifts" id="gifts"></div>
     </section>
+
+    <section class="pane" data-pane="profile">
+      <!-- Купоны: иконка и счёт, без подложки -->
+      <div class="prf__top">
+        <span class="prf__coupons">
+          <img class="prf__coupon-icon" alt="" draggable="false" src="data:image/svg+xml,%3Csvg%20width='24'%20height='24'%20viewBox='0.505%200.51%2016.5%2016.5'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3E%3Cg%20clip-path='url(%23tc)'%3E%3Cpath%20fill-rule='evenodd'%20clip-rule='evenodd'%20d='M7.66812%203.98296L3.69517%206.02879C2.43184%206.67932%201.93508%208.23082%202.58562%209.49414L2.88891%2010.0831C3.02916%2010.3555%203.32052%2010.4548%203.56239%2010.4199C3.95209%2010.3635%204.35084%2010.5558%204.54067%2010.9245C4.7305%2011.2931%204.65541%2011.7294%204.3832%2012.0139C4.21429%2012.1905%204.12591%2012.4854%204.26617%2012.7577L4.56945%2013.3467C5.22%2014.61%206.77148%2015.1068%208.0348%2014.4563L12.0078%2012.4104L11.0778%2010.6045C10.9751%2010.4051%2011.0536%2010.1601%2011.253%2010.0574C11.4525%209.95466%2011.6975%2010.0331%2011.8002%2010.2326L12.7301%2012.0385L13.8136%2011.4805C15.077%2010.83%2015.5737%209.27849%2014.9232%208.01515L14.6199%207.42619C14.4797%207.15381%2014.1883%207.05448%2013.9464%207.08941C13.5567%207.14573%2013.158%206.95347%2012.9681%206.58483C12.7783%206.21618%2012.8534%205.77991%2013.1256%205.49541C13.2945%205.31881%2013.3829%205.02393%2013.2426%204.75157L12.9394%204.16259C12.2888%202.89927%2010.7374%202.40249%209.474%203.05304L8.39047%203.61099L9.32039%205.41687C9.42311%205.61635%209.34467%205.86132%209.1452%205.96404C8.94573%206.06675%208.70075%205.98831%208.59804%205.78884L7.66812%203.98296ZM9.64116%206.92718C9.84063%206.82446%2010.0856%206.9029%2010.1883%207.10237L10.9323%208.54708C11.035%208.74654%2010.9565%208.99152%2010.7571%209.09424C10.5576%209.19695%2010.3126%209.11851%2010.2099%208.91904L9.46597%207.47434C9.36325%207.27487%209.44169%207.02989%209.64116%206.92718Z'%20fill='white'/%3E%3C/g%3E%3Cdefs%3E%3CclipPath%20id='tc'%3E%3Crect%20width='13'%20height='13'%20fill='white'%20transform='translate(0%205.9515)%20rotate(-27.2457)'/%3E%3C/clipPath%3E%3C/defs%3E%3C/svg%3E">
+          <span id="prf-coupons">0</span>
+        </span>
+      </div>
+
+      <div class="prf__card">
+        <div class="prf__avatar" id="prf-avatar"></div>
+        <p class="prf__name" id="prf-name"></p>
+
+        <p class="prf__meta">
+          <span id="prf-count">0 подарков</span>
+          <span class="prf__dot" aria-hidden="true">·</span>
+          <span class="prf__id" id="prf-id"></span>
+          <!-- Иконка, а не кнопка: нажатие копирует идентификатор -->
+          <svg class="prf__copy" id="prf-copy" viewBox="0 0 24 24" role="button" tabindex="0" aria-label="Скопировать ID">
+            <rect x="9" y="9" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M15 5.5A2.5 2.5 0 0 0 12.5 3h-7A2.5 2.5 0 0 0 3 5.5v7A2.5 2.5 0 0 0 5.5 15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </p>
+      </div>
+
+      <div class="prf-tabs glass" id="prf-tabs" style="--prf-index: 0">
+        <span class="prf-tabs__thumb" aria-hidden="true"></span>
+        <button class="prf-tabs__tab is-active" type="button" data-prf-tab="gifts">Подарки</button>
+        <button class="prf-tabs__tab" type="button" data-prf-tab="nft">
+          NFT
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2.8 20.2 7v10L12 21.2 3.8 17V7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M3.8 7 12 11.6 20.2 7M12 11.6v9.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <p class="prf__total" id="prf-total">0 подарков</p>
+
+      <div class="prf__list" id="prf-list"></div>
+    </section>
   </main>
 
   <nav class="_footer_1mfct_7" aria-label="Навигация" style="--active-index: 0;">
@@ -129,7 +171,7 @@
       </div>
 
       <div class="sheet__foot">
-        <div class="sheet__qty">
+        <div class="sheet__qty glass">
           <button class="sheet__qty-btn" type="button" id="qty-less" aria-label="Убрать один">&minus;</button>
           <span class="sheet__qty-value" id="qty-value" aria-live="polite">1</span>
           <button class="sheet__qty-btn" type="button" id="qty-more" aria-label="Добавить один">+</button>
