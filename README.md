@@ -1,7 +1,7 @@
 # GopsGift
 
-Telegram Mini App. Пока это заготовка: тёмная страница, текст «привет» по центру
-и кнопка переключения полноэкранного режима.
+Telegram Mini App. Пока это заготовка: пустая тёмная страница, которая сама
+разворачивается в полноэкранный режим при открытии.
 
 Статика без сборки — ни Node, ни зависимостей не требуется.
 
@@ -11,7 +11,7 @@ Telegram Mini App. Пока это заготовка: тёмная страни
 | --- | --- |
 | `index.html` | разметка, подключение `telegram-web-app.js` |
 | `style.css` | тёмная тема, центрирование, safe-area отступы |
-| `app.js` | инициализация Telegram SDK, fullscreen |
+| `app.js` | инициализация Telegram SDK, автовход в fullscreen |
 
 ## Локальный просмотр
 
@@ -21,22 +21,25 @@ Telegram Mini App. Пока это заготовка: тёмная страни
 python3 -m http.server 5173
 ```
 
-Затем открыть http://localhost:5173. Вне Telegram кнопка fullscreen
-использует обычный Fullscreen API браузера.
+Затем открыть http://localhost:5173. Вне Telegram будет просто тёмная
+страница: автоматический fullscreen — возможность Telegram, браузер такое
+без действия пользователя не разрешает.
 
 ## Деплой
 
-Vercel импортирует репозиторий как статический проект: framework preset
-«Other», build command пустой, output directory — корень. Каждый push в `main`
-уходит в продакшн.
+Продакшн: https://gopsgift.vercel.app (проект Vercel `gopsgift`).
+
+Статический проект: framework preset «Other», build command пустой, output
+directory — корень. Git-интеграция пока не подключена, деплой идёт загрузкой
+файлов напрямую.
 
 ## Привязка к боту
 
 1. @BotFather → `/mybots` → бот → **Bot Settings** → **Menu Button** → указать URL с Vercel.
 2. Либо `/newapp` для отдельного Mini App с прямой ссылкой.
 
-Fullscreen работает в Telegram-клиентах с Bot API 8.0 и выше; на старых
-версиях кнопка переключает полноэкранный режим средствами браузера.
+Fullscreen включается автоматически в Telegram-клиентах с Bot API 8.0 и выше.
+На старых версиях приложение просто открывается в обычном режиме.
 
 ## Токен бота
 

@@ -2,50 +2,28 @@
   'use strict';
 
   const BG = '#0d0d0f';
-  // requestFullscreen/exitFullscreen появились в Bot API 8.0
+  // requestFullscreen появился в Bot API 8.0
   const FULLSCREEN_API = '8.0';
 
   const tg = window.Telegram && window.Telegram.WebApp;
-  const btn = document.getElementById('fullscreen-toggle');
 
   const hasTgFullscreen = () =>
     Boolean(tg && tg.isVersionAtLeast && tg.isVersionAtLeast(FULLSCREEN_API));
 
-  const hasNativeFullscreen = () =>
-    Boolean(document.documentElement.requestFullscreen);
+  function enterFullscreen() {
+    if (!hasTgFullscreen() || tg.isFullscreen) return;
 
-  const isFullscreen = () =>
-    hasTgFullscreen() ? Boolean(tg.isFullscreen) : Boolean(document.fullscreenElement);
-
-  function syncButton() {
-    const on = isFullscreen();
-    btn.setAttribute('aria-pressed', String(on));
-    btn.setAttribute('aria-label', on ? 'Выйти из полноэкранного режима' : 'Включить полноэкранный режим');
-  }
-
-  function toggleFullscreen() {
-    if (tg && tg.HapticFeedback) {
-      tg.HapticFeedback.impactOccurred('light');
-    }
-
-    if (hasTgFullscreen()) {
-      if (tg.isFullscreen) {
-        tg.exitFullscreen();
-      } else {
-        tg.requestFullscreen();
+    tg.onEvent('fullscreenFailed', (event) => {
+      const error = event && event.error;
+      if (error !== 'ALREADY_FULLSCREEN') {
+        console.warn('Fullscreen не включился:', error);
       }
-      return;
-    }
+    });
 
-    // Вне Telegram (или на старом клиенте) — обычный Fullscreen API браузера
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    } else {
-      document.documentElement.requestFullscreen().catch(() => {});
-    }
+    tg.requestFullscreen();
   }
 
-  function initTelegram() {
+  function init() {
     if (!tg) return;
 
     tg.ready();
@@ -61,24 +39,7 @@
       tg.disableVerticalSwipes();
     }
 
-    if (hasTgFullscreen()) {
-      tg.onEvent('fullscreenChanged', syncButton);
-      tg.onEvent('fullscreenFailed', (event) => {
-        console.warn('Fullscreen не включился:', event && event.error);
-        syncButton();
-      });
-    }
-  }
-
-  function init() {
-    initTelegram();
-
-    if (hasTgFullscreen() || hasNativeFullscreen()) {
-      btn.hidden = false;
-      btn.addEventListener('click', toggleFullscreen);
-      document.addEventListener('fullscreenchange', syncButton);
-      syncButton();
-    }
+    enterFullscreen();
   }
 
   init();
