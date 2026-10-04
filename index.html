@@ -93,20 +93,11 @@
     <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <div class="sheet__head">
         <span class="sheet__grabber" aria-hidden="true"></span>
-        <button class="sheet__close" type="button" data-sheet-close aria-label="Закрыть">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
       </div>
 
       <div class="sheet__scroll">
         <div class="sheet__stage">
           <div class="sheet__art" id="sheet-art"></div>
-          <span class="gift__badge sheet__badge" id="sheet-badge" hidden>
-            <svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true"><use href="#ribbon-shape"></use></svg>
-            <span class="gift__label" id="sheet-badge-label"></span>
-          </span>
         </div>
 
         <h2 class="sheet__title" id="sheet-title"></h2>
@@ -127,8 +118,8 @@
           <dt>Цена</dt>
           <dd>
             <span class="sheet__value sheet__price">
-              <img class="gift__star" src="gifts/star.png" alt="звёзд" draggable="false">
-              <span class="gift__amount" id="sheet-price"></span>
+              <img class="gift__star" src="gifts/star-white.png" alt="звёзд" draggable="false">
+              <span class="sheet__amount" id="sheet-price"></span>
             </span>
           </dd>
 
@@ -138,9 +129,15 @@
       </div>
 
       <div class="sheet__foot">
+        <div class="sheet__qty">
+          <button class="sheet__qty-btn" type="button" id="qty-less" aria-label="Убрать один">&minus;</button>
+          <span class="sheet__qty-value" id="qty-value" aria-live="polite">1</span>
+          <button class="sheet__qty-btn" type="button" id="qty-more" aria-label="Добавить один">+</button>
+        </div>
+
         <button class="sheet__buy" type="button" id="sheet-buy">
           <span>Купить за</span>
-          <img class="sheet__buy-star" src="gifts/star.png" alt="" draggable="false">
+          <img class="sheet__buy-star" src="gifts/star-white.png" alt="" draggable="false">
           <span id="sheet-buy-price"></span>
         </button>
       </div>

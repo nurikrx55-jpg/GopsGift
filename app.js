@@ -32,6 +32,8 @@
   const SHEET_FLING = 0.7;
   // Остаток меньше этой доли — показываем, что подарок на исходе
   const SCARCE_SHARE = 0.1;
+  // Потолок на случай, если наличие не указано
+  const QTY_MAX = 99;
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
@@ -367,8 +369,9 @@
     }
   }
 
-  // Анимации заводим только у видимых карточек и тормозим ушедшие за край:
-  // на витрине их будут десятки, крутить все разом — зря греть телефон
+  // Анимацию заводим, только когда карточка показалась на экране: на витрине
+  // их будут десятки, грузить все разом незачем. Играет она один раз и замирает
+  // на последнем кадре — витрина не должна дёргаться без остановки.
   function initGiftArt() {
     const holders = Array.from(giftsGrid.querySelectorAll('.gift__art'));
     if (!holders.length) return;
@@ -376,29 +379,30 @@
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     // Ретина: рисуем в большем разрешении, выше 2x смысла нет
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const players = new Map();
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        const player = players.get(entry.target);
+        if (!entry.isIntersecting) return;
 
-        if (!player) {
-          if (!entry.isIntersecting) return;
+        // Один прогон — наблюдать дальше не за чем
+        observer.unobserve(entry.target);
 
-          players.set(entry.target, window.lottie.loadAnimation({
-            container: entry.target,
-            renderer: 'canvas',
-            loop: !still,
-            autoplay: !still,
-            path: entry.target.dataset.art,
-            rendererSettings: { dpr: dpr }
-          }));
-          return;
+        const player = window.lottie.loadAnimation({
+          container: entry.target,
+          renderer: 'canvas',
+          loop: false,
+          autoplay: !still,
+          path: entry.target.dataset.art,
+          rendererSettings: { dpr: dpr }
+        });
+
+        // Композиция начинается с 60-го кадра, поэтому нулевой пустой: если
+        // просто не запускать анимацию, карточка осталась бы белой
+        if (still) {
+          player.addEventListener('DOMLoaded', () => {
+            player.goToAndStop(player.totalFrames - 1, true);
+          });
         }
-
-        if (still) return;
-        if (entry.isIntersecting) player.play();
-        else player.pause();
       });
     }, { rootMargin: '120px' });
 
@@ -409,20 +413,32 @@
 
   let sheetPlayer = null;   // отдельный экземпляр анимации, живёт только пока лист открыт
   let sheetGift = null;
+  let qty = 1;
+
+  // Набрать больше, чем есть в наличии, нельзя
+  function qtyLimit() {
+    if (!sheetGift) return 1;
+    const left = typeof sheetGift.left === 'number' ? sheetGift.left : QTY_MAX;
+    return Math.max(1, Math.min(left, QTY_MAX));
+  }
+
+  function setQty(value) {
+    if (!sheetGift) return;
+
+    const limit = qtyLimit();
+    qty = Math.min(Math.max(value, 1), limit);
+
+    document.getElementById('qty-value').textContent = String(qty);
+    document.getElementById('qty-less').disabled = qty <= 1;
+    document.getElementById('qty-more').disabled = qty >= limit;
+    document.getElementById('sheet-buy-price').textContent = formatPrice(sheetGift.price * qty);
+  }
 
   function fillSheet(gift) {
     document.getElementById('sheet-title').textContent = gift.name;
     document.getElementById('sheet-note').textContent = gift.note || '';
     document.getElementById('sheet-status').textContent = gift.status || '—';
     document.getElementById('sheet-price').textContent = formatPrice(gift.price);
-    document.getElementById('sheet-buy-price').textContent = formatPrice(gift.price);
-
-    const badge = document.getElementById('sheet-badge');
-    badge.hidden = !gift.badge;
-    if (gift.badge) {
-      badge.dataset.kind = gift.kind || 'default';
-      document.getElementById('sheet-badge-label').textContent = gift.badge;
-    }
 
     const known = typeof gift.left === 'number' && typeof gift.total === 'number';
     const left = document.getElementById('sheet-left');
@@ -436,21 +452,21 @@
     gauge.hidden = !known;
 
     if (known) {
-      const share = gift.total ? gift.left / gift.total : 0;
-      // Шкала показывает выпущенное, а не остаток: при 2 из 200 полоска в
-      // полтора процента читалась бы как сбой, а не как «почти всё ушло»
-      const taken = Math.min(Math.max(1 - share, 0), 1);
-
+      // Полоска — это сам остаток: кончается подарок, кончается и она
+      const share = gift.total ? Math.min(Math.max(gift.left / gift.total, 0), 1) : 0;
       const scarce = String(share <= SCARCE_SHARE);
+
       gauge.dataset.scarce = scarce;
       rest.dataset.scarce = scarce;
       rest.textContent = 'осталось ' + formatPrice(gift.left);
       gauge.setAttribute('aria-label',
-        'Выпущено ' + (gift.total - gift.left) + ' из ' + gift.total);
+        'Осталось ' + gift.left + ' из ' + gift.total);
 
+      const fill = document.getElementById('sheet-gauge-fill');
+      fill.dataset.empty = String(gift.left <= 0);
       // Ширину ставим после открытия — иначе шкала появится уже заполненной
-      document.getElementById('sheet-gauge-fill').style.width = '0%';
-      sheet.dataset.fill = (taken * 100).toFixed(1) + '%';
+      fill.style.width = '0%';
+      sheet.dataset.fill = (share * 100).toFixed(1) + '%';
     }
   }
 
@@ -459,9 +475,13 @@
 
     sheetGift = gift;
     fillSheet(gift);
+    setQty(1);
 
     sheet.hidden = false;
     sheet.dataset.open = 'true';
+
+    // В Telegram лист закрывает системная стрелка «назад»
+    if (tg && tg.BackButton) tg.BackButton.show();
     // Сцена под листом не должна прокручиваться вместе с ним
     if (stage) stage.style.overflow = 'hidden';
 
@@ -500,6 +520,7 @@
 
     sheet.dataset.open = 'false';
     sheet.classList.remove('is-open', 'is-dragging');
+    if (tg && tg.BackButton) tg.BackButton.hide();
     sheetPanel.style.transform = '';
 
     const done = () => {
@@ -622,6 +643,24 @@
       });
     });
 
+    // Обработчик вешаем один раз: onClick складывает их, а не заменяет
+    if (tg && tg.BackButton) {
+      tg.BackButton.onClick(() => {
+        haptic('light');
+        closeSheet();
+      });
+    }
+
+    document.getElementById('qty-less').addEventListener('click', () => {
+      haptic('select');
+      setQty(qty - 1);
+    });
+
+    document.getElementById('qty-more').addEventListener('click', () => {
+      haptic('select');
+      setQty(qty + 1);
+    });
+
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeSheet();
     });
@@ -630,7 +669,7 @@
       haptic('light');
       // Оплата появится вместе с серверной частью
       if (tg && tg.showAlert && sheetGift) {
-        tg.showAlert('Покупка «' + sheetGift.name + '» скоро заработает');
+        tg.showAlert('Покупка «' + sheetGift.name + '» ' + qty + ' шт. скоро заработает');
       }
     });
 

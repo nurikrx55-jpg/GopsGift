@@ -1,9 +1,10 @@
-/* SF Rounded. Файл один — Regular; остальные веса браузер подделывает сам.
-   Появятся Medium/Semibold — добавить сюда ещё по @font-face на каждый. */
+/* SF Rounded Heavy — единственное начертание в проекте. Диапазон весов указан
+   целиком намеренно: иначе браузер начал бы доутолщать и без того жирные глифы
+   там, где стоит 600 или 700, и буквы бы поплыли. */
 @font-face {
   font-family: "SF Rounded";
-  src: url("fonts/sf-rounded-regular.woff2") format("woff2");
-  font-weight: 400;
+  src: url("fonts/sf-rounded-heavy.woff2") format("woff2");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -482,12 +483,10 @@ body {
   transition: none;
 }
 
-/* Высота шапки подобрана так, чтобы крестик целиком помещался в ней
-   и не наезжал на подарок — раньше он тонул в картинке рядом с лентой */
 .sheet__head {
   position: relative;
   flex: none;
-  height: 46px;
+  height: 30px;
   padding: 10px 12px 0;
   /* Шапка — всегда ручка для перетаскивания, прокрутке её не отдаём */
   touch-action: none;
@@ -501,34 +500,6 @@ body {
   margin: 0 auto;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.22);
-}
-
-.sheet__close {
-  position: absolute;
-  top: 7px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(118, 118, 128, 0.4);
-  color: #fff;
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.12s ease;
-}
-
-.sheet__close:active {
-  transform: scale(0.9);
-  background: rgba(118, 118, 128, 0.6);
-}
-
-.sheet__close svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
 }
 
 .sheet__scroll {
@@ -551,20 +522,17 @@ body {
   display: none;
 }
 
-/* Подложка под анимацию — градиент из присланной палитры */
 .sheet__stage {
   position: relative;
   /* Подарок — тоже ручка: тянуть лист удобнее всего прямо за него */
   touch-action: none;
   aspect-ratio: 16 / 10;
-  border-radius: 20px;
-  background: var(--gift-bg);
   display: grid;
   place-items: center;
 }
 
 .sheet__art {
-  width: 62%;
+  width: 70%;
   aspect-ratio: 1;
 }
 
@@ -573,10 +541,6 @@ body {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.sheet__badge {
-  --ribbon-scale: 1.45;
 }
 
 .sheet__title {
@@ -633,8 +597,15 @@ body {
 .sheet__value {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
   font-weight: 600;
+}
+
+/* Heavy шире прежнего начертания, и «198/200 выпущено» рвалось посередине.
+   Фразу держим целой, а приписка при нехватке места уходит на строку ниже. */
+.sheet__value > span {
+  white-space: nowrap;
 }
 
 /* Приписка у значения — как проценты редкости в образце */
@@ -669,7 +640,14 @@ body {
   background: var(--accent);
   /* Ширину ставит app.js; заполняется уже после открытия листа */
   width: 0;
+  /* При одной штуке из тысячи полоска схлопнулась бы в невидимую линию */
+  min-width: 6px;
   transition: width 0.6s 0.15s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s ease;
+}
+
+/* Остатка нет совсем — и полоски нет */
+.sheet__gauge-fill[data-empty="true"] {
+  min-width: 0;
 }
 
 /* Подарок на исходе — подсветка становится тревожной */
@@ -681,26 +659,79 @@ body {
   gap: 5px;
 }
 
+/* В листе звезда белая, поэтому и сумма белая — золото рядом с ней спорило */
+.sheet__amount {
+  font-weight: 600;
+}
+
 .sheet__foot {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 14px 16px 0;
 }
 
+/* Счётчик штук — высотой вровень с кнопкой покупки */
+.sheet__qty {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sheet__qty-btn {
+  width: 38px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.12s ease;
+}
+
+.sheet__qty-btn:active:not(:disabled) {
+  transform: scale(0.88);
+}
+
+/* Больше, чем есть в наличии, не набрать */
+.sheet__qty-btn:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.sheet__qty-value {
+  min-width: 22px;
+  text-align: center;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
 .sheet__buy {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 0 20px;
+  padding: 0 18px;
   border: 0;
-  border-radius: 16px;
+  border-radius: 999px;
   background: var(--accent);
   color: #fff;
   font-family: inherit;
   font-size: 17px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: transform 0.12s ease, filter 0.2s ease;
 }
