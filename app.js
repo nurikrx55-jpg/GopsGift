@@ -224,6 +224,14 @@
       tg.disableVerticalSwipes();
     }
 
+    // Витрина и лист свёрстаны под вертикаль: в ландшафте подарок и модалка
+    // ложатся набок. Замок появился в Bot API 8.0 вместе с fullscreen.
+    if (hasTgFullscreen() && tg.lockOrientation) {
+      try {
+        tg.lockOrientation();
+      } catch (_) {}
+    }
+
     enterFullscreen();
   }
 
@@ -418,20 +426,27 @@
 
     const known = typeof gift.left === 'number' && typeof gift.total === 'number';
     const left = document.getElementById('sheet-left');
+    const rest = document.getElementById('sheet-rest');
     const gauge = document.getElementById('sheet-gauge');
 
-    left.textContent = known ? formatPrice(gift.left) + ' из ' + formatPrice(gift.total) : '—';
+    left.textContent = known
+      ? formatPrice(gift.total - gift.left) + '/' + formatPrice(gift.total) + ' выпущено'
+      : '—';
+    rest.hidden = !known;
     gauge.hidden = !known;
 
     if (known) {
-      const rest = gift.total ? gift.left / gift.total : 0;
-      // Шкала показывает разобранное, а не остаток: при 2 из 200 полоска в
+      const share = gift.total ? gift.left / gift.total : 0;
+      // Шкала показывает выпущенное, а не остаток: при 2 из 200 полоска в
       // полтора процента читалась бы как сбой, а не как «почти всё ушло»
-      const taken = Math.min(Math.max(1 - rest, 0), 1);
+      const taken = Math.min(Math.max(1 - share, 0), 1);
 
-      gauge.dataset.scarce = String(rest <= SCARCE_SHARE);
+      const scarce = String(share <= SCARCE_SHARE);
+      gauge.dataset.scarce = scarce;
+      rest.dataset.scarce = scarce;
+      rest.textContent = 'осталось ' + formatPrice(gift.left);
       gauge.setAttribute('aria-label',
-        'Разобрано ' + (gift.total - gift.left) + ' из ' + gift.total);
+        'Выпущено ' + (gift.total - gift.left) + ' из ' + gift.total);
 
       // Ширину ставим после открытия — иначе шкала появится уже заполненной
       document.getElementById('sheet-gauge-fill').style.width = '0%';
@@ -457,6 +472,13 @@
     void sheetPanel.offsetHeight;
 
     sheet.classList.add('is-open');
+
+    // Содержимое уместилось — прокручивать нечего, забираем жест себе целиком
+    sheetScroll.classList.toggle(
+      'is-static',
+      sheetScroll.scrollHeight <= sheetScroll.clientHeight + 1
+    );
+
     if (sheet.dataset.fill) {
       document.getElementById('sheet-gauge-fill').style.width = sheet.dataset.fill;
     }
@@ -510,18 +532,26 @@
   function initSheetDrag() {
     let pointerId = null;
     let startY = 0;
-    let startAt = 0;
+    let lastY = 0;
+    let lastAt = 0;
+    let speed = 0;
     let shift = 0;
     let dragging = false;
 
     sheetPanel.addEventListener('pointerdown', (event) => {
       if (pointerId !== null || sheet.dataset.open !== 'true') return;
-      // Если содержимое прокручено, жест принадлежит ему, а не листу
-      if (sheetScroll.scrollTop > 0) return;
+
+      // Шапка и подарок — ручки: у них touch-action: none, браузер в жест
+      // не вмешивается. Остальная часть листа отдана прокрутке, и тянуть
+      // оттуда можно, только когда прокручивать нечего или мы в самом верху.
+      const handle = event.target.closest('.sheet__head, .sheet__stage');
+      if (!handle && sheetScroll.scrollTop > 0) return;
 
       pointerId = event.pointerId;
       startY = event.clientY;
-      startAt = event.timeStamp;
+      lastY = event.clientY;
+      lastAt = event.timeStamp;
+      speed = 0;
       shift = 0;
       dragging = false;
     });
@@ -544,6 +574,13 @@
 
       shift = Math.max(dy, 0);
       sheetPanel.style.transform = 'translateY(' + shift + 'px)';
+
+      // Скорость считаем по последнему отрезку, а не за весь жест: иначе
+      // медленная протяжка с рывком в конце не засчитывалась бы как рывок
+      const dt = event.timeStamp - lastAt;
+      if (dt > 0) speed = (event.clientY - lastY) / dt;
+      lastY = event.clientY;
+      lastAt = event.timeStamp;
     });
 
     function release(event) {
@@ -560,8 +597,9 @@
       dragging = false;
       sheet.classList.remove('is-dragging');
 
-      const speed = shift / Math.max(event.timeStamp - startAt, 1);
-      if (shift > SHEET_CLOSE_DRAG || speed > SHEET_FLING) {
+      // Порог не больше четверти листа — у низкого листа 110px недостижимы
+      const limit = Math.min(SHEET_CLOSE_DRAG, sheetPanel.offsetHeight * 0.25);
+      if (shift > limit || speed > SHEET_FLING) {
         haptic('light');
         closeSheet();
       } else {

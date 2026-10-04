@@ -1,11 +1,22 @@
+/* SF Rounded. Файл один — Regular; остальные веса браузер подделывает сам.
+   Появятся Medium/Semibold — добавить сюда ещё по @font-face на каждый. */
+@font-face {
+  font-family: "SF Rounded";
+  src: url("fonts/sf-rounded-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --font-sf-pro: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sf-pro: "SF Rounded", "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --color-text: #fff;
   /* Палитра карточек — из присланного образца */
   --secondary-bg: #1a1a1a;
   --gold: #443926;
   --hint: #98989e;
   --accent: #3e88f7;
+  --line: rgba(255, 255, 255, 0.1);
   --gift-bg: radial-gradient(50% 50% at 50% 50%, #6f6f6f 0%, #282829 100%);
 
   /* Telegram отдаёт отступ под системную панель; env() — фоллбэк для браузера */
@@ -471,25 +482,30 @@ body {
   transition: none;
 }
 
+/* Высота шапки подобрана так, чтобы крестик целиком помещался в ней
+   и не наезжал на подарок — раньше он тонул в картинке рядом с лентой */
 .sheet__head {
   position: relative;
   flex: none;
-  padding: 10px 16px 0;
-  display: grid;
-  place-items: center;
+  height: 46px;
+  padding: 10px 12px 0;
+  /* Шапка — всегда ручка для перетаскивания, прокрутке её не отдаём */
+  touch-action: none;
 }
 
 /* Ручка — подсказка, что лист можно утянуть вниз */
 .sheet__grabber {
+  display: block;
   width: 36px;
   height: 4px;
+  margin: 0 auto;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.22);
 }
 
 .sheet__close {
   position: absolute;
-  top: 4px;
+  top: 7px;
   right: 12px;
   width: 32px;
   height: 32px;
@@ -498,15 +514,15 @@ body {
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.65);
+  background: rgba(118, 118, 128, 0.4);
+  color: #fff;
   cursor: pointer;
   transition: background-color 0.2s ease, transform 0.12s ease;
 }
 
 .sheet__close:active {
   transform: scale(0.9);
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(118, 118, 128, 0.6);
 }
 
 .sheet__close svg {
@@ -519,9 +535,16 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Вертикаль отдаём прокрутке содержимого, всё прочее — нам */
+  touch-action: pan-y;
+  /* Когда прокручивать нечего, вертикаль тоже наша — класс ставит app.js */
   overscroll-behavior: contain;
   padding: 6px 16px 0;
   scrollbar-width: none;
+}
+
+.sheet__scroll.is-static {
+  touch-action: none;
 }
 
 .sheet__scroll::-webkit-scrollbar {
@@ -531,6 +554,8 @@ body {
 /* Подложка под анимацию — градиент из присланной палитры */
 .sheet__stage {
   position: relative;
+  /* Подарок — тоже ручка: тянуть лист удобнее всего прямо за него */
+  touch-action: none;
   aspect-ratio: 16 / 10;
   border-radius: 20px;
   background: var(--gift-bg);
@@ -571,43 +596,67 @@ body {
   color: var(--hint);
 }
 
+/* Таблица характеристик: две колонки, разлинованные рамками */
 .sheet__specs {
   margin: 20px 0 0;
-  padding: 4px 14px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  display: grid;
+  grid-template-columns: minmax(92px, max-content) 1fr;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  /* Линии строк упёрлись бы в скругление — лишнее срезаем */
+  overflow: hidden;
 }
 
-.sheet__spec {
+.sheet__specs dt,
+.sheet__specs dd {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.sheet__specs dt {
+  color: var(--hint);
+  border-right: 1px solid var(--line);
+}
+
+/* Верхняя линия первой строки — это рамка самой таблицы */
+.sheet__specs > :nth-child(1),
+.sheet__specs > :nth-child(2) {
+  border-top: 0;
+}
+
+.sheet__value {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 13px 0;
-}
-
-/* Разделители только между строками — у крайних их быть не должно */
-.sheet__spec + .sheet__spec,
-.sheet__gauge + .sheet__spec {
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-}
-
-.sheet__spec dt {
-  font-size: 15px;
-  color: var(--hint);
-}
-
-.sheet__spec dd {
-  margin: 0;
-  font-size: 15px;
+  gap: 8px;
   font-weight: 600;
-  text-align: right;
+}
+
+/* Приписка у значения — как проценты редкости в образце */
+.sheet__pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(62, 136, 247, 0.18);
+  color: #6ea8fb;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sheet__pill[data-scarce="true"] {
+  background: rgba(246, 179, 41, 0.16);
+  color: #f6b329;
 }
 
 /* Остаток виден глазом, а не только числом */
 .sheet__gauge {
+  display: block;
   height: 5px;
-  margin: 0 0 13px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
@@ -629,9 +678,6 @@ body {
 }
 
 .sheet__price {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
   gap: 5px;
 }
 

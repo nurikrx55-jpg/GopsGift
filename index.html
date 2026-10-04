@@ -113,26 +113,27 @@
         <p class="sheet__note" id="sheet-note"></p>
 
         <dl class="sheet__specs">
-          <div class="sheet__spec">
-            <dt>Доступно</dt>
-            <dd id="sheet-left"></dd>
-          </div>
-          <div class="sheet__gauge" id="sheet-gauge" role="img">
-            <span class="sheet__gauge-fill" id="sheet-gauge-fill"></span>
-          </div>
+          <dt>Наличие</dt>
+          <dd>
+            <span class="sheet__value">
+              <span id="sheet-left"></span>
+              <span class="sheet__pill" id="sheet-rest" hidden></span>
+            </span>
+            <span class="sheet__gauge" id="sheet-gauge" role="img">
+              <span class="sheet__gauge-fill" id="sheet-gauge-fill"></span>
+            </span>
+          </dd>
 
-          <div class="sheet__spec">
-            <dt>Цена</dt>
-            <dd class="sheet__price">
+          <dt>Цена</dt>
+          <dd>
+            <span class="sheet__value sheet__price">
               <img class="gift__star" src="gifts/star.png" alt="звёзд" draggable="false">
               <span class="gift__amount" id="sheet-price"></span>
-            </dd>
-          </div>
+            </span>
+          </dd>
 
-          <div class="sheet__spec">
-            <dt>Статус</dt>
-            <dd id="sheet-status"></dd>
-          </div>
+          <dt>Статус</dt>
+          <dd><span class="sheet__value" id="sheet-status"></span></dd>
         </dl>
       </div>
 
