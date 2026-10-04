@@ -7,6 +7,8 @@
   const NAV_PADDING = 4;
   // За сколько пикселей движения жест считаем перетаскиванием, а не тапом
   const DRAG_THRESHOLD = 6;
+  // Сколько экран загрузки держится минимум — чтобы не мигнуть и исчезнуть
+  const SPLASH_MIN_MS = 1100;
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
@@ -14,6 +16,7 @@
   const indicator = document.querySelector('._indicator_1mfct_25');
   const tabs = Array.from(document.querySelectorAll('._tab_1mfct_40'));
   const stage = document.querySelector('.stage');
+  const splash = document.getElementById('splash');
 
   let current = 0;
 
@@ -195,6 +198,26 @@
     enterFullscreen();
   }
 
+  function initSplash() {
+    if (!splash) return;
+
+    const started = performance.now();
+
+    const hide = () => {
+      const wait = Math.max(0, SPLASH_MIN_MS - (performance.now() - started));
+      setTimeout(() => splash.classList.add('is-done'), wait);
+    };
+
+    if (document.readyState === 'complete') {
+      hide();
+    } else {
+      window.addEventListener('load', hide, { once: true });
+      // Если какой-то ресурс завис, всё равно показываем приложение
+      setTimeout(hide, 4000);
+    }
+  }
+
   initTelegram();
   initNav();
+  initSplash();
 })();

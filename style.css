@@ -129,3 +129,89 @@ body {
     transition-duration: 0.01ms;
   }
 }
+
+/* Экран загрузки */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 56px;
+  background: #0d0d10;
+  /* Страховка: если JS не отработал, экран всё равно уйдёт сам */
+  animation: splash-failsafe 0.4s linear 6s forwards;
+}
+
+.splash.is-done {
+  animation: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(1.04);
+  transition: opacity 0.45s ease, transform 0.45s ease, visibility 0s 0.45s;
+}
+
+.splash__logo svg {
+  width: 128px;
+  height: auto;
+  display: block;
+  /* Появление: подъезжает снизу и проявляется */
+  animation: splash-enter 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Коробка едва заметно дышит — экран не выглядит застывшим */
+.splash__box {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: splash-breathe 2.6s ease-in-out 0.6s infinite;
+}
+
+/* Каждая искорка мерцает в свой черёд, задержки заданы в разметке */
+.splash__spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: splash-twinkle 2.4s ease-in-out infinite;
+}
+
+.splash__spinner {
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  animation: splash-spin 0.9s linear infinite;
+}
+
+@keyframes splash-enter {
+  from { opacity: 0; transform: translateY(14px) scale(0.92); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes splash-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.035); }
+}
+
+@keyframes splash-twinkle {
+  0%, 70%, 100% { opacity: 0.35; transform: scale(0.72) rotate(0deg); }
+  18%           { opacity: 1;    transform: scale(1.18) rotate(18deg); }
+  34%           { opacity: 0.9;  transform: scale(1)    rotate(0deg); }
+}
+
+@keyframes splash-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes splash-failsafe {
+  to { opacity: 0; visibility: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash__logo svg,
+  .splash__box,
+  .splash__spark {
+    animation: none;
+  }
+}
