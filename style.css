@@ -1063,31 +1063,27 @@ body {
   border-radius: 10px;
 }
 
-.prf__list .gift__price {
-  bottom: 8px;
-  gap: 3px;
-  padding: 4px 9px;
-}
-
-.prf__list .gift__star {
-  width: 13px;
-  height: 13px;
-}
-
-.prf__list .gift__amount {
-  font-size: 12px;
-  line-height: 15px;
+/* Цены у купленного подарка нет — подарок встаёт по центру карточки */
+.prf__list .gift__art {
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 74%;
 }
 
 /* Карточка купленного подарка */
 
 .own-card {
   position: relative;
-  aspect-ratio: 1 / 1;
-  border-radius: 20px;
+  /* Вырываемся из боковых отступов прокрутки — подложка идёт от края до края */
+  margin: 0 -16px;
+  border-radius: 24px 24px 0 0;
   overflow: hidden;
+  /* Высоту задаёт содержимое, а не aspect-ratio: от выведенной им высоты
+     проценты у детей разрешаются ненадёжно — подарок то не влезал, то
+     растягивался на всю ширину и выдавливал кнопки. */
   display: grid;
-  place-items: center;
+  gap: 14px;
+  padding: 20px 16px 16px;
   /* Подложка — цвет кузова машины: свечение сверху, глубина снизу */
   background:
     radial-gradient(120% 85% at 50% -5%, #78c3b9 0%, rgba(120, 195, 185, 0) 65%),
@@ -1135,10 +1131,11 @@ body {
 }
 
 .own-card__art {
-  width: 66%;
+  justify-self: center;
+  /* Доля ширины подложки — она определена всегда; края удерживают размер
+     в разумных пределах и на узком, и на широком экране */
+  width: clamp(130px, 45%, 180px);
   aspect-ratio: 1;
-  /* Поднимаем над кнопками действий */
-  margin-bottom: 72px;
 }
 
 .own-card__art canvas,
@@ -1149,10 +1146,6 @@ body {
 }
 
 .own-card__acts {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 14px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
@@ -1163,22 +1156,20 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  height: 76px;
+  gap: 6px;
+  height: 62px;
   padding: 0 10px;
   border: 0;
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.26);
   color: #fff;
   font-family: inherit;
   font-size: 15px;
   cursor: pointer;
-  transition: transform 0.12s ease, background-color 0.2s ease;
+  transition: transform 0.12s ease;
 }
 
 .own-act:active:not(:disabled) {
   transform: scale(0.96);
-  background: rgba(0, 0, 0, 0.38);
 }
 
 /* Улучшение появится позже — кнопка на месте, но пока не работает */
@@ -1233,6 +1224,26 @@ body {
 .own-tool svg {
   width: 21px;
   height: 21px;
+}
+
+/* Ручка перетаскивания ложится поверх подложки: иначе между верхом листа
+   и цветной шапкой оставалась бы тёмная полоса, которой на образце нет */
+.sheet--own .sheet__head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  height: 22px;
+  padding-top: 8px;
+}
+
+.sheet--own .sheet__grabber {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.sheet--own .sheet__scroll {
+  padding-top: 0;
 }
 
 .sheet--own .sheet__specs {

@@ -332,7 +332,7 @@
     return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
   }
 
-  function buildGift(gift, onPick) {
+  function buildGift(gift, onPick, withPrice) {
     const card = document.createElement('article');
     card.className = 'gift';
 
@@ -375,21 +375,24 @@
       show();
     });
 
-    const price = document.createElement('span');
-    price.className = 'gift__price';
+    // У купленного подарка цены нет — она имеет смысл только на витрине
+    if (withPrice) {
+      const price = document.createElement('span');
+      price.className = 'gift__price';
 
-    const star = document.createElement('img');
-    star.className = 'gift__star';
-    star.src = 'gifts/star.png';
-    star.alt = 'звёзд';
-    star.draggable = false;
+      const star = document.createElement('img');
+      star.className = 'gift__star';
+      star.src = 'gifts/star.png';
+      star.alt = 'звёзд';
+      star.draggable = false;
 
-    const amount = document.createElement('span');
-    amount.className = 'gift__amount';
-    amount.textContent = formatPrice(gift.price);
+      const amount = document.createElement('span');
+      amount.className = 'gift__amount';
+      amount.textContent = formatPrice(gift.price);
 
-    price.append(star, amount);
-    card.appendChild(price);
+      price.append(star, amount);
+      card.appendChild(price);
+    }
 
     return card;
   }
@@ -849,7 +852,7 @@
   function initGifts() {
     if (!giftsGrid) return;
 
-    GIFTS.forEach((gift) => giftsGrid.appendChild(buildGift(gift, (one) => buySheet.open(one))));
+    GIFTS.forEach((gift) => giftsGrid.appendChild(buildGift(gift, (one) => buySheet.open(one), true)));
   }
 
   // --- Профиль ---
