@@ -1,126 +1,125 @@
 :root {
-  /* Цвета сняты пипеткой с макета */
-  --bg: #0d0d10;
-  --nav-bg: #19191d;
-  --nav-pill: #313137;
-  --icon-idle: #5e5e62;
-  --icon-active: #f7ce46;
+  --font-sf-pro: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --color-text: #fff;
+  --accent: #ffcc00;
 
-  --nav-items: 4;
-  --nav-height: 60px;
-  --nav-pad-y: 9px;
-  --nav-pad-x: 6px;
-
-  --ease: cubic-bezier(0.34, 1.2, 0.5, 1);
-
-  /* Telegram-отступы под «чёлку» и системные элементы; env() — фоллбэк для браузера */
-  --safe-top: max(var(--tg-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
-  --safe-right: max(var(--tg-safe-area-inset-right, 0px), env(safe-area-inset-right, 0px));
-  --safe-bottom: max(var(--tg-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
-  --safe-left: max(var(--tg-safe-area-inset-left, 0px), env(safe-area-inset-left, 0px));
+  /* Telegram отдаёт отступ под системную панель; env() — фоллбэк для браузера */
+  --safe-area-bottom: max(var(--tg-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  --safe-area-top: max(var(--tg-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
   --content-top: var(--tg-content-safe-area-inset-top, 0px);
+
+  --tabs: 4;
+  --ease: cubic-bezier(0.34, 1.2, 0.5, 1);
+}
+
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 * {
-  box-sizing: border-box;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body {
   height: 100%;
-  margin: 0;
 }
 
 body {
-  background: var(--bg);
-  color: #f2f2f7;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  background: #0d0d10;
+  font-family: var(--font-sf-pro);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
   overflow: hidden;
   overscroll-behavior: none;
 }
 
 .stage {
-  /* --tg-viewport-stable-height не прыгает при открытой клавиатуре */
   min-height: var(--tg-viewport-stable-height, 100dvh);
   display: grid;
   place-items: center;
-  padding: calc(var(--safe-top) + var(--content-top)) var(--safe-right)
-           calc(var(--safe-bottom) + var(--nav-height) + 32px) var(--safe-left);
+  padding-top: calc(var(--safe-area-top) + var(--content-top));
+  padding-bottom: calc(var(--safe-area-bottom) + 108px);
 }
 
-/* Навигация */
-
-.nav {
+/* Контейнер — из присланного кода, ширина пересчитана под 4 вкладки */
+._footer_1mfct_7 {
+  bottom: max(32px, var(--safe-area-bottom, 0px));
+  z-index: 50;
+  -webkit-backdrop-filter: blur(15px);
+  backdrop-filter: blur(15px);
+  -webkit-user-select: none;
+  user-select: none;
+  background: rgba(51, 51, 61, 0.3);
+  border-radius: 30px;
+  width: min(336px, calc(100% - 24px));
+  height: 60px;
+  padding: 4px;
+  display: flex;
   position: fixed;
   left: 50%;
-  bottom: calc(var(--safe-bottom) + 16px);
-  transform: translateX(-50%);
-  z-index: 10;
-
-  display: flex;
-  width: min(308px, calc(100% - 32px));
-  height: var(--nav-height);
-  padding: var(--nav-pad-y) var(--nav-pad-x);
-  border-radius: 999px;
-  background: var(--nav-bg);
+  translate: -50%;
 }
 
-/* Подложка активного раздела — едет между иконками */
-.nav__indicator {
+/* Подложка активной вкладки — едет за --active-index */
+._indicator_1mfct_25 {
   position: absolute;
-  top: var(--nav-pad-y);
-  bottom: var(--nav-pad-y);
-  left: var(--nav-pad-x);
-  width: calc((100% - var(--nav-pad-x) * 2) / var(--nav-items));
-  border-radius: 999px;
-  background: var(--nav-pill);
-  transform: translateX(calc(var(--nav-active, 0) * 100%));
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / var(--tabs));
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(calc(var(--active-index, 0) * 100%));
   transition: transform 0.42s var(--ease);
 }
 
-.nav__item {
+._indicator_1mfct_25[data-hidden="true"] {
+  opacity: 0;
+}
+
+._tab_1mfct_40 {
   position: relative;
   z-index: 1;
   flex: 1;
   display: grid;
   place-items: center;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--icon-idle);
-  cursor: pointer;
-  transition: color 0.26s ease;
+  -webkit-user-drag: none;
 }
 
-.nav__item.is-active {
-  color: var(--icon-active);
-}
-
-.nav__icon {
+/* Обе иконки лежат в одной ячейке грида — отсюда кроссфейд */
+._icon_1mfct_146 {
+  grid-area: 1 / 1;
   width: 24px;
   height: 24px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: transform 0.42s var(--ease);
+  pointer-events: none;
+  transition: opacity 0.26s ease, transform 0.42s var(--ease);
 }
 
-.nav__item.is-active .nav__icon {
-  transform: scale(1.08);
+._icon_1mfct_146[data-hidden="true"] {
+  opacity: 0;
 }
 
-.nav__item:active .nav__icon {
+._tab_1mfct_40.active ._icon_1mfct_146 {
+  transform: scale(1.06);
+}
+
+._tab_1mfct_40:active ._icon_1mfct_146 {
   transform: scale(0.88);
   transition-duration: 0.12s;
 }
 
-/* Уважаем системную настройку «уменьшить движение» */
 @media (prefers-reduced-motion: reduce) {
-  .nav__indicator,
-  .nav__icon {
+  ._indicator_1mfct_25,
+  ._icon_1mfct_146 {
     transition-duration: 0.01ms;
   }
 }

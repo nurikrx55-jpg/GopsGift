@@ -7,8 +7,8 @@
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
-  const nav = document.querySelector('.nav');
-  const items = Array.from(document.querySelectorAll('.nav__item'));
+  const nav = document.querySelector('._footer_1mfct_7');
+  const tabs = Array.from(document.querySelectorAll('._tab_1mfct_40'));
   const stage = document.querySelector('.stage');
 
   const hasTgFullscreen = () =>
@@ -27,37 +27,47 @@
     tg.requestFullscreen();
   }
 
-  function selectSection(index) {
-    if (index < 0 || index >= items.length) return;
+  function selectTab(index) {
+    if (index < 0 || index >= tabs.length) return;
 
-    items.forEach((item, i) => {
+    tabs.forEach((tab, i) => {
       const active = i === index;
-      item.classList.toggle('is-active', active);
-      item.setAttribute('aria-selected', String(active));
+      tab.classList.toggle('active', active);
+
+      if (active) {
+        tab.setAttribute('aria-current', 'page');
+      } else {
+        tab.removeAttribute('aria-current');
+      }
+
+      // Внутри вкладки две иконки: [0] контурная, [1] заливка
+      const icons = tab.querySelectorAll('._icon_1mfct_146');
+      icons[0].dataset.hidden = String(active);
+      icons[1].dataset.hidden = String(!active);
     });
 
-    // Подложка едет за активной иконкой
-    nav.style.setProperty('--nav-active', String(index));
-    stage.dataset.section = items[index].dataset.section;
+    nav.style.setProperty('--active-index', String(index));
+    stage.dataset.section = tabs[index].dataset.section;
   }
 
   function initNav() {
-    nav.style.setProperty('--nav-items', String(items.length));
+    nav.style.setProperty('--tabs', String(tabs.length));
 
-    items.forEach((item, index) => {
-      item.addEventListener('click', () => {
-        if (item.classList.contains('is-active')) return;
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (tab.classList.contains('active')) return;
 
         if (tg && tg.HapticFeedback) {
           tg.HapticFeedback.selectionChanged();
         }
 
-        selectSection(index);
+        selectTab(index);
       });
     });
 
-    const initial = items.findIndex((item) => item.classList.contains('is-active'));
-    selectSection(initial === -1 ? 0 : initial);
+    const initial = tabs.findIndex((tab) => tab.classList.contains('active'));
+    selectTab(initial === -1 ? 0 : initial);
   }
 
   function initTelegram() {
