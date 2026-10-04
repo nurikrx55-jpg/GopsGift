@@ -9,6 +9,8 @@
   const DRAG_THRESHOLD = 6;
   // Сколько экран загрузки держится минимум — чтобы не мигнуть и исчезнуть
   const SPLASH_MIN_MS = 1100;
+  // Сколько висит всплывающее уведомление
+  const TOAST_MS = 1900;
 
   // Витрина подарков. art — распакованный .tgs: Lottie-JSON рядом в gifts/
   const GIFTS = [
@@ -60,11 +62,36 @@
     Boolean(tg && tg.isVersionAtLeast && tg.isVersionAtLeast(FULLSCREEN_API));
 
   function haptic(kind) {
-    if (tg && tg.HapticFeedback) {
-      tg.HapticFeedback[kind === 'select' ? 'selectionChanged' : 'impactOccurred'](
-        kind === 'select' ? undefined : 'light'
-      );
-    }
+    if (!tg || !tg.HapticFeedback) return;
+
+    if (kind === 'select') tg.HapticFeedback.selectionChanged();
+    else if (kind === 'success') tg.HapticFeedback.notificationOccurred('success');
+    else tg.HapticFeedback.impactOccurred('light');
+  }
+
+  // Всплывающее уведомление: показывается у верхнего края и само уходит
+  let toastHide = null;
+  let toastDrop = null;
+
+  function toast(text) {
+    const node = document.getElementById('toast');
+    if (!node) return;
+
+    document.getElementById('toast-text').textContent = text;
+    clearTimeout(toastHide);
+    clearTimeout(toastDrop);
+
+    node.hidden = false;
+    // Пересчёт стилей форсируем чтением размера — иначе перехода не будет
+    void node.offsetHeight;
+    node.classList.add('is-on');
+
+    toastHide = setTimeout(() => {
+      node.classList.remove('is-on');
+      toastDrop = setTimeout(() => {
+        node.hidden = true;
+      }, 320);
+    }, TOAST_MS);
   }
 
   function enterFullscreen() {
@@ -749,6 +776,26 @@
     return many;
   }
 
+  // Запасной путь: Clipboard API есть не везде и падает вне защищённого контекста
+  function legacyCopy(value) {
+    const field = document.createElement('textarea');
+    field.value = value;
+    field.setAttribute('readonly', '');
+    field.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+    document.body.appendChild(field);
+
+    let ok = false;
+    try {
+      field.select();
+      ok = document.execCommand('copy');
+    } catch (_) {
+      ok = false;
+    }
+
+    field.remove();
+    return ok;
+  }
+
   function initProfile() {
     const tabs = document.getElementById('prf-tabs');
     if (!tabs) return;
@@ -776,9 +823,12 @@
 
     function copyId() {
       if (!user) return;
-      haptic('light');
+
+      const value = String(user.id);
 
       const done = () => {
+        haptic('success');
+        toast('ID скопирован');
         copy.dataset.done = 'true';
         setTimeout(() => {
           copy.dataset.done = 'false';
@@ -786,16 +836,17 @@
       };
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(String(user.id)).then(done, () => {});
+        navigator.clipboard.writeText(value).then(done, () => {
+          if (legacyCopy(value)) done();
+        });
+        return;
       }
+
+      // Старые webview без Clipboard API
+      if (legacyCopy(value)) done();
     }
 
     copy.addEventListener('click', copyId);
-    copy.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      copyId();
-    });
 
     const buttons = Array.from(tabs.querySelectorAll('.prf-tabs__tab'));
     buttons.forEach((button, index) => {

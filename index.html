@@ -83,7 +83,7 @@
           <span class="prf__dot" aria-hidden="true">·</span>
           <span class="prf__id" id="prf-id"></span>
           <!-- Иконка, а не кнопка: нажатие копирует идентификатор -->
-          <svg class="prf__copy" id="prf-copy" viewBox="0 0 24 24" role="button" tabindex="0" aria-label="Скопировать ID">
+          <svg class="prf__copy" id="prf-copy" viewBox="0 0 24 24" aria-hidden="true">
             <rect x="9" y="9" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
             <path d="M15 5.5A2.5 2.5 0 0 0 12.5 3h-7A2.5 2.5 0 0 0 3 5.5v7A2.5 2.5 0 0 0 5.5 15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
           </svg>
@@ -184,6 +184,13 @@
         </button>
       </div>
     </div>
+  </div>
+
+  <div class="toast glass" id="toast" role="status" aria-live="polite" hidden>
+    <svg class="toast__icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12.5 10 17.5 19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span id="toast-text"></span>
   </div>
 
   <script src="app.js"></script>

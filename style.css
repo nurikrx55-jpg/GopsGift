@@ -797,14 +797,14 @@ body {
 .prf__coupons {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 19px;
+  gap: 6px;
+  font-size: 15px;
   line-height: 1;
 }
 
 .prf__coupon-icon {
-  width: 26px;
-  height: 26px;
+  width: 19px;
+  height: 19px;
   display: block;
   -webkit-user-drag: none;
 }
@@ -854,6 +854,9 @@ body {
   flex: none;
   color: var(--hint);
   cursor: pointer;
+  /* Ни рамки, ни подсветки: это просто глиф, который копирует по нажатию */
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
   transition: color 0.2s ease, transform 0.12s ease;
 }
 
@@ -951,4 +954,48 @@ body {
   font-size: 19px;
   font-weight: inherit;
   color: #f5f5f7;
+}
+
+/* Всплывающее уведомление */
+
+.toast[hidden] {
+  display: none;
+}
+
+.toast {
+  position: fixed;
+  top: calc(var(--safe-area-top) + var(--content-top) + 12px);
+  left: 50%;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 11px 18px;
+  border-radius: 99em;
+  font-size: 15px;
+  white-space: nowrap;
+  /* Перехватывать нажатия не должно — оно только сообщает */
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -14px);
+  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.toast.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.toast__icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: #4cd964;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    transition-duration: 0.01ms;
+  }
 }
