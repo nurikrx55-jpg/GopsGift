@@ -41,7 +41,14 @@
   const STARS = 0;
   const COUPONS = 0;
   // Подарки пользователя по разделам переключателя
-  const OWNED = { gifts: [], nft: [] };
+  const OWNED = {
+    gifts: [
+      { id: 'beetle-1', name: 'Beetle', art: 'gifts/beetle.json', price: 2000, badge: 'limited', kind: 'default', owner: '—', left: 2, total: 200 },
+      { id: 'beetle-2', name: 'Beetle', art: 'gifts/beetle.json', price: 2000, badge: 'premium', kind: 'premium', owner: '—', left: 54, total: 1000 },
+      { id: 'beetle-3', name: 'Beetle', art: 'gifts/beetle.json', price: 2000, badge: 'sold out', kind: 'sold', owner: '—', left: 0, total: 500 }
+    ],
+    nft: []
+  };
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
@@ -54,8 +61,7 @@
   const sliderDots = document.getElementById('slider-dots');
   const giftsGrid = document.getElementById('gifts');
   const sheet = document.getElementById('sheet');
-  const sheetPanel = sheet && sheet.querySelector('.sheet__panel');
-  const sheetScroll = sheet && sheet.querySelector('.sheet__scroll');
+  const owned = document.getElementById('owned');
 
   let current = 0;
 
@@ -326,15 +332,15 @@
     return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
   }
 
-  function buildGift(gift) {
+  function buildGift(gift, onPick) {
     const card = document.createElement('article');
     card.className = 'gift';
 
     const art = document.createElement('div');
     art.className = 'gift__art';
-    art.dataset.art = gift.art;
     if (gift.name) art.setAttribute('aria-label', gift.name);
     card.appendChild(art);
+    playWhenSeen(art, gift.art);
 
     if (gift.badge) {
       const badge = document.createElement('span');
@@ -354,14 +360,19 @@
 
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
-    card.addEventListener('click', () => {
+
+    // Какой лист открывать, решает вызывающий: с витрины — покупка,
+    // из профиля — карточка уже купленного подарка
+    const show = () => {
       haptic('light');
-      openSheet(gift);
-    });
+      if (onPick) onPick(gift);
+    };
+
+    card.addEventListener('click', show);
     card.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
-      openSheet(gift);
+      show();
     });
 
     const price = document.createElement('span');
@@ -433,7 +444,10 @@
   // скрытого блока нулевой размер, и lottie нарисует canvas шириной 0, который
   // сам потом не пересчитает. Наблюдатель срабатывает только когда у элемента
   // появился размер, и это разом решает обе задачи — и размер, и экономию.
-  function playWhenSeen(container, path, onReady) {
+  const artPlayers = new Map();
+  const artWatchers = new Map();
+
+  function playWhenSeen(container, path) {
     whenLottieReady(() => {
       const observer = new IntersectionObserver((entries, obs) => {
         entries.forEach((entry) => {
@@ -441,32 +455,29 @@
 
           obs.unobserve(entry.target);
           const player = playOnce(entry.target, path);
-          if (onReady) onReady(player);
+          if (player) artPlayers.set(entry.target, player);
         });
       }, { rootMargin: '120px' });
 
       observer.observe(container);
-      if (onReady) onReady(null, observer);
+      artWatchers.set(container, observer);
     });
   }
 
-  // Анимацию заводим, только когда карточка показалась на экране: на витрине
-  // их будут десятки, грузить все разом незачем.
-  function initGiftArt() {
-    const holders = Array.from(giftsGrid.querySelectorAll('.gift__art'));
-    if (!holders.length) return;
+  // Разметку выбрасываем — плееры и наблюдателей внутри неё снимаем сами,
+  // иначе они останутся висеть на узлах, которых уже нет в документе
+  function releaseArt(root) {
+    artPlayers.forEach((player, node) => {
+      if (!root.contains(node)) return;
+      player.destroy();
+      artPlayers.delete(node);
+    });
 
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-
-        // Один прогон — наблюдать дальше не за чем
-        observer.unobserve(entry.target);
-        playOnce(entry.target, entry.target.dataset.art);
-      });
-    }, { rootMargin: '120px' });
-
-    holders.forEach((holder) => observer.observe(holder));
+    artWatchers.forEach((observer, node) => {
+      if (!root.contains(node)) return;
+      observer.disconnect();
+      artWatchers.delete(node);
+    });
   }
 
   // --- Карточка подарка крупным планом ---
@@ -530,87 +541,92 @@
     }
   }
 
-  function openSheet(gift) {
-    if (!sheet || sheet.dataset.open === 'true') return;
+  // Зацикленная анимация — такая нужна только в раскрытой карточке
+  function loopArt(container, path) {
+    if (!window.lottie) return null;
 
-    sheetGift = gift;
-    fillSheet(gift);
-    setQty(1);
-
-    sheet.hidden = false;
-    sheet.dataset.open = 'true';
-
-    // В Telegram лист закрывает системная стрелка «назад»
-    if (tg && tg.BackButton) tg.BackButton.show();
-    // Сцена под листом не должна прокручиваться вместе с ним
-    if (stage) stage.style.overflow = 'hidden';
-
-    // Между снятием hidden и классом браузер обязан пересчитать стили, иначе
-    // перехода не будет. Читаем размер — это форсирует пересчёт синхронно;
-    // через requestAnimationFrame было бы ненадёжно: в фоновой вкладке кадры
-    // не идут, и лист открылся бы рывком.
-    void sheetPanel.offsetHeight;
-
-    sheet.classList.add('is-open');
-
-    // Содержимое уместилось — прокручивать нечего, забираем жест себе целиком
-    sheetScroll.classList.toggle(
-      'is-static',
-      sheetScroll.scrollHeight <= sheetScroll.clientHeight + 1
-    );
-
-    if (sheet.dataset.fill) {
-      document.getElementById('sheet-gauge-fill').style.width = sheet.dataset.fill;
-    }
-
-    if (window.lottie) {
-      sheetPlayer = window.lottie.loadAnimation({
-        container: document.getElementById('sheet-art'),
-        renderer: 'canvas',
-        loop: true,
-        autoplay: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-        path: gift.art,
-        rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
-      });
-    }
+    return window.lottie.loadAnimation({
+      container: container,
+      renderer: 'canvas',
+      loop: true,
+      autoplay: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      path: path,
+      rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
+    });
   }
 
-  function closeSheet() {
-    if (!sheet || sheet.dataset.open !== 'true') return;
+  // Один механизм на все нижние листы: выезд, закрытие, перетаскивание и
+  // блокировка прокрутки сцены. Чем лист наполнен — забота вызывающего,
+  // он передаёт это крючками fill/opened/closed.
+  const sheets = [];
 
-    sheet.dataset.open = 'false';
-    sheet.classList.remove('is-open', 'is-dragging');
-    if (tg && tg.BackButton) tg.BackButton.hide();
-    sheetPanel.style.transform = '';
+  function createSheet(root, hooks) {
+    if (!root) return null;
 
-    const done = () => {
-      sheet.hidden = true;
-      if (stage) stage.style.overflow = '';
-      if (sheetPlayer) {
-        sheetPlayer.destroy();
-        sheetPlayer = null;
-      }
-      sheetGift = null;
-    };
+    const panel = root.querySelector('.sheet__panel');
+    const scroll = root.querySelector('.sheet__scroll');
+    const on = hooks || {};
 
-    // Ждём конец выезда, но не полагаемся на событие целиком
-    let fired = false;
-    const onEnd = (event) => {
-      if (event.target !== sheetPanel || event.propertyName !== 'transform') return;
-      fired = true;
-      sheetPanel.removeEventListener('transitionend', onEnd);
-      done();
-    };
-    sheetPanel.addEventListener('transitionend', onEnd);
-    setTimeout(() => {
-      if (fired) return;
-      sheetPanel.removeEventListener('transitionend', onEnd);
-      done();
-    }, 500);
-  }
+    function isOpen() {
+      return root.dataset.open === 'true';
+    }
 
-  // Утягивание листа вниз пальцем
-  function initSheetDrag() {
+    function open(payload) {
+      if (isOpen()) return;
+      if (on.fill) on.fill(payload);
+
+      root.hidden = false;
+      root.dataset.open = 'true';
+
+      // В Telegram лист закрывает системная стрелка «назад»
+      if (tg && tg.BackButton) tg.BackButton.show();
+      // Сцена под листом не должна прокручиваться вместе с ним
+      if (stage) stage.style.overflow = 'hidden';
+
+      // Между снятием hidden и классом браузер обязан пересчитать стили, иначе
+      // перехода не будет. Читаем размер — это форсирует пересчёт синхронно;
+      // через requestAnimationFrame было бы ненадёжно: в фоновой вкладке кадры
+      // не идут, и лист открылся бы рывком.
+      void panel.offsetHeight;
+      root.classList.add('is-open');
+
+      // Содержимое уместилось — прокручивать нечего, забираем жест себе целиком
+      scroll.classList.toggle('is-static', scroll.scrollHeight <= scroll.clientHeight + 1);
+
+      if (on.opened) on.opened(payload);
+    }
+
+    function close() {
+      if (!isOpen()) return;
+
+      root.dataset.open = 'false';
+      root.classList.remove('is-open', 'is-dragging');
+      panel.style.transform = '';
+      if (tg && tg.BackButton) tg.BackButton.hide();
+
+      const done = () => {
+        root.hidden = true;
+        if (stage) stage.style.overflow = '';
+        if (on.closed) on.closed();
+      };
+
+      // Ждём конец выезда, но не полагаемся на событие целиком
+      let fired = false;
+      const onEnd = (event) => {
+        if (event.target !== panel || event.propertyName !== 'transform') return;
+        fired = true;
+        panel.removeEventListener('transitionend', onEnd);
+        done();
+      };
+      panel.addEventListener('transitionend', onEnd);
+      setTimeout(() => {
+        if (fired) return;
+        panel.removeEventListener('transitionend', onEnd);
+        done();
+      }, 500);
+    }
+
+    // Утягивание листа вниз пальцем
     let pointerId = null;
     let startY = 0;
     let lastY = 0;
@@ -619,14 +635,14 @@
     let shift = 0;
     let dragging = false;
 
-    sheetPanel.addEventListener('pointerdown', (event) => {
-      if (pointerId !== null || sheet.dataset.open !== 'true') return;
+    panel.addEventListener('pointerdown', (event) => {
+      if (pointerId !== null || !isOpen()) return;
 
-      // Шапка и подарок — ручки: у них touch-action: none, браузер в жест
-      // не вмешивается. Остальная часть листа отдана прокрутке, и тянуть
-      // оттуда можно, только когда прокручивать нечего или мы в самом верху.
-      const handle = event.target.closest('.sheet__head, .sheet__stage');
-      if (!handle && sheetScroll.scrollTop > 0) return;
+      // Шапка и подложка с подарком — ручки: у них touch-action: none, браузер
+      // в жест не вмешивается. Остальное отдано прокрутке, и тянуть оттуда
+      // можно, только когда прокручивать нечего или мы в самом верху.
+      const handle = event.target.closest('.sheet__head, .sheet__stage, .own-card');
+      if (!handle && scroll.scrollTop > 0) return;
 
       pointerId = event.pointerId;
       startY = event.clientY;
@@ -637,7 +653,7 @@
       dragging = false;
     });
 
-    sheetPanel.addEventListener('pointermove', (event) => {
+    panel.addEventListener('pointermove', (event) => {
       if (event.pointerId !== pointerId) return;
 
       const dy = event.clientY - startY;
@@ -647,14 +663,14 @@
       if (!dragging) {
         if (dy < DRAG_THRESHOLD) return;
         dragging = true;
-        sheet.classList.add('is-dragging');
+        root.classList.add('is-dragging');
         try {
-          sheetPanel.setPointerCapture(pointerId);
+          panel.setPointerCapture(pointerId);
         } catch (_) {}
       }
 
       shift = Math.max(dy, 0);
-      sheetPanel.style.transform = 'translateY(' + shift + 'px)';
+      panel.style.transform = 'translateY(' + shift + 'px)';
 
       // Скорость считаем по последнему отрезку, а не за весь жест: иначе
       // медленная протяжка с рывком в конце не засчитывалась бы как рывок
@@ -668,48 +684,146 @@
       if (event.pointerId !== pointerId) return;
 
       try {
-        if (sheetPanel.hasPointerCapture(pointerId)) {
-          sheetPanel.releasePointerCapture(pointerId);
+        if (panel.hasPointerCapture(pointerId)) {
+          panel.releasePointerCapture(pointerId);
         }
       } catch (_) {}
       pointerId = null;
 
       if (!dragging) return;
       dragging = false;
-      sheet.classList.remove('is-dragging');
+      root.classList.remove('is-dragging');
 
       // Порог не больше четверти листа — у низкого листа 110px недостижимы
-      const limit = Math.min(SHEET_CLOSE_DRAG, sheetPanel.offsetHeight * 0.25);
+      const limit = Math.min(SHEET_CLOSE_DRAG, panel.offsetHeight * 0.25);
       if (shift > limit || speed > SHEET_FLING) {
         haptic('light');
-        closeSheet();
+        close();
       } else {
         // Не дотянули — лист возвращается на место
-        sheetPanel.style.transform = '';
+        panel.style.transform = '';
       }
     }
 
-    sheetPanel.addEventListener('pointerup', release);
-    sheetPanel.addEventListener('pointercancel', release);
+    panel.addEventListener('pointerup', release);
+    panel.addEventListener('pointercancel', release);
+
+    root.querySelectorAll('[data-sheet-close]').forEach((node) => {
+      node.addEventListener('click', () => {
+        haptic('light');
+        close();
+      });
+    });
+
+    const api = { open: open, close: close, isOpen: isOpen };
+    sheets.push(api);
+    return api;
   }
+
+  function closeOpenSheet() {
+    sheets.forEach((one) => {
+      if (one.isOpen()) one.close();
+    });
+  }
+
+  let ownGift = null;
+
+  function fillOwned(gift) {
+    ownGift = gift;
+
+    document.getElementById('owned-title').textContent = gift.name;
+    document.getElementById('owned-owner').textContent = gift.owner || '—';
+
+    const known = typeof gift.left === 'number' && typeof gift.total === 'number';
+    document.getElementById('owned-left').textContent = known
+      ? formatPrice(gift.total - gift.left) + ' of ' + formatPrice(gift.total)
+      : '—';
+  }
+
+  function initOwnedTools() {
+    if (!owned) return;
+
+    const soon = (what) => () => {
+      haptic('light');
+      toast(what + ' скоро заработает');
+    };
+
+    document.getElementById('owned-send').addEventListener('click', soon('Отправка'));
+    document.getElementById('owned-share').addEventListener('click', soon('Поделиться'));
+
+    document.getElementById('owned-copy').addEventListener('click', () => {
+      if (!ownGift) return;
+
+      const link = location.origin + '/?gift=' + encodeURIComponent(ownGift.id);
+      const done = () => {
+        haptic('success');
+        toast('Ссылка скопирована');
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(done, () => {
+          if (legacyCopy(link)) done();
+        });
+        return;
+      }
+
+      if (legacyCopy(link)) done();
+    });
+  }
+
+  let buySheet = null;
+  let ownSheet = null;
+  let ownPlayer = null;
 
   function initSheet() {
     if (!sheet) return;
 
-    sheet.querySelectorAll('[data-sheet-close]').forEach((node) => {
-      node.addEventListener('click', () => {
-        haptic('light');
-        closeSheet();
-      });
+    buySheet = createSheet(sheet, {
+      fill: (gift) => {
+        sheetGift = gift;
+        fillSheet(gift);
+        setQty(1);
+      },
+      opened: (gift) => {
+        if (sheet.dataset.fill) {
+          document.getElementById('sheet-gauge-fill').style.width = sheet.dataset.fill;
+        }
+        sheetPlayer = loopArt(document.getElementById('sheet-art'), gift.art);
+      },
+      closed: () => {
+        if (sheetPlayer) {
+          sheetPlayer.destroy();
+          sheetPlayer = null;
+        }
+        sheetGift = null;
+      }
+    });
+
+    ownSheet = createSheet(owned, {
+      fill: fillOwned,
+      opened: (gift) => {
+        ownPlayer = loopArt(document.getElementById('owned-art'), gift.art);
+      },
+      closed: () => {
+        if (ownPlayer) {
+          ownPlayer.destroy();
+          ownPlayer = null;
+        }
+        ownGift = null;
+      }
     });
 
     // Обработчик вешаем один раз: onClick складывает их, а не заменяет
     if (tg && tg.BackButton) {
       tg.BackButton.onClick(() => {
         haptic('light');
-        closeSheet();
+        closeOpenSheet();
       });
     }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeOpenSheet();
+    });
 
     document.getElementById('qty-less').addEventListener('click', () => {
       haptic('select');
@@ -721,10 +835,6 @@
       setQty(qty + 1);
     });
 
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeSheet();
-    });
-
     document.getElementById('sheet-buy').addEventListener('click', () => {
       haptic('light');
       // Оплата появится вместе с серверной частью
@@ -733,14 +843,13 @@
       }
     });
 
-    initSheetDrag();
+    initOwnedTools();
   }
 
   function initGifts() {
     if (!giftsGrid) return;
 
-    GIFTS.forEach((gift) => giftsGrid.appendChild(buildGift(gift)));
-    whenLottieReady(initGiftArt);
+    GIFTS.forEach((gift) => giftsGrid.appendChild(buildGift(gift, (one) => buySheet.open(one))));
   }
 
   // --- Профиль ---
@@ -755,8 +864,6 @@
     return [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Без имени';
   }
 
-  let emptyPlayer = null;
-  let emptyWatch = null;
 
   function emptyState() {
     const box = document.createElement('div');
@@ -784,10 +891,7 @@
     line.appendChild(market);
     box.append(art, title, line);
 
-    playWhenSeen(art, 'gifts/empty.json', (player, observer) => {
-      if (observer) emptyWatch = observer;
-      if (player) emptyPlayer = player;
-    });
+    playWhenSeen(art, 'gifts/empty.json');
 
     return box;
   }
@@ -797,17 +901,7 @@
     const total = document.getElementById('prf-total');
     const items = OWNED[kind] || [];
 
-    // Старая анимация «пусто» уходит вместе с разметкой — плеер и наблюдателя
-    // снимаем сами, иначе они останутся висеть на выброшенном узле
-    if (emptyPlayer) {
-      emptyPlayer.destroy();
-      emptyPlayer = null;
-    }
-    if (emptyWatch) {
-      emptyWatch.disconnect();
-      emptyWatch = null;
-    }
-
+    releaseArt(list);
     list.textContent = '';
     total.textContent = formatPrice(items.length) + ' ' + plural(items.length, 'подарок', 'подарка', 'подарков');
 
@@ -818,7 +912,8 @@
 
     const grid = document.createElement('div');
     grid.className = 'gifts';
-    items.forEach((gift) => grid.appendChild(buildGift(gift)));
+    // Из профиля открывается карточка уже купленного подарка, а не покупка
+    items.forEach((gift) => grid.appendChild(buildGift(gift, (one) => ownSheet.open(one))));
     list.appendChild(grid);
   }
 

@@ -196,6 +196,77 @@
     </div>
   </div>
 
+  <!-- Карточка уже купленного подарка -->
+  <div class="sheet sheet--own" id="owned" hidden>
+    <div class="sheet__backdrop" data-sheet-close></div>
+
+    <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="owned-title">
+      <div class="sheet__head">
+        <span class="sheet__grabber" aria-hidden="true"></span>
+      </div>
+
+      <div class="sheet__scroll">
+        <div class="own-card">
+          <div class="own-card__pattern" aria-hidden="true"></div>
+
+          <button class="own-card__close" type="button" data-sheet-close aria-label="Закрыть">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+            </svg>
+          </button>
+
+          <div class="own-card__art" id="owned-art"></div>
+
+          <div class="own-card__acts">
+            <button class="own-act" type="button" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M13.8154 10.4211C13.7049 10.4211 13.6154 10.3316 13.6154 10.2211V2.60383C13.6154 2.41125 13.3699 2.32994 13.2549 2.48445L5.59411 12.7804C5.34868 13.1103 5.58411 13.5789 5.99525 13.5789H10.1846C10.2951 13.5789 10.3846 13.6684 10.3846 13.7789V21.3962C10.3846 21.5888 10.6301 21.6701 10.7451 21.5156L18.4059 11.2196C18.6513 10.8897 18.4159 10.4211 18.0047 10.4211H13.8154Z" fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+              <span>Улучшить</span>
+            </button>
+
+            <button class="own-act" type="button" id="owned-send">
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M16.5034 0.103439C18.0279 -0.404703 19.4782 1.04559 18.97 2.57002L13.9134 17.7398C13.3798 19.3407 11.2025 19.554 10.3684 18.0871L7.35198 12.7824L10.3336 9.80084C10.6264 9.50795 10.6264 9.03307 10.3336 8.74018C10.0407 8.44728 9.56579 8.44728 9.27289 8.74018L6.29141 11.7217L0.986399 8.70509C-0.48054 7.87095 -0.267279 5.69368 1.33364 5.16004L16.5034 0.103439Z" fill="currentColor"/>
+              </svg>
+              <span>Отправить</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="own-title">
+          <h3 id="owned-title"></h3>
+          <div class="own-title__tools">
+            <button class="own-tool" type="button" id="owned-share" aria-label="Поделиться">
+              <svg viewBox="0 0 21 21" aria-hidden="true">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M10.8842 3.49663C10.5933 3.79146 10.5964 4.26633 10.8912 4.55727L15.0903 8.70131H11.8405C10.2388 8.7013 8.96939 8.70129 7.9655 8.82071C6.9346 8.94334 6.08585 9.20091 5.3784 9.78686C5.15104 9.97517 4.94184 10.1844 4.75354 10.4118C4.16762 11.1192 3.91007 11.968 3.78744 12.999C3.66803 14.0029 3.66804 15.2724 3.66805 16.8742V16.9234C3.66805 17.3377 4.00382 17.6734 4.41801 17.6734C4.8322 17.6734 5.16797 17.3377 5.16797 16.9234C5.16797 15.2614 5.16921 14.0812 5.27686 13.1762C5.38251 12.2879 5.58152 11.7636 5.90872 11.3685C6.03721 11.2134 6.17997 11.0706 6.33513 10.9421C6.7302 10.6149 7.25446 10.4159 8.14267 10.3102C9.04764 10.2026 10.2278 10.2013 11.8897 10.2013H15.0903L11.3912 13.8519C11.0964 14.1429 11.0933 14.6177 11.3842 14.9125C11.6751 15.2074 12.15 15.2105 12.4448 14.9196L17.4448 9.98514C17.5876 9.84422 17.668 9.65195 17.668 9.45131C17.668 9.25068 17.5876 9.0584 17.4448 8.91748L11.9448 3.4896C11.65 3.19866 11.1751 3.20181 10.8842 3.49663Z" fill="currentColor"/>
+              </svg>
+            </button>
+
+            <button class="own-tool" type="button" id="owned-copy" aria-label="Скопировать ссылку">
+              <svg viewBox="0 0 21 21" aria-hidden="true">
+                <path d="M10.8348 6.33333C12.2348 6.33333 12.9351 6.33348 13.4699 6.60596C13.9401 6.8456 14.3224 7.22789 14.562 7.69808C14.8345 8.23284 14.8346 8.93315 14.8346 10.3332V14.0002C14.8346 15.4002 14.8345 16.1005 14.562 16.6353C14.3224 17.1054 13.9401 17.4877 13.4699 17.7274C12.9351 17.9998 12.2348 18 10.8348 18H7.16781C5.76778 18 5.06747 17.9998 4.53271 17.7274C4.06253 17.4877 3.68024 17.1054 3.44059 16.6353C3.16812 16.1005 3.16797 15.4002 3.16797 14.0002V10.3332C3.16797 8.93315 3.16812 8.23284 3.44059 7.69808C3.68024 7.22789 4.06253 6.8456 4.53271 6.60596C5.06747 6.33348 5.76778 6.33333 7.16781 6.33333H10.8348Z" fill="currentColor"/>
+                <path d="M14.1673 3C15.5671 3 16.2677 3.00033 16.8024 3.27262C17.2727 3.51226 17.6557 3.89447 17.8953 4.36475C18.1678 4.8995 18.168 5.59981 18.168 6.99984V10.6668C18.168 12.0669 18.1678 12.7672 17.8953 13.3019C17.6557 13.7722 17.2727 14.1544 16.8024 14.394C16.5968 14.4988 16.3663 14.5619 16.0814 14.6016C16.0823 14.425 16.0846 14.2404 16.0846 14.0482V10.2852C16.0847 9.62622 16.0846 9.05741 16.0464 8.58919C16.006 8.09513 15.9162 7.60372 15.6753 7.13086C15.3158 6.42541 14.7426 5.85135 14.0371 5.49186C13.5642 5.25095 13.0721 5.16195 12.578 5.12158C12.1099 5.08337 11.5414 5.08331 10.8828 5.08333H7.11979C6.92713 5.08333 6.74172 5.08482 6.56478 5.08577C6.60446 4.80086 6.66917 4.57038 6.77393 4.36475C7.01357 3.89461 7.3959 3.51225 7.86605 3.27262C8.40079 3.00016 9.10118 3 10.5011 3H14.1673Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <dl class="sheet__specs">
+          <dt>Владелец</dt>
+          <dd><span class="sheet__value" id="owned-owner"></span></dd>
+
+          <dt>Наличие</dt>
+          <dd><span class="sheet__value" id="owned-left"></span></dd>
+        </dl>
+      </div>
+
+      <div class="sheet__foot">
+        <button class="own-dismiss" type="button" data-sheet-close>Закрыть</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast glass" id="toast" role="status" aria-live="polite" hidden>
     <svg class="toast__icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M5 12.5 10 17.5 19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>

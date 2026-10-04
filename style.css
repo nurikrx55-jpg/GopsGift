@@ -326,6 +326,8 @@ body {
 }
 
 .gift {
+  /* Масштаб ленты наследуется: в профиле карточки мельче, и лента с ними */
+  --ribbon-scale: 1;
   position: relative;
   /* Пропорции образца (180 x 200); ширину задаёт сетка, две штуки в ряд */
   aspect-ratio: 180 / 200;
@@ -362,7 +364,6 @@ body {
    углы остаются целыми и обрезка не нужна. */
 .gift__badge {
   --ribbon-fill: url(#ribbon-default);
-  --ribbon-scale: 1;
 
   position: absolute;
   top: calc(15.49px * var(--ribbon-scale));
@@ -1047,4 +1048,211 @@ body {
   height: 19px;
   display: block;
   -webkit-user-drag: none;
+}
+
+/* Витрина в профиле: три в ряд, значит всё внутри мельче */
+
+.prf__list .gifts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.prf__list .gift {
+  --ribbon-scale: 0.66;
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.prf__list .gift__price {
+  bottom: 8px;
+  gap: 3px;
+  padding: 4px 9px;
+}
+
+.prf__list .gift__star {
+  width: 13px;
+  height: 13px;
+}
+
+.prf__list .gift__amount {
+  font-size: 12px;
+  line-height: 15px;
+}
+
+/* Карточка купленного подарка */
+
+.own-card {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 20px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  /* Подложка — цвет кузова машины: свечение сверху, глубина снизу */
+  background:
+    radial-gradient(120% 85% at 50% -5%, #78c3b9 0%, rgba(120, 195, 185, 0) 65%),
+    linear-gradient(180deg, #3f8079 0%, #1f4347 100%);
+  /* Карточка — ручка для перетаскивания листа */
+  touch-action: none;
+}
+
+.own-card__pattern {
+  position: absolute;
+  inset: 0;
+  background-image: url("gifts/pattern.png");
+  background-size: cover;
+  background-position: center;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.own-card__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.26);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.12s ease;
+}
+
+.own-card__close:active {
+  transform: scale(0.9);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.own-card__close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.own-card__art {
+  width: 66%;
+  aspect-ratio: 1;
+  /* Поднимаем над кнопками действий */
+  margin-bottom: 72px;
+}
+
+.own-card__art canvas,
+.own-card__art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.own-card__acts {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.own-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 76px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.26);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.own-act:active:not(:disabled) {
+  transform: scale(0.96);
+  background: rgba(0, 0, 0, 0.38);
+}
+
+/* Улучшение появится позже — кнопка на месте, но пока не работает */
+.own-act:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.own-act svg {
+  width: 22px;
+  height: 22px;
+}
+
+.own-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.own-title h3 {
+  font-size: 24px;
+  font-weight: inherit;
+  line-height: 1.2;
+}
+
+.own-title__tools {
+  display: flex;
+  gap: 10px;
+}
+
+.own-tool {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.own-tool:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.own-tool svg {
+  width: 21px;
+  height: 21px;
+}
+
+.sheet--own .sheet__specs {
+  margin-top: 16px;
+}
+
+.own-dismiss {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.own-dismiss:active {
+  transform: scale(0.98);
+  background: rgba(255, 255, 255, 0.12);
 }
