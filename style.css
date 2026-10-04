@@ -43,10 +43,76 @@ body {
 
 .stage {
   min-height: var(--tg-viewport-stable-height, 100dvh);
-  display: grid;
-  place-items: center;
-  padding-top: calc(var(--safe-area-top) + var(--content-top));
+  padding-top: calc(var(--safe-area-top) + var(--content-top) + 16px);
   padding-bottom: calc(var(--safe-area-bottom) + 108px);
+}
+
+/* Раздел виден только когда выбрана его вкладка */
+.pane {
+  display: none;
+}
+
+.stage[data-section="home"] .pane[data-pane="home"] {
+  display: block;
+}
+
+/* Карусель баннеров */
+
+.slider__track {
+  display: flex;
+  gap: 12px;
+  /* Боковые отступы живут на дорожке, иначе крайние слайды липнут к краю экрана */
+  padding: 0 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 16px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.slider__track::-webkit-scrollbar {
+  display: none;
+}
+
+.slider__slide {
+  /* Слайд уже дорожки — следующий выглядывает справа */
+  flex: 0 0 calc(100% - 56px);
+  aspect-ratio: 696 / 259;
+  border-radius: 20px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  scroll-snap-align: start;
+  -webkit-user-drag: none;
+  transition: transform 0.18s ease;
+}
+
+.slider__slide:active {
+  transform: scale(0.985);
+}
+
+.slider__dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.slider__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  transition: width 0.3s var(--ease), background-color 0.3s ease;
+}
+
+.slider__dot.is-active {
+  width: 22px;
+  background: #fff;
 }
 
 /* Контейнер — из присланного кода, ширина пересчитана под 4 вкладки */

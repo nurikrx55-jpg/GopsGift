@@ -17,6 +17,8 @@
   const tabs = Array.from(document.querySelectorAll('._tab_1mfct_40'));
   const stage = document.querySelector('.stage');
   const splash = document.getElementById('splash');
+  const sliderTrack = document.getElementById('slider-track');
+  const sliderDots = document.getElementById('slider-dots');
 
   let current = 0;
 
@@ -198,6 +200,57 @@
     enterFullscreen();
   }
 
+  function initSlider() {
+    if (!sliderTrack || !sliderDots) return;
+
+    const slides = Array.from(sliderTrack.children);
+    if (slides.length < 2) return;
+
+    const dots = slides.map((slide, index) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'slider__dot';
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-label', slide.getAttribute('aria-label') || `Баннер ${index + 1}`);
+
+      dot.addEventListener('click', () => {
+        sliderTrack.scrollTo({ left: slide.offsetLeft - sliderTrack.offsetLeft, behavior: 'smooth' });
+      });
+
+      sliderDots.appendChild(dot);
+      return dot;
+    });
+
+    function sync() {
+      // Ближайший к левому краю слайд и считается текущим
+      const x = sliderTrack.scrollLeft;
+      let active = 0;
+      let best = Infinity;
+
+      slides.forEach((slide, index) => {
+        const distance = Math.abs(slide.offsetLeft - sliderTrack.offsetLeft - x);
+        if (distance < best) {
+          best = distance;
+          active = index;
+        }
+      });
+
+      dots.forEach((dot, index) => {
+        const on = index === active;
+        dot.classList.toggle('is-active', on);
+        dot.setAttribute('aria-selected', String(on));
+      });
+    }
+
+    sliderTrack.addEventListener('scroll', () => {
+      // Точки обновляем на кадре отрисовки, а не на каждом событии прокрутки
+      window.requestAnimationFrame(sync);
+    }, { passive: true });
+
+    window.addEventListener('resize', sync);
+    sync();
+  }
+
   function initSplash() {
     if (!splash) return;
 
@@ -219,5 +272,6 @@
 
   initTelegram();
   initNav();
+  initSlider();
   initSplash();
 })();
