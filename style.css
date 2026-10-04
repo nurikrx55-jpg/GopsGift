@@ -315,8 +315,6 @@ body {
   padding: 12px;
   border-radius: 12px;
   background: var(--secondary-bg);
-  /* Концы ленты уходят за угол — срезаем */
-  overflow: hidden;
 }
 
 /* Доли взяты из образца: арт 120 на карточке 180 x 200, отступ сверху 28.
@@ -341,17 +339,19 @@ body {
 /* Лента в углу.
    Центр ленты сперва совмещаем с углом карточки (отрицательные margin),
    затем отодвигаем внутрь по диагонали на --ribbon-inset и поворачиваем. */
+/* Оба торца ленты срезаны в path ровно под 45°, поэтому после поворота
+   они становятся горизонталью и вертикалью и ложатся впритык к краям
+   карточки. Смещения посчитаны из середин этих торцов — при них скруглённые
+   углы остаются целыми и обрезка не нужна. */
 .gift__badge {
-  --ribbon-inset: 32px;
   --ribbon-fill: url(#ribbon-default);
 
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 15.49px;
+  right: -20.68px;
   width: 98px;
   height: 26px;
-  margin: -13px -49px 0 0;
-  transform: translate(calc(var(--ribbon-inset) / -1.414), calc(var(--ribbon-inset) / 1.414)) rotate(45deg);
+  transform: rotate(45deg);
 
   display: grid;
   place-items: center;
