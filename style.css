@@ -1,6 +1,9 @@
 :root {
   --font-sf-pro: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --color-text: #fff;
+  /* Палитра карточек — из присланного образца */
+  --secondary-bg: #1a1a1a;
+  --gold: #443926;
 
   /* Telegram отдаёт отступ под системную панель; env() — фоллбэк для браузера */
   --safe-area-bottom: max(var(--tg-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
@@ -42,7 +45,11 @@ body {
 }
 
 .stage {
-  min-height: var(--tg-viewport-stable-height, 100dvh);
+  height: var(--tg-viewport-stable-height, 100dvh);
+  /* Карточек станет много — прокрутку держим на сцене, body её запрещает */
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   padding-top: calc(var(--safe-area-top) + var(--content-top) + 16px);
   padding-bottom: calc(var(--safe-area-bottom) + 108px);
 }
@@ -280,4 +287,128 @@ body {
   .splash__spark {
     animation: none;
   }
+}
+
+/* Карточка подарка */
+
+/* Спрайт с градиентами ленты: нужен в DOM, но не должен занимать места */
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.gifts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 16px;
+  /* Отбивка от точек карусели */
+  margin-top: 20px;
+}
+
+.gift {
+  position: relative;
+  /* Пропорции образца (180 x 200); ширину задаёт сетка, две штуки в ряд */
+  aspect-ratio: 180 / 200;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--secondary-bg);
+  /* Концы ленты уходят за угол — срезаем */
+  overflow: hidden;
+}
+
+/* Доли взяты из образца: арт 120 на карточке 180 x 200, отступ сверху 28.
+   Позиционируем абсолютно — тогда проценты считаются от всей карточки,
+   а не от области внутри padding, и пропорции держатся на любой ширине. */
+.gift__art {
+  position: absolute;
+  top: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 66.67%;
+  aspect-ratio: 1;
+}
+
+.gift__art canvas,
+.gift__art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Лента в углу.
+   Центр ленты сперва совмещаем с углом карточки (отрицательные margin),
+   затем отодвигаем внутрь по диагонали на --ribbon-inset и поворачиваем. */
+.gift__badge {
+  --ribbon-inset: 32px;
+  --ribbon-fill: url(#ribbon-default);
+
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 98px;
+  height: 26px;
+  margin: -13px -49px 0 0;
+  transform: translate(calc(var(--ribbon-inset) / -1.414), calc(var(--ribbon-inset) / 1.414)) rotate(45deg);
+
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  pointer-events: none;
+}
+
+.gift__badge[data-kind="premium"] { --ribbon-fill: url(#ribbon-premium); }
+.gift__badge[data-kind="sold"]    { --ribbon-fill: url(#ribbon-sold); }
+.gift__badge[data-kind="time"]    { --ribbon-fill: url(#ribbon-time); }
+
+.gift__ribbon {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  fill: var(--ribbon-fill);
+}
+
+.gift__label {
+  grid-area: 1 / 1;
+  /* Текст идёт поверх ленты */
+  z-index: 1;
+}
+
+/* Плашка цены */
+.gift__price {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--gold);
+  white-space: nowrap;
+}
+
+.gift__star {
+  width: 16px;
+  height: 16px;
+  display: block;
+  -webkit-user-drag: none;
+}
+
+.gift__amount {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  /* Золото под стать звезде; color — запасной вариант, если clip не поддержан */
+  color: #fdd21a;
+  background-image: linear-gradient(135deg, #fdd21a, #e47b03);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

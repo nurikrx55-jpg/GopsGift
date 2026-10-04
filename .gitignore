@@ -12,3 +12,6 @@
 # Node
 node_modules/
 npm-debug.log*
+
+# Локальные настройки Claude Code
+.claude/

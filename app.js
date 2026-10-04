@@ -10,6 +10,11 @@
   // Сколько экран загрузки держится минимум — чтобы не мигнуть и исчезнуть
   const SPLASH_MIN_MS = 1100;
 
+  // Витрина подарков. art — распакованный .tgs: Lottie-JSON рядом в gifts/
+  const GIFTS = [
+    { id: 'beetle', name: 'Beetle', art: 'gifts/beetle.json', price: 2000, badge: 'limited', kind: 'default' }
+  ];
+
   const tg = window.Telegram && window.Telegram.WebApp;
 
   const nav = document.querySelector('._footer_1mfct_7');
@@ -19,6 +24,7 @@
   const splash = document.getElementById('splash');
   const sliderTrack = document.getElementById('slider-track');
   const sliderDots = document.getElementById('slider-dots');
+  const giftsGrid = document.getElementById('gifts');
 
   let current = 0;
 
@@ -251,6 +257,120 @@
     sync();
   }
 
+  // 2000 -> «2 000». Пробел неразрывный, иначе число рвётся на две строки
+  function formatPrice(value) {
+    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
+  }
+
+  function buildGift(gift) {
+    const card = document.createElement('article');
+    card.className = 'gift';
+
+    const art = document.createElement('div');
+    art.className = 'gift__art';
+    art.dataset.art = gift.art;
+    if (gift.name) art.setAttribute('aria-label', gift.name);
+    card.appendChild(art);
+
+    if (gift.badge) {
+      const badge = document.createElement('span');
+      badge.className = 'gift__badge';
+      badge.dataset.kind = gift.kind || 'default';
+      // Контур ленты лежит в спрайте, здесь только ссылка на него
+      badge.innerHTML =
+        '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true">' +
+        '<use href="#ribbon-shape"></use></svg>';
+
+      const label = document.createElement('span');
+      label.className = 'gift__label';
+      label.textContent = gift.badge;
+      badge.appendChild(label);
+      card.appendChild(badge);
+    }
+
+    const price = document.createElement('span');
+    price.className = 'gift__price';
+
+    const star = document.createElement('img');
+    star.className = 'gift__star';
+    star.src = 'gifts/star.png';
+    star.alt = 'звёзд';
+    star.draggable = false;
+
+    const amount = document.createElement('span');
+    amount.className = 'gift__amount';
+    amount.textContent = formatPrice(gift.price);
+
+    price.append(star, amount);
+    card.appendChild(price);
+
+    return card;
+  }
+
+  // lottie подключён с defer — когда app.js выполняется, его ещё нет в window
+  function whenLottieReady(run) {
+    if (window.lottie) {
+      run();
+      return;
+    }
+
+    const check = () => {
+      if (window.lottie) run();
+      else console.warn('lottie не загрузился — карточки останутся без анимации');
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', check, { once: true });
+    } else {
+      check();
+    }
+  }
+
+  // Анимации заводим только у видимых карточек и тормозим ушедшие за край:
+  // на витрине их будут десятки, крутить все разом — зря греть телефон
+  function initGiftArt() {
+    const holders = Array.from(giftsGrid.querySelectorAll('.gift__art'));
+    if (!holders.length) return;
+
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Ретина: рисуем в большем разрешении, выше 2x смысла нет
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const players = new Map();
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const player = players.get(entry.target);
+
+        if (!player) {
+          if (!entry.isIntersecting) return;
+
+          players.set(entry.target, window.lottie.loadAnimation({
+            container: entry.target,
+            renderer: 'canvas',
+            loop: !still,
+            autoplay: !still,
+            path: entry.target.dataset.art,
+            rendererSettings: { dpr: dpr }
+          }));
+          return;
+        }
+
+        if (still) return;
+        if (entry.isIntersecting) player.play();
+        else player.pause();
+      });
+    }, { rootMargin: '120px' });
+
+    holders.forEach((holder) => observer.observe(holder));
+  }
+
+  function initGifts() {
+    if (!giftsGrid) return;
+
+    GIFTS.forEach((gift) => giftsGrid.appendChild(buildGift(gift)));
+    whenLottieReady(initGiftArt);
+  }
+
   function initSplash() {
     if (!splash) return;
 
@@ -273,5 +393,6 @@
   initTelegram();
   initNav();
   initSlider();
+  initGifts();
   initSplash();
 })();
