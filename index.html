@@ -126,12 +126,33 @@
 
     <section class="pane" data-pane="market">
       <div class="soon">
-        <svg class="soon__icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M7 7.75H17C19.2091 7.75 21 9.54086 21 11.75V17C21 19.2091 19.2091 21 17 21H7C4.79086 21 3 19.2091 3 17V11.75C3 9.54086 4.79086 7.75 7 7.75Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M8.5 7.75V6.5C8.5 4.567 10.067 3 12 3C13.933 3 15.5 4.567 15.5 6.5V7.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <div class="soon__art" id="market-art" role="img" aria-label="Маркет готовится"></div>
+
         <b>Маркет в работе</b>
         <p>Скоро здесь можно будет покупать и продавать подарки друг у друга</p>
+
+        <!-- Отсчёт до открытия. Цифры подставляет app.js -->
+        <div class="timer glass" id="market-timer" role="timer" aria-live="off">
+          <div class="timer__cell">
+            <span class="timer__value" data-unit="days"></span>
+            <span class="timer__label" data-label="days">дней</span>
+          </div>
+          <span class="timer__sep" aria-hidden="true"></span>
+          <div class="timer__cell">
+            <span class="timer__value" data-unit="hours"></span>
+            <span class="timer__label" data-label="hours">часов</span>
+          </div>
+          <span class="timer__sep" aria-hidden="true"></span>
+          <div class="timer__cell">
+            <span class="timer__value" data-unit="minutes"></span>
+            <span class="timer__label" data-label="minutes">минут</span>
+          </div>
+          <span class="timer__sep" aria-hidden="true"></span>
+          <div class="timer__cell">
+            <span class="timer__value" data-unit="seconds"></span>
+            <span class="timer__label" data-label="seconds">секунд</span>
+          </div>
+        </div>
       </div>
     </section>
 

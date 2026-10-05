@@ -86,6 +86,10 @@
   const PREMIUM_STARS = 1000;
   const VERIFIED_ART = 'gifts/verified.json';
 
+  // Маркет откроется в этот час, до него идёт отсчёт на вкладке
+  const MARKET_OPENS_AT = Date.parse('2026-11-04T12:00:00+03:00');
+  const MARKET_ART = 'gifts/duck.json';
+
   // Балансы брать пока неоткуда — появится счёт, подставить сюда
   const STARS = 0;
   const COUPONS = 0;
@@ -548,14 +552,14 @@
   const artPlayers = new Map();
   const artWatchers = new Map();
 
-  function playWhenSeen(container, path) {
+  function playWhenSeen(container, path, loop) {
     whenLottieReady(() => {
       const observer = new IntersectionObserver((entries, obs) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
 
           obs.unobserve(entry.target);
-          const player = playOnce(entry.target, path);
+          const player = loop ? loopArt(entry.target, path) : playOnce(entry.target, path);
           if (player) artPlayers.set(entry.target, player);
         });
       }, { rootMargin: '120px' });
@@ -1161,6 +1165,107 @@
     });
   }
 
+  // --- Маркет ---
+
+  // Разряд меняется катушкой: старая цифра уходит вверх и размывается,
+  // новая приходит снизу и наводится на резкость.
+  function rollDigit(cell, value, animate) {
+    const now = cell.lastElementChild;
+    if (now && now.textContent === value) return;
+
+    const face = document.createElement('span');
+    face.className = 'digit__face';
+    face.textContent = value;
+
+    if (!animate || !now) {
+      cell.textContent = '';
+      cell.appendChild(face);
+      return;
+    }
+
+    face.classList.add('is-in');
+    cell.appendChild(face);
+
+    now.classList.add('is-out');
+    // Ушедшую цифру снимаем сами: она лежит поверх потока и иначе осталась бы
+    now.addEventListener('animationend', () => now.remove(), { once: true });
+  }
+
+  function rollValue(holder, text, animate) {
+    while (holder.children.length < text.length) {
+      const cell = document.createElement('span');
+      cell.className = 'digit';
+      holder.appendChild(cell);
+    }
+    while (holder.children.length > text.length) {
+      holder.lastElementChild.remove();
+    }
+
+    for (let i = 0; i < text.length; i += 1) {
+      rollDigit(holder.children[i], text[i], animate);
+    }
+  }
+
+  function initMarket() {
+    const art = document.getElementById('market-art');
+    if (art) playWhenSeen(art, MARKET_ART, true);
+
+    const timer = document.getElementById('market-timer');
+    if (!timer) return;
+
+    const values = {};
+    const labels = {};
+    timer.querySelectorAll('[data-unit]').forEach((node) => {
+      values[node.dataset.unit] = node;
+    });
+    timer.querySelectorAll('[data-label]').forEach((node) => {
+      labels[node.dataset.label] = node;
+    });
+
+    const words = {
+      days: ['день', 'дня', 'дней'],
+      hours: ['час', 'часа', 'часов'],
+      minutes: ['минута', 'минуты', 'минут'],
+      seconds: ['секунда', 'секунды', 'секунд']
+    };
+
+    let wasSeen = false;
+
+    function tick() {
+      // Пока раздел не на экране, катушки крутить незачем — но и показать
+      // при возврате надо уже верные цифры, поэтому первый тик без анимации
+      const seen = Boolean(timer.offsetParent);
+      if (!seen) {
+        wasSeen = false;
+        return;
+      }
+
+      const left = Math.max(0, MARKET_OPENS_AT - Date.now());
+      const total = Math.floor(left / 1000);
+      const parts = {
+        days: Math.floor(total / 86400),
+        hours: Math.floor(total / 3600) % 24,
+        minutes: Math.floor(total / 60) % 60,
+        seconds: total % 60
+      };
+
+      Object.keys(parts).forEach((unit) => {
+        const text = String(parts[unit]).padStart(2, '0');
+        rollValue(values[unit], text, wasSeen);
+        labels[unit].textContent = plural(parts[unit], words[unit][0], words[unit][1], words[unit][2]);
+      });
+
+      timer.setAttribute('aria-label',
+        'До открытия маркета ' + parts.days + ' д ' + parts.hours + ' ч ' +
+        parts.minutes + ' мин ' + parts.seconds + ' с');
+
+      wasSeen = true;
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  }
+
   // --- Профиль ---
 
   function tgUser() {
@@ -1371,6 +1476,7 @@
   initSlider();
   initGifts();
   initTasks();
+  initMarket();
   initSheet();
   initHeader();
   initProfile();
