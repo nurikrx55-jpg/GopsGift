@@ -18,49 +18,36 @@
   const NFT_NOTE = 'Подарок скоро можно будет улучшить, продать и выпустить как NFT';
 
   const CATALOG = {
-    gamepad: {
-      id: 'gamepad',
-      name: 'Gamepad',
-      art: 'gifts/gamepad.json',
-      price: 299,
-      badge: 'Premium',
-      kind: 'legend',
+    grooby: {
+      id: 'grooby',
+      name: 'Grooby',
+      art: 'gifts/grooby.json',
+      price: 399,
+      badge: 'Легендарный',
+      kind: 'blood',
       note: NFT_NOTE,
       owner: '—',
-      left: 12,
-      total: 500,
-      status: 'Non-Unique'
-    },
-    corgi: {
-      id: 'corgi',
-      name: 'Corgi',
-      art: 'gifts/corgi.json',
-      price: 199,
-      badge: 'Эпический',
-      kind: 'epic',
-      note: NFT_NOTE,
-      owner: '—',
-      left: 340,
+      left: 2000,
       total: 2000,
       status: 'Non-Unique'
     },
-    bee: {
-      id: 'bee',
-      name: 'Bumblebee',
-      art: 'gifts/bee.json',
-      price: 99,
-      badge: 'Редкий',
-      kind: 'rare',
+    car: {
+      id: 'car',
+      name: 'Car',
+      art: 'gifts/car.json',
+      price: 299,
+      badge: 'Premium',
+      kind: 'premium',
       note: NFT_NOTE,
       owner: '—',
-      left: 4210,
-      total: 10000,
+      left: 5000,
+      total: 5000,
       status: 'Non-Unique'
     }
   };
 
   // Витрина
-  const GIFTS = [CATALOG.gamepad, CATALOG.corgi, CATALOG.bee];
+  const GIFTS = [CATALOG.grooby, CATALOG.car];
 
   // Подарки пользователя по разделам переключателя. Класть сюда записи из
   // CATALOG, а не копии — иначе плашка снова разойдётся.
@@ -75,10 +62,14 @@
   // Потолок на случай, если наличие не указано
   const QTY_MAX = 99;
 
-  // Особый пользователь: ник золотом, а вместо настоящего идентификатора
-  // показывается и копируется подменный. Никаких подписей про статус.
-  const PREMIUM_ID = 1621490024;
-  const PREMIUM_ALIAS = '7777777777';
+  // Особый пользователь: ник золотом и своё имя, а вместо настоящего
+  // идентификатора показывается и копируется подменный. После ника —
+  // анимированная галочка. Никаких подписей про статус.
+  const PREMIUM_ID = 6955456382;
+  const PREMIUM_ALIAS = '8888888888';
+  const PREMIUM_NAME = 'SHEP';
+  const PREMIUM_STARS = 1000;
+  const VERIFIED_ART = 'gifts/verified.json';
 
   // Балансы брать пока неоткуда — появится счёт, подставить сюда
   const STARS = 0;
@@ -896,8 +887,13 @@
     return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
   }
 
+  function isPremium(user) {
+    return Boolean(user) && user.id === PREMIUM_ID;
+  }
+
   function userTitle(user) {
     if (!user) return 'Гость';
+    if (isPremium(user)) return PREMIUM_NAME;
     if (user.username) return '@' + user.username;
     return [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Без имени';
   }
@@ -990,7 +986,7 @@
     const coupons = document.getElementById('hdr-coupons');
     if (!stars || !coupons) return;
 
-    stars.textContent = formatPrice(STARS);
+    stars.textContent = formatPrice(isPremium(tgUser()) ? PREMIUM_STARS : STARS);
     coupons.textContent = formatPrice(COUPONS);
   }
 
@@ -1001,11 +997,18 @@
     const user = tgUser();
     const owned = OWNED.gifts.length + OWNED.nft.length;
 
-    const premium = Boolean(user) && user.id === PREMIUM_ID;
+    const premium = isPremium(user);
 
     const name = document.getElementById('prf-name');
     name.textContent = userTitle(user);
     name.dataset.premium = String(premium);
+
+    // Галочка только у особого пользователя, и крутится один раз
+    const verified = document.getElementById('prf-verified');
+    if (verified) {
+      verified.hidden = !premium;
+      if (premium) playWhenSeen(verified, VERIFIED_ART);
+    }
     document.getElementById('prf-count').textContent =
       formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
 

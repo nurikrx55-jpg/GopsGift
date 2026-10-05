@@ -325,15 +325,62 @@ body {
   margin-top: 20px;
 }
 
+/* Карточка — стекло, а не серая плита. Три слоя дают весь объём:
+   мягкая подсветка под подарком, наклонный градиент корпуса и блик по
+   верхней кромке. Ободок и падающая тень живут в box-shadow. */
 .gift {
   /* Масштаб ленты наследуется: в профиле карточки мельче, и лента с ними */
   --ribbon-scale: 1;
+  /* Скругление вынесено в переменную: в профиле карточки мельче */
+  --gift-radius: 20px;
   position: relative;
   /* Пропорции образца (180 x 200); ширину задаёт сетка, две штуки в ряд */
   aspect-ratio: 180 / 200;
   padding: 12px;
-  border-radius: 12px;
-  background: var(--secondary-bg);
+  border-radius: var(--gift-radius);
+  background:
+    radial-gradient(86% 62% at 50% 26%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(161deg, #3b3b42 0%, #232328 44%, #16161a 100%);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  box-shadow:
+    /* Световой кант сверху и приглушённый по остальным краям — ободок стекла */
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset -1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    /* Преломление у нижней кромки: свет собирается в толще стекла */
+    inset 0 -22px 26px -24px rgba(255, 255, 255, 0.3),
+    0 14px 26px -16px rgba(0, 0, 0, 0.8),
+    0 3px 8px -5px rgba(0, 0, 0, 0.6);
+}
+
+/* Блик: свет падает из верхнего левого угла и гаснет к середине карточки */
+.gift::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    152deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.05) 17%,
+    rgba(255, 255, 255, 0) 41%
+  );
+  pointer-events: none;
+}
+
+/* Отсвет от подарка на дне карточки — из-за него стекло кажется толстым */
+.gift::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 0;
+  height: 46%;
+  border-radius: inherit;
+  background: radial-gradient(58% 100% at 50% 100%, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 72%);
+  pointer-events: none;
 }
 
 /* Доли взяты из образца: арт 120 на карточке 180 x 200, отступ сверху 28.
@@ -341,6 +388,7 @@ body {
    а не от области внутри padding, и пропорции держатся на любой ширине. */
 .gift__art {
   position: absolute;
+  z-index: 1;
   top: 14%;
   left: 50%;
   transform: translateX(-50%);
@@ -366,6 +414,7 @@ body {
   --ribbon-fill: url(#ribbon-default);
 
   position: absolute;
+  z-index: 2;
   top: calc(15.49px * var(--ribbon-scale));
   right: calc(-20.68px * var(--ribbon-scale));
   width: calc(98px * var(--ribbon-scale));
@@ -389,6 +438,7 @@ body {
 .gift__badge[data-kind="rare"]   { --ribbon-fill: url(#ribbon-rare); }
 .gift__badge[data-kind="epic"]   { --ribbon-fill: url(#ribbon-epic); }
 .gift__badge[data-kind="legend"] { --ribbon-fill: url(#ribbon-legend); }
+.gift__badge[data-kind="blood"]  { --ribbon-fill: url(#ribbon-blood); }
 
 .gift__ribbon {
   grid-area: 1 / 1;
@@ -406,6 +456,7 @@ body {
 /* Плашка цены */
 .gift__price {
   position: absolute;
+  z-index: 2;
   left: 50%;
   bottom: 12px;
   transform: translateX(-50%);
@@ -414,7 +465,11 @@ body {
   gap: 4px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: var(--gold);
+  background: linear-gradient(170deg, #51442c 0%, var(--gold) 52%, #3a301f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 150, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 3px 8px -4px rgba(0, 0, 0, 0.6);
   white-space: nowrap;
 }
 
@@ -534,13 +589,13 @@ body {
   position: relative;
   /* Подарок — тоже ручка: тянуть лист удобнее всего прямо за него */
   touch-action: none;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 7;
   display: grid;
   place-items: center;
 }
 
 .sheet__art {
-  width: 70%;
+  width: 46%;
   aspect-ratio: 1;
 }
 
@@ -608,6 +663,30 @@ body {
   flex-wrap: wrap;
   gap: 6px 8px;
   font-weight: 600;
+}
+
+/* Наличие: приписка стоит в одну строку с «выпущено», а не уезжает вниз.
+   Строке разрешаем сжиматься, иначе она распёрла бы колонку таблицы. */
+.sheet__value.sheet__value--row {
+  flex-wrap: nowrap;
+  min-width: 0;
+  gap: 7px;
+  /* Строка плотнее обычной: иначе «2 000/2 000 выпущено» и приписка вдвоём
+     не влезают в колонку */
+  font-size: 14px;
+}
+
+.sheet__value--row > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Приписка не сжимается — сокращается соседний текст, а не она */
+.sheet__value--row .sheet__pill {
+  flex: none;
+  padding: 2px 7px;
+  font-size: 12px;
 }
 
 /* Heavy шире прежнего начертания, и «198/200 выпущено» рвалось посередине.
@@ -758,11 +837,18 @@ body {
 /* Карточка на витрине откликается на нажатие */
 .gift {
   cursor: pointer;
-  transition: transform 0.16s ease;
+  transition: transform 0.16s ease, box-shadow 0.22s ease;
 }
 
 .gift:active {
   transform: scale(0.97);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 1px 0 0 rgba(255, 255, 255, 0.05),
+    inset -1px 0 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -22px 26px -24px rgba(255, 255, 255, 0.2),
+    0 6px 14px -10px rgba(0, 0, 0, 0.75);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -815,10 +901,36 @@ body {
   color: rgba(0, 0, 0, 0.35);
 }
 
-.prf__name {
+.prf__title {
   margin: 16px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.prf__name {
   font-size: 19px;
   line-height: 1.2;
+}
+
+/* Галочка после ника. Размер в em — растёт вместе с ником */
+.prf__verified {
+  flex: none;
+  display: block;
+  width: 1.15em;
+  height: 1.15em;
+  font-size: 19px;
+}
+
+.prf__verified[hidden] {
+  display: none;
+}
+
+.prf__verified canvas,
+.prf__verified svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 /* Золото вместо белого. color — запасной вариант: если обрезка фона по
@@ -937,7 +1049,7 @@ body {
 }
 
 .prf__empty-art {
-  width: 132px;
+  width: 92px;
   aspect-ratio: 1;
 }
 
@@ -1074,8 +1186,8 @@ body {
 
 .prf__list .gift {
   --ribbon-scale: 0.66;
+  --gift-radius: 14px;
   padding: 8px;
-  border-radius: 10px;
 }
 
 /* Цены у купленного подарка нет — подарок встаёт по центру карточки */
@@ -1284,4 +1396,119 @@ body {
 .own-dismiss:active {
   transform: scale(0.98);
   background: rgba(255, 255, 255, 0.12);
+}
+
+/* Задания */
+
+.stage[data-section="gifts"] .pane[data-pane="gifts"] {
+  display: block;
+}
+
+.tasks {
+  padding: 0 16px;
+}
+
+/* Блок из образца: тёмная плита с крупным скруглением */
+.tasks__block {
+  margin-bottom: 15px;
+  padding: 14px 18px 7px;
+  border-radius: 29px;
+  background: #171717;
+}
+
+.tasks__head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 0 2px 4px;
+  font-size: 21px;
+}
+
+.tasks__count {
+  font-weight: inherit;
+  color: var(--hint);
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 0;
+}
+
+.task__avatar {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 17px;
+  background-size: cover;
+  background-position: center;
+  /* Пока настоящей картинки нет — градиент с буквой вместо неё */
+  display: grid;
+  place-items: center;
+  font-size: 23px;
+  color: rgba(255, 255, 255, 0.92);
+  overflow: hidden;
+}
+
+.task__info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  justify-items: start;
+}
+
+.task__name {
+  font-size: 17px;
+  line-height: 1.2;
+  /* Длинное название не должно распирать строку */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Награда — купоны, тем же глифом, что в шапке */
+.task__reward {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px 4px 9px;
+  border-radius: 999px;
+  background: #a3e04c;
+  color: #0e0e0e;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.task__reward svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.task__go {
+  flex: none;
+  min-height: 46px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #2c2c2c;
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.task__go:active {
+  transform: scale(0.94);
+  background: #383838;
+}
+
+.tasks__empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--hint);
 }
