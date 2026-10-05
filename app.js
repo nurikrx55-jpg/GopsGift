@@ -275,28 +275,40 @@
     enterFullscreen();
   }
 
-  // Баннеры живут в хранилище: картинка либо лежит в репозитории, либо
-  // загружена через админку и достаётся из базы
+  // Баннеры приходят с сервера: картинка либо лежит в репозитории, либо
+  // загружена через админку — в обоих случаях это просто адрес
+  function openLink(href) {
+    if (!href) return;
+    // Внутри Telegram ссылка открывается поверх приложения, а не вместо него
+    if (tg && /^https:\/\/t\.me\//i.test(href) && tg.openTelegramLink) tg.openTelegramLink(href);
+    else if (tg && tg.openLink) tg.openLink(href);
+    else window.open(href, '_blank', 'noopener');
+  }
+
   function buildBanners() {
-    if (!sliderTrack) return Promise.resolve([]);
+    if (!sliderTrack) return [];
 
     const banners = (Store.state().banners || []).filter((one) => one && one.image);
     sliderTrack.textContent = '';
 
-    return Promise.all(banners.map((banner) =>
-      Store.resolveImage(banner.image).then((url) => {
-        if (!url) return null;
+    return banners.map((banner) => {
+      const slide = document.createElement('a');
+      slide.className = 'slider__slide';
+      slide.href = banner.href || '#';
+      slide.setAttribute('aria-label', banner.label || 'Баннер');
+      slide.style.backgroundImage = 'url("' + banner.image + '")';
+      slide.draggable = false;
 
-        const slide = document.createElement('a');
-        slide.className = 'slider__slide';
-        slide.href = banner.href || '#';
-        slide.setAttribute('aria-label', banner.label || 'Баннер');
-        slide.style.backgroundImage = 'url("' + url + '")';
-        slide.draggable = false;
-        sliderTrack.appendChild(slide);
-        return slide;
-      })
-    )).then((made) => made.filter(Boolean));
+      slide.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!banner.href) return;
+        haptic('light');
+        openLink(banner.href);
+      });
+
+      sliderTrack.appendChild(slide);
+      return slide;
+    });
   }
 
   function initSlider(slides) {
@@ -495,27 +507,21 @@
   }
 
   // Один прогон и остановка на последнем кадре — так ведут себя все анимации
-  // в приложении, кроме той, что в раскрытой карточке.
-  // Подарок из репозитория приходит путём к файлу, подарок из админки —
-  // уже разобранным содержимым. lottie принимает и то, и другое.
-  function artConfig(source) {
-    if (!source) return null;
-    return source.animationData ? { animationData: source.animationData } : { path: source.path };
-  }
-
-  function playOnce(container, source) {
-    const art = artConfig(source);
-    if (!window.lottie || !art) return null;
+  // в приложении, кроме той, что в раскрытой карточке. Анимация всегда
+  // приходит адресом: файл из репозитория или загрузка из админки.
+  function playOnce(container, path) {
+    if (!window.lottie || !path) return null;
 
     const still = prefersStill();
-    const player = window.lottie.loadAnimation(Object.assign({
+    const player = window.lottie.loadAnimation({
       container: container,
       renderer: 'canvas',
       loop: false,
       autoplay: !still,
+      path: path,
       // Ретина: рисуем в большем разрешении, выше 2x смысла нет
       rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
-    }, art));
+    });
 
     // У некоторых композиций нулевой кадр пустой: просто не запускать нельзя,
     // иначе на месте анимации останется пустое место
@@ -535,9 +541,7 @@
   const artPlayers = new Map();
   const artWatchers = new Map();
 
-  const artPending = new Set();
-
-  function playWhenSeen(container, ref, loop) {
+  function playWhenSeen(container, path, loop) {
     whenLottieReady(() => {
       const observer = new IntersectionObserver((entries, obs) => {
         entries.forEach((entry) => {
@@ -551,20 +555,10 @@
           }
 
           if (!player) {
-            // Пока содержимое достаётся из базы, наблюдатель может сработать
-            // ещё раз — второй плеер на том же месте нам не нужен
-            if (artPending.has(entry.target)) return;
-            artPending.add(entry.target);
-
-            Store.resolveArt(ref).then((source) => {
-              artPending.delete(entry.target);
-              if (!source || !entry.target.isConnected) return;
-
-              const started = loop ? loopArt(entry.target, source) : playOnce(entry.target, source);
-              if (started) artPlayers.set(entry.target, started);
-              // Одиночный прогон отыграл — наблюдать больше не за чем
-              if (!loop) obs.unobserve(entry.target);
-            });
+            const started = loop ? loopArt(entry.target, path) : playOnce(entry.target, path);
+            if (started) artPlayers.set(entry.target, started);
+            // Одиночный прогон отыграл — наблюдать больше не за чем
+            if (!loop) obs.unobserve(entry.target);
             return;
           }
 
@@ -718,21 +712,15 @@
 
   // Пробный прогон в стороне от экрана: кадр берём из середины — первый у
   // многих композиций пустой, и цвет по нему не вытащить
-  function warmTint(ref, done) {
-    if (tints.has(ref)) {
-      if (done) done(tints.get(ref));
+  function warmTint(path, done) {
+    if (tints.has(path)) {
+      if (done) done(tints.get(path));
       return;
     }
 
-    whenLottieReady(() => Store.resolveArt(ref).then((source) => {
-      const art = artConfig(source);
-      if (!art) {
-        if (done) done(null);
-        return;
-      }
-
-      if (tints.has(ref)) {
-        if (done) done(tints.get(ref));
+    whenLottieReady(() => {
+      if (tints.has(path)) {
+        if (done) done(tints.get(path));
         return;
       }
 
@@ -740,27 +728,28 @@
       box.className = 'tint-probe';
       document.body.appendChild(box);
 
-      const probe = window.lottie.loadAnimation(Object.assign({
+      const probe = window.lottie.loadAnimation({
         container: box,
         renderer: 'canvas',
         loop: false,
         autoplay: false,
+        path: path,
         // Цвет от разрешения не зависит, а мелкий кадр считается мгновенно
         rendererSettings: { dpr: 1 }
-      }, art));
+      });
 
       probe.addEventListener('DOMLoaded', () => {
         probe.goToAndStop(Math.floor(probe.totalFrames / 2), true);
 
         const tint = artTint(box.querySelector('canvas'));
-        if (tint) tints.set(ref, tint);
+        if (tint) tints.set(path, tint);
 
         probe.destroy();
         box.remove();
 
         if (done) done(tint);
       });
-    }));
+    });
   }
 
   // --- Карточка подарка крупным планом ---
@@ -825,42 +814,17 @@
   }
 
   // Зацикленная анимация — такая нужна только в раскрытой карточке
-  function loopArt(container, source) {
-    const art = artConfig(source);
-    if (!window.lottie || !art) return null;
+  function loopArt(container, path) {
+    if (!window.lottie || !path) return null;
 
-    return window.lottie.loadAnimation(Object.assign({
+    return window.lottie.loadAnimation({
       container: container,
       renderer: 'canvas',
       loop: true,
       autoplay: !prefersStill(),
+      path: path,
       rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
-    }, art));
-  }
-
-  // Содержимое анимации может ещё доставаться из базы, когда лист уже
-  // закрыли. Метка открытия отличает «пришло вовремя» от «пришло поздно»:
-  // опоздавший плеер сразу уничтожаем, иначе он остался бы крутиться.
-  let artToken = 0;
-
-  function loopWhenLoaded(container, ref, keep) {
-    const token = ++artToken;
-
-    Store.resolveArt(ref).then((source) => {
-      if (!source) return;
-
-      const player = loopArt(container, source);
-      if (!player) return;
-
-      if (token !== artToken || !container.isConnected) {
-        player.destroy();
-        return;
-      }
-
-      keep(player);
     });
-
-    return token;
   }
 
   // Один механизм на все нижние листы: выезд, закрытие, перетаскивание и
@@ -1114,12 +1078,9 @@
         if (sheet.dataset.fill) {
           document.getElementById('sheet-gauge-fill').style.width = sheet.dataset.fill;
         }
-        loopWhenLoaded(document.getElementById('sheet-art'), gift.art, (player) => {
-          sheetPlayer = player;
-        });
+        sheetPlayer = loopArt(document.getElementById('sheet-art'), gift.art);
       },
       closed: () => {
-        artToken += 1;
         if (sheetPlayer) {
           sheetPlayer.destroy();
           sheetPlayer = null;
@@ -1131,12 +1092,9 @@
     ownSheet = createSheet(owned, {
       fill: fillOwned,
       opened: (gift) => {
-        loopWhenLoaded(document.getElementById('owned-art'), gift.art, (player) => {
-          ownPlayer = player;
-        });
+        ownPlayer = loopArt(document.getElementById('owned-art'), gift.art);
       },
       closed: () => {
-        artToken += 1;
         if (ownPlayer) {
           ownPlayer.destroy();
           ownPlayer = null;
@@ -1372,13 +1330,13 @@
     return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
   }
 
-  // Золотой ник и галочку выдаёт админка, а не зашитый идентификатор
+  // Золотой ник и галочку выдаёт админка
   function isPremium() {
     return Boolean(ME && ME.gold);
   }
 
+  // Имя — ровно то, что отдаёт Telegram: никаких подменных ников
   function userTitle(user) {
-    if (ME && ME.name) return ME.name;
     if (!user) return 'Гость';
     if (user.username) return '@' + user.username;
     return [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Без имени';
@@ -1511,15 +1469,16 @@
       avatar.textContent = userTitle(user).replace('@', '').charAt(0).toUpperCase();
     }
 
+    // Кто админ, решает сервер по проверенной подписи Telegram
     const admin = document.getElementById('prf-admin');
-    if (admin) admin.hidden = !(user && Store.isAdmin(user.id));
+    if (admin) admin.hidden = !(ME && ME.admin);
 
     const id = document.getElementById('prf-id');
     const copy = document.getElementById('prf-copy');
 
     // Копируется ровно то, что показано, иначе в буфере окажется не то,
     // что человек видел на экране
-    const shownId = user ? ((ME && ME.alias) || String(user.id)) : null;
+    const shownId = user ? String(user.id) : null;
     id.textContent = shownId || '—';
     copy.hidden = !user;
 
@@ -1585,7 +1544,17 @@
     const state = Store.state();
     const user = tgUser();
 
-    ME = Store.person(user ? user.id : 'guest');
+    // Счёт приходит с сервера. Нет его — гость: пустой баланс и стартовый
+    // набор, чтобы витрина и профиль не выглядели сломанными
+    const defaults = state.defaults || {};
+    ME = Store.me() || {
+      stars: 0,
+      coupons: 0,
+      gifts: (defaults.gifts || []).slice(),
+      gold: false,
+      verified: false,
+      admin: false
+    };
     marketOpensAt = Date.parse(state.market && state.market.opensAt) || 0;
 
     GIFTS = (state.gifts || []).map((gift) => Object.assign({ note: NFT_NOTE, owner: '—' }, gift));
@@ -1618,8 +1587,7 @@
       initHeader();
       initProfile();
 
-      return buildBanners();
+      initSlider(buildBanners());
     })
-    .then((slides) => initSlider(slides))
     .catch((error) => console.warn('Содержимое не загрузилось:', error));
 })();

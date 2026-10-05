@@ -1,202 +1,273 @@
-/* Админка: подарки, баннеры, люди, задания и час открытия маркета.
+/* Админка GopsGift.
 
-   Правка идёт в хранилище и сразу видна в приложении на этом устройстве.
-   Чтобы её увидели остальные, админка отдаёт готовый content.json со всеми
-   вложениями — его публикуют вместе с сайтом. */
+   Всё, что здесь меняется, уходит на сервер и сразу видно всем: каждый
+   заход в приложение берёт витрину, баннеры и счёт из общей базы. Кто
+   админ, решает сервер — по подписи Telegram, которую подделать нельзя. */
 (() => {
   'use strict';
 
   const tg = window.Telegram && window.Telegram.WebApp;
-  // Текст плашки свой у каждого подарка, а цвет берётся из набора лент
-  const KINDS = [
-    { id: 'blood', name: 'Красная' },
-    { id: 'legend', name: 'Жёлтая' },
-    { id: 'premium', name: 'Премиум' },
-    { id: 'epic', name: 'Фиолетовая' },
-    { id: 'rare', name: 'Зелёная' },
-    { id: 'time', name: 'Сиреневая' },
-    { id: 'sold', name: 'Бордовая' },
-    { id: 'default', name: 'Серая' }
+  const API = '/api/admin';
+  const LAST_TAB = 'gg:admin-tab';
+
+  const SECTIONS = {
+    overview: { title: 'Обзор' },
+    gifts: { title: 'Подарки' },
+    banners: { title: 'Баннеры' },
+    users: { title: 'Пользователи' },
+    tasks: { title: 'Задания' },
+    settings: { title: 'Настройки' }
+  };
+
+  // Цвета лент — те же градиенты, что на витрине
+  const RIBBONS = [
+    { id: 'blood', name: 'Красная', from: '#ff5a52', to: '#b01b16' },
+    { id: 'legend', name: 'Жёлтая', from: '#f9c81f', to: '#c8820a' },
+    { id: 'premium', name: 'Оранж', from: '#f6b329', to: '#f18902' },
+    { id: 'epic', name: 'Фиолет', from: '#a97bf0', to: '#5a3bb0' },
+    { id: 'rare', name: 'Зелёная', from: '#3fae6a', to: '#1b5c37' },
+    { id: 'time', name: 'Сирень', from: '#b292f5', to: '#6e62e0' },
+    { id: 'sold', name: 'Бордо', from: '#5f3a3e', to: '#471f20' },
+    { id: 'default', name: 'Графит', from: '#364b5c', to: '#172d42' }
   ];
 
-  const gate = document.getElementById('gate');
-  const gateText = document.getElementById('gate-text');
-  const root = document.getElementById('adm');
+  const BANNER_WIDTH = 1392;
+  const USERS_PAGE = 40;
+
+  const view = document.getElementById('view');
   const sheet = document.getElementById('sheet');
-  const sheetForm = document.getElementById('sheet-form');
+  const sheetPanel = sheet.querySelector('.ad-sheet__panel');
   const sheetBody = document.getElementById('sheet-body');
-  const sheetTitle = document.getElementById('sheet-title');
+  const sheetFoot = document.getElementById('sheet-foot');
   const picker = document.getElementById('picker');
 
-  let onSubmit = null;
-  let toastTimer = null;
+  let content = null;
+  let stats = null;
+  let me = null;
+  let current = 'overview';
+  let sheetClose = null;
 
   // --- Мелочи ---
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
+    if (text !== undefined && text !== null) node.textContent = text;
     return node;
   }
 
-  function icon(path, title, kind) {
-    const button = el('button', 'adm-icon' + (kind ? ' adm-icon--' + kind : ''));
-    button.type = 'button';
-    button.title = title;
-    button.setAttribute('aria-label', title);
-    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg>';
-    return button;
+  function icon(name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'i');
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#i-' + name);
+    svg.appendChild(use);
+    return svg;
   }
 
-  const ICONS = {
-    edit: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
-    trash: '<path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
-    up: '<path d="m7 14 5-5 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
-    down: '<path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+  function button(label, options) {
+    const opts = options || {};
+    const node = el('button', 'ad-btn' + (opts.kind ? ' ad-btn--' + opts.kind : '') + (opts.extra ? ' ' + opts.extra : ''));
+    node.type = opts.type || 'button';
+    if (opts.icon) node.appendChild(icon(opts.icon));
+    if (label) node.appendChild(el('span', null, label));
+    if (opts.title) node.setAttribute('aria-label', opts.title);
+    if (opts.onClick) node.addEventListener('click', opts.onClick);
+    return node;
+  }
+
+  function iconButton(name, title, onClick, extra) {
+    const node = el('button', 'ad-icon' + (extra ? ' ' + extra : ''));
+    node.type = 'button';
+    node.setAttribute('aria-label', title);
+    node.title = title;
+    node.appendChild(icon(name));
+    if (onClick) node.addEventListener('click', onClick);
+    return node;
+  }
+
+  // 2000 -> «2 000». Пробел неразрывный, чтобы число не рвалось
+  function num(value) {
+    return String(Math.round(Number(value) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  }
+
+  function plural(n, one, few, many) {
+    const mod100 = n % 100;
+    const mod10 = n % 10;
+    if (mod100 >= 11 && mod100 <= 14) return many;
+    if (mod10 === 1) return one;
+    if (mod10 >= 2 && mod10 <= 4) return few;
+    return many;
+  }
+
+  function ago(ts) {
+    if (!ts) return '—';
+    const s = (Date.now() - ts) / 1000;
+    if (s < 60) return 'только что';
+    if (s < 3600) return Math.floor(s / 60) + ' мин назад';
+    if (s < 86400) return Math.floor(s / 3600) + ' ч назад';
+    if (s < 172800) return 'вчера';
+    return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  }
+
+  function day(ts) {
+    return ts ? new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  }
+
+  function haptic(kind) {
+    if (!tg || !tg.HapticFeedback) return;
+    try {
+      if (kind === 'ok') tg.HapticFeedback.notificationOccurred('success');
+      else if (kind === 'bad') tg.HapticFeedback.notificationOccurred('error');
+      else if (kind === 'pick') tg.HapticFeedback.selectionChanged();
+      else tg.HapticFeedback.impactOccurred('light');
+    } catch (_) {}
+  }
+
+  let toastTimer = null;
+
+  function toast(text, tone) {
+    const node = document.getElementById('toast');
+    document.getElementById('toast-text').textContent = text;
+    node.dataset.tone = tone || 'ok';
+    node.querySelector('use').setAttribute('href', tone === 'bad' ? '#i-close' : '#i-check');
+    node.hidden = false;
+    // Перезапуск появления, если уведомление уже висит
+    node.style.animation = 'none';
+    void node.offsetWidth;
+    node.style.animation = '';
+
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { node.hidden = true; }, tone === 'bad' ? 3600 : 2400);
+    haptic(tone === 'bad' ? 'bad' : 'ok');
+  }
+
+  // Родное окно Telegram выглядит своим, а не браузерным
+  function ask(text) {
+    return new Promise((resolve) => {
+      if (tg && tg.initData && typeof tg.showConfirm === 'function') {
+        try {
+          tg.showConfirm(text, (ok) => resolve(Boolean(ok)));
+          return;
+        } catch (_) {}
+      }
+      resolve(window.confirm(text));
+    });
+  }
+
+  function busy(node, on) {
+    if (!node) return;
+    node.classList.toggle('is-busy', on);
+    node.disabled = on;
+  }
+
+  // --- Сервер ---
+
+  function initData() {
+    let data = (tg && tg.initData) || '';
+    if (!data) {
+      try { data = sessionStorage.getItem('gg:initData') || ''; } catch (_) {}
+    }
+    return data;
+  }
+
+  class ApiError extends Error {
+    constructor(code, message) {
+      super(message || code);
+      this.code = code;
+    }
+  }
+
+  const ERRORS = {
+    unauthorized: 'Сессия устарела — откройте админку заново из приложения',
+    forbidden: 'У этого аккаунта нет доступа',
+    'no-db': 'База не подключена',
+    'no-auth': 'Не настроена подпись Telegram'
   };
 
-  function toast(text) {
-    const node = document.getElementById('toast');
-    node.textContent = text;
-    node.hidden = false;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { node.hidden = true; }, 2200);
+  async function api(action, payload) {
+    let response;
+    try {
+      response = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: initData(), action: action, payload: payload || {} })
+      });
+    } catch (_) {
+      throw new ApiError('network', 'Нет связи с сервером');
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) {
+      throw new ApiError(data.error || 'http', data.message || ERRORS[data.error] || 'Не получилось, попробуйте ещё раз');
+    }
+
+    if (data.content) content = data.content;
+    return data;
   }
 
-  function number(value, fallback) {
-    const parsed = parseInt(String(value).replace(/\s/g, ''), 10);
-    return Number.isFinite(parsed) ? parsed : fallback;
+  // Сохранение с кнопкой: крутилка, уведомление, ошибка — одним вызовом
+  async function run(node, action, payload, done) {
+    busy(node, true);
+    try {
+      const data = await api(action, payload);
+      if (done) done(data);
+      return data;
+    } catch (error) {
+      toast(error.message, 'bad');
+      if (error.code === 'unauthorized') showGate('expired');
+      return null;
+    } finally {
+      busy(node, false);
+    }
   }
 
-  function slug(name) {
-    const base = String(name).toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    return (base || 'item') + '-' + Math.random().toString(36).slice(2, 6);
+  // --- Анимации ---
+
+  const players = new Map();
+
+  function whenLottie(go) {
+    if (window.lottie) return go();
+    const wait = () => (window.lottie ? go() : setTimeout(wait, 60));
+    wait();
   }
 
-  function markDirty() {
-    const label = document.getElementById('adm-state');
-    const dirty = Store.dirty();
-    label.textContent = dirty ? 'есть неопубликованные правки' : 'всё опубликовано';
-    label.dataset.dirty = String(dirty);
-  }
+  // Карточку оживляем, только когда она на экране: у скрытой нулевой размер
+  function animate(box, source, loop) {
+    whenLottie(() => {
+      const start = () => {
+        if (!box.isConnected || players.has(box)) return;
+        const config = {
+          container: box,
+          renderer: 'canvas',
+          loop: Boolean(loop),
+          autoplay: true,
+          rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
+        };
+        if (source && typeof source === 'object') config.animationData = JSON.parse(JSON.stringify(source));
+        else config.path = source;
+        players.set(box, window.lottie.loadAnimation(config));
+      };
 
-  function save(change) {
-    const ok = Store.update(change);
-    if (!ok) toast('Не хватило места — правка не сохранилась');
-    markDirty();
-    return ok;
-  }
-
-  // --- Поля формы ---
-
-  function field(label, input) {
-    const wrap = el('label', 'adm-field');
-    wrap.append(el('span', null, label), input);
-    return wrap;
-  }
-
-  function text(value, placeholder) {
-    const input = el('input');
-    input.type = 'text';
-    input.value = value === undefined || value === null ? '' : String(value);
-    if (placeholder) input.placeholder = placeholder;
-    return input;
-  }
-
-  function digits(value) {
-    const input = el('input');
-    input.type = 'number';
-    input.inputMode = 'numeric';
-    input.value = value === undefined || value === null ? '' : String(value);
-    return input;
-  }
-
-  function select(options, value) {
-    const node = el('select');
-    options.forEach((option) => {
-      const item = el('option', null, option.name);
-      item.value = option.id;
-      if (option.id === value) item.selected = true;
-      node.appendChild(item);
+      const watch = new IntersectionObserver((entries, obs) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        obs.disconnect();
+        start();
+      }, { rootMargin: '100px' });
+      watch.observe(box);
     });
-    return node;
   }
 
-  function check(label, value) {
-    const wrap = el('label', 'adm-check');
-    const input = el('input');
-    input.type = 'checkbox';
-    input.checked = Boolean(value);
-    wrap.append(input, el('span', null, label));
-    wrap.input = input;
-    return wrap;
+  function release(root) {
+    players.forEach((player, box) => {
+      if (root && !root.contains(box)) return;
+      player.destroy();
+      players.delete(box);
+    });
   }
-
-  // --- Разбор формы ---
-
-  function openSheet(title, build, submit) {
-    sheetTitle.textContent = title;
-    sheetBody.textContent = '';
-    build(sheetBody);
-    onSubmit = submit;
-    sheet.hidden = false;
-  }
-
-  function closeSheet() {
-    sheet.hidden = true;
-    onSubmit = null;
-    sheetBody.textContent = '';
-  }
-
-  sheet.addEventListener('click', (event) => {
-    if (event.target.closest('[data-close]')) closeSheet();
-  });
-
-  sheetForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    if (onSubmit && onSubmit() !== false) closeSheet();
-  });
 
   // --- Файлы ---
-
-  // .tgs — это пожатый gzip-ом json. Родной распаковщик есть не везде,
-  // поэтому на старых webview подключаем pako.
-  function unpack(buffer) {
-    const head = new Uint8Array(buffer, 0, 2);
-    const gzipped = head[0] === 0x1f && head[1] === 0x8b;
-
-    if (!gzipped) {
-      return Promise.resolve(JSON.parse(new TextDecoder().decode(buffer)));
-    }
-
-    if (typeof window.DecompressionStream === 'function') {
-      const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
-      return new Response(stream).text().then(JSON.parse);
-    }
-
-    return loadPako().then((pako) =>
-      JSON.parse(pako.inflate(new Uint8Array(buffer), { to: 'string' }))
-    );
-  }
-
-  let pakoReady = null;
-
-  function loadPako() {
-    if (pakoReady) return pakoReady;
-
-    pakoReady = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js';
-      script.onload = () => resolve(window.pako);
-      script.onerror = () => reject(new Error('pako не загрузился'));
-      document.head.appendChild(script);
-    });
-
-    return pakoReady;
-  }
 
   function pickFile(accept) {
     return new Promise((resolve) => {
@@ -207,865 +278,1593 @@
     });
   }
 
-  function readImage(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
+  function toBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+  }
+
+  let pakoReady = null;
+
+  function loadPako() {
+    if (!pakoReady) {
+      pakoReady = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js';
+        script.onload = () => resolve(window.pako);
+        script.onerror = () => reject(new Error('pako'));
+        document.head.appendChild(script);
+      });
+    }
+    return pakoReady;
+  }
+
+  // .tgs — это json, пожатый gzip. Распаковываем только ради превью:
+  // на сервер уходит исходный файл, он в десять раз меньше
+  async function readTgs(file) {
+    const buffer = await file.arrayBuffer();
+    const head = new Uint8Array(buffer, 0, 2);
+    let text;
+
+    if (head[0] === 0x1f && head[1] === 0x8b) {
+      if (typeof window.DecompressionStream === 'function') {
+        const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
+        text = await new Response(stream).text();
+      } else {
+        text = (await loadPako()).inflate(new Uint8Array(buffer), { to: 'string' });
+      }
+    } else {
+      text = new TextDecoder().decode(buffer);
+    }
+
+    const data = JSON.parse(text);
+    if (!data || !Array.isArray(data.layers)) throw new Error('not lottie');
+    return { data: data, base64: toBase64(buffer) };
+  }
+
+  // Баннер ужимаем в браузере до ширины слайда: оригинал с камеры весит
+  // мегабайты, а на экране он всё равно шириной в телефон
+  async function shrinkImage(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = url;
+      });
+
+      const scale = Math.min(1, BANNER_WIDTH / img.naturalWidth);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const toBlob = (type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+      let blob = await toBlob('image/webp', 0.86);
+      if (!blob || blob.type !== 'image/webp') blob = await toBlob('image/jpeg', 0.88);
+
+      return {
+        base64: toBase64(await blob.arrayBuffer()),
+        type: blob.type,
+        preview: canvas.toDataURL(blob.type, 0.8)
+      };
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function dropTarget(node, onFile) {
+    node.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      node.dataset.over = 'true';
+    });
+    node.addEventListener('dragleave', () => { node.dataset.over = 'false'; });
+    node.addEventListener('drop', (event) => {
+      event.preventDefault();
+      node.dataset.over = 'false';
+      const file = event.dataTransfer && event.dataTransfer.files[0];
+      if (file) onFile(file);
     });
   }
 
-  // Поле, в которое кладут файл — и перетаскиванием, и выбором
-  function dropZone(hint, accept, handle) {
-    const zone = el('div', 'adm-drop');
-    const art = el('div', 'adm-drop__art');
-    const label = el('b', null, hint);
-    const note = el('span', null, 'нажмите или перетащите файл');
-    zone.append(art, label, note);
+  // --- Поля ---
 
-    const take = (file) => {
-      if (!file) return;
-      label.textContent = file.name;
-      handle(file, art);
+  function field(label, control, wide) {
+    const wrap = el('label', 'ad-field' + (wide ? ' ad-field--wide' : ''));
+    wrap.append(el('span', null, label), control);
+    return wrap;
+  }
+
+  function input(value, options) {
+    const opts = options || {};
+    const node = el('input', 'ad-input');
+    node.type = opts.type || 'text';
+    if (opts.type === 'number') {
+      node.inputMode = 'numeric';
+      node.min = '0';
+    }
+    if (opts.placeholder) node.placeholder = opts.placeholder;
+    if (opts.max) node.maxLength = opts.max;
+    node.value = value === undefined || value === null ? '' : String(value);
+    return node;
+  }
+
+  function affix(control, iconName) {
+    const wrap = el('span', 'ad-affix');
+    if (iconName === 'star-img') {
+      const img = el('img');
+      img.src = 'gifts/star-white.png';
+      img.alt = '';
+      wrap.appendChild(img);
+    } else {
+      wrap.appendChild(icon(iconName));
+    }
+    wrap.appendChild(control);
+    return wrap;
+  }
+
+  // − значение + с быстрыми надбавками под ним
+  function stepper(value, steps) {
+    const wrap = el('div');
+    wrap.style.display = 'grid';
+    wrap.style.gap = '8px';
+
+    const box = el('div', 'ad-stepper');
+    const minus = el('button', null, '−');
+    minus.type = 'button';
+    const plus = el('button', null, '+');
+    plus.type = 'button';
+    const field = el('input');
+    field.type = 'text';
+    field.inputMode = 'numeric';
+    field.value = num(value);
+
+    const read = () => Math.max(0, parseInt(String(field.value).replace(/\D/g, ''), 10) || 0);
+    const set = (next) => {
+      field.value = num(Math.max(0, next));
+      haptic('pick');
     };
 
-    zone.addEventListener('click', () => pickFile(accept).then(take));
-    zone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      zone.dataset.over = 'true';
-    });
-    zone.addEventListener('dragleave', () => { zone.dataset.over = 'false'; });
-    zone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      zone.dataset.over = 'false';
-      take(event.dataTransfer.files[0]);
-    });
+    minus.addEventListener('click', () => set(read() - (steps[0] || 1)));
+    plus.addEventListener('click', () => set(read() + (steps[0] || 1)));
+    field.addEventListener('blur', () => { field.value = num(read()); });
 
-    zone.art = art;
-    zone.label = label;
-    return zone;
+    box.append(minus, field, plus);
+    wrap.appendChild(box);
+
+    if (steps.length > 1) {
+      const quick = el('div', 'ad-quick');
+      steps.slice(1).forEach((step) => {
+        const chip = el('button', 'ad-chip', '+' + num(step));
+        chip.type = 'button';
+        chip.addEventListener('click', () => set(read() + step));
+        quick.appendChild(chip);
+      });
+      const zero = el('button', 'ad-chip', 'Обнулить');
+      zero.type = 'button';
+      zero.addEventListener('click', () => set(0));
+      quick.appendChild(zero);
+      wrap.appendChild(quick);
+    }
+
+    wrap.read = read;
+    return wrap;
   }
 
-  // lottie дописывает в переданный объект свои служебные поля, в том числе
-  // функции. Показываем копию, иначе исходник станет непригоден для базы.
-  function preview(box, animationData) {
-    box.textContent = '';
-    if (!window.lottie || !animationData) return;
+  function toggle(label, hint, checked) {
+    const wrap = el('label', 'ad-switch');
+    const text = el('span', 'ad-switch__text');
+    text.appendChild(el('span', null, label));
+    if (hint) text.appendChild(el('small', null, hint));
 
-    window.lottie.loadAnimation({
-      container: box,
-      renderer: 'canvas',
-      loop: true,
-      autoplay: true,
-      animationData: JSON.parse(JSON.stringify(animationData)),
-      rendererSettings: { dpr: 1 }
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = Boolean(checked);
+    box.addEventListener('change', () => haptic('pick'));
+
+    wrap.append(text, box, el('span', 'ad-switch__track'));
+    wrap.input = box;
+    return wrap;
+  }
+
+  function empty(iconName, title, text, action) {
+    const box = el('div', 'ad-empty');
+    const badge = el('span', 'ad-empty__icon');
+    badge.appendChild(icon(iconName));
+    box.append(badge, el('b', null, title));
+    if (text) box.appendChild(el('p', null, text));
+    if (action) box.appendChild(action);
+    return box;
+  }
+
+  // --- Карточка подарка как на витрине ---
+
+  function giftCard(gift, loop) {
+    const card = el('article', 'gift');
+
+    const art = el('div', 'gift__art');
+    card.appendChild(art);
+    if (gift.art) animate(art, gift.art, loop);
+
+    const badge = el('span', 'gift__badge');
+    badge.innerHTML = '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true"><use href="#ribbon-shape"></use></svg>';
+    const label = el('span', 'gift__label');
+    badge.appendChild(label);
+    card.appendChild(badge);
+
+    const price = el('span', 'gift__price');
+    const star = el('img', 'gift__star');
+    star.src = 'gifts/star.png';
+    star.alt = '';
+    const amount = el('span', 'gift__amount');
+    price.append(star, amount);
+    card.appendChild(price);
+
+    card.paint = (next) => {
+      label.textContent = next.badge || '';
+      badge.hidden = !next.badge;
+      badge.dataset.kind = next.kind || 'default';
+      amount.textContent = num(next.price);
+    };
+    card.paint(gift);
+    card.art = art;
+    return card;
+  }
+
+  // --- Лист ---
+
+  function openSheet(title, build, options) {
+    const opts = options || {};
+    release(sheetBody);
+    sheetBody.textContent = '';
+    sheetFoot.textContent = '';
+    document.getElementById('sheet-title').textContent = title;
+    sheetPanel.dataset.size = opts.wide ? 'wide' : '';
+
+    build(sheetBody, sheetFoot);
+
+    sheet.hidden = false;
+    sheetClose = opts.onClose || null;
+    document.body.style.overflow = 'hidden';
+    sheetBody.scrollTop = 0;
+  }
+
+  function closeSheet() {
+    if (sheet.hidden) return;
+    sheet.hidden = true;
+    release(sheetBody);
+    sheetBody.textContent = '';
+    sheetFoot.textContent = '';
+    document.body.style.overflow = '';
+    if (sheetClose) sheetClose();
+    sheetClose = null;
+  }
+
+  sheet.addEventListener('click', (event) => {
+    if (event.target.closest('[data-close]')) closeSheet();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeSheet();
+  });
+
+  // --- Навигация ---
+
+  function setTop(title, sub, actions) {
+    document.getElementById('top-title').textContent = title;
+    document.getElementById('top-sub').textContent = sub || '';
+    const acts = document.getElementById('top-acts');
+    acts.textContent = '';
+    (actions || []).forEach((node) => acts.appendChild(node));
+  }
+
+  function counts() {
+    const set = (key, value) => {
+      const node = document.querySelector('[data-count="' + key + '"]');
+      if (node) node.textContent = value ? num(value) : '';
+    };
+    set('gifts', (content.gifts || []).length);
+    set('banners', (content.banners || []).length);
+    set('users', stats ? stats.users : 0);
+  }
+
+  function go(section) {
+    if (!SECTIONS[section]) section = 'overview';
+    current = section;
+
+    try { sessionStorage.setItem(LAST_TAB, section); } catch (_) {}
+
+    document.querySelectorAll('[data-go]').forEach((node) => {
+      const on = node.dataset.go === section;
+      node.classList.toggle('is-on', on);
+      if (on) node.setAttribute('aria-current', 'page');
+      else node.removeAttribute('aria-current');
     });
+
+    release(view);
+    view.textContent = '';
+    // Перезапуск появления раздела
+    view.style.animation = 'none';
+    void view.offsetWidth;
+    view.style.animation = '';
+
+    RENDER[section]();
+    counts();
+    window.scrollTo(0, 0);
+  }
+
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-go]');
+    if (!link) return;
+    event.preventDefault();
+    haptic('pick');
+    go(link.dataset.go);
+  });
+
+  // --- Обзор ---
+
+  function renderOverview() {
+    const hour = new Date().getHours();
+    const hello = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+    setTop(hello + (me && me.first_name ? ', ' + me.first_name : ''), new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }), [
+      iconButton('refresh', 'Обновить', (event) => refreshStats(event.currentTarget))
+    ]);
+
+    const tiles = el('div', 'ad-stats');
+    [
+      { icon: 'users', value: stats.users, label: 'Пользователей всего' },
+      { icon: 'sparkle', value: stats.fresh, label: 'Новых за сутки', tint: 'rgba(52,199,89,.16)', tone: '#34c759' },
+      { icon: 'pulse', value: stats.active, label: 'Заходили за сутки', tint: 'rgba(246,179,41,.16)', tone: '#f6b329' },
+      { icon: 'calendar', value: stats.week, label: 'Заходили за неделю', tint: 'rgba(175,82,222,.18)', tone: '#c792ea' }
+    ].forEach((tile) => {
+      const box = el('div', 'ad-stat');
+      const mark = el('span', 'ad-stat__icon');
+      if (tile.tint) mark.style.setProperty('--tint', tile.tint);
+      if (tile.tone) mark.style.setProperty('--tone', tile.tone);
+      mark.appendChild(icon(tile.icon));
+      box.append(mark, el('b', null, num(tile.value)), el('span', null, tile.label));
+      tiles.appendChild(box);
+    });
+    view.appendChild(tiles);
+
+    const cols = el('div', 'ad-cols');
+
+    // Последние заходы
+    const recent = el('section', 'ad-card');
+    const head = el('div', 'ad-card__head');
+    head.appendChild(el('h3', null, 'Последние заходы'));
+    const all = el('button', 'ad-link', 'Все');
+    all.dataset.go = 'users';
+    all.appendChild(icon('right'));
+    head.appendChild(all);
+    recent.appendChild(head);
+
+    const list = el('div', 'ad-list');
+    list.appendChild(skeletonRows(4));
+    recent.appendChild(list);
+    cols.appendChild(recent);
+
+    api('users.list', { limit: 6 }).then((data) => {
+      list.textContent = '';
+      if (!data.items.length) {
+        list.appendChild(empty('users', 'Пока никого', 'Люди появятся здесь, как только откроют приложение'));
+        return;
+      }
+      data.items.forEach((person) => list.appendChild(personRow(person)));
+    }).catch((error) => {
+      list.textContent = '';
+      list.appendChild(empty('users', 'Не загрузилось', error.message));
+    });
+
+    // Витрина
+    const shelf = el('section', 'ad-card');
+    const shelfHead = el('div', 'ad-card__head');
+    const shelfTitle = el('div');
+    shelfTitle.append(el('h3', null, 'Витрина'), el('p', null,
+      num((content.gifts || []).length) + ' ' + plural((content.gifts || []).length, 'подарок', 'подарка', 'подарков') +
+      ' · ' + num((content.banners || []).length) + ' ' + plural((content.banners || []).length, 'баннер', 'баннера', 'баннеров')));
+    const manage = el('button', 'ad-link', 'Управлять');
+    manage.dataset.go = 'gifts';
+    manage.appendChild(icon('right'));
+    shelfHead.append(shelfTitle, manage);
+    shelf.appendChild(shelfHead);
+
+    const strip = el('div', 'ad-gifts');
+    (content.gifts || []).slice(0, 4).forEach((gift) => {
+      const card = giftCard(gift);
+      card.addEventListener('click', () => giftSheet(gift));
+      strip.appendChild(card);
+    });
+    if (!(content.gifts || []).length) {
+      strip.appendChild(addTile('Первый подарок', () => giftSheet(null)));
+    }
+    shelf.appendChild(strip);
+    cols.appendChild(shelf);
+
+    view.appendChild(cols);
+  }
+
+  async function refreshStats(node) {
+    await run(node, 'stats', {}, (data) => {
+      stats = data.stats;
+      go(current);
+      toast('Обновлено');
+    });
+  }
+
+  function skeletonRows(n) {
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < n; i += 1) {
+      const row = el('div', 'ad-person');
+      const ava = el('span', 'ad-ava ad-skel');
+      const body = el('div', 'ad-person__body');
+      const a = el('span', 'ad-skel');
+      a.style.height = '14px';
+      a.style.width = (50 + (i * 13) % 35) + '%';
+      const b = el('span', 'ad-skel');
+      b.style.height = '11px';
+      b.style.width = '38%';
+      body.append(a, b);
+      row.append(ava, body, el('span'));
+      frag.appendChild(row);
+    }
+    return frag;
+  }
+
+  function addTile(text, onClick) {
+    const tile = el('button', 'ad-add');
+    tile.type = 'button';
+    const plus = el('span', 'ad-add__plus');
+    plus.appendChild(icon('plus'));
+    tile.append(plus, el('span', null, text));
+    tile.addEventListener('click', onClick);
+    return tile;
   }
 
   // --- Подарки ---
 
-  function giftForm(gift, done) {
-    let art = gift ? gift.art : null;
-    let packed = null;
-
-    openSheet(gift ? 'Подарок' : 'Новый подарок', (body) => {
-      const zone = dropZone(gift ? 'Заменить анимацию' : 'Анимация .tgs или .json', '.tgs,.json,application/json', (file, box) => {
-        file.arrayBuffer()
-          .then(unpack)
-          .then((data) => {
-            packed = data;
-            preview(box, data);
-            toast('Анимация прочитана');
-          })
-          .catch(() => toast('Файл не похож на .tgs или .json'));
-      });
-
-      body.appendChild(zone);
-
-      if (gift) {
-        Store.resolveArt(gift.art).then((source) => {
-          if (!source) return;
-          if (source.animationData) preview(zone.art, source.animationData);
-          else if (window.lottie) {
-            window.lottie.loadAnimation({
-              container: zone.art, renderer: 'canvas', loop: true,
-              autoplay: true, path: source.path, rendererSettings: { dpr: 1 }
-            });
-          }
-        });
-      }
-
-      const name = text(gift ? gift.name : '', 'Название');
-      const price = digits(gift ? gift.price : 299);
-      const badge = text(gift ? gift.badge : '', 'Текст плашки');
-      const kind = select(KINDS, gift ? gift.kind : 'blood');
-      const total = digits(gift ? gift.total : 1000);
-      const left = digits(gift ? gift.left : 1000);
-      const status = text(gift ? gift.status : 'Non-Unique', 'Статус');
-
-      const grid = el('div', 'adm-grid');
-      grid.append(
-        field('Название', name),
-        field('Цена в звёздах', price),
-        field('Плашка', badge),
-        field('Цвет плашки', kind),
-        field('Всего выпущено', total),
-        field('Осталось', left),
-        field('Статус', status)
-      );
-      body.appendChild(grid);
-
-      body.fields = { name, price, badge, kind, total, left, status };
-    }, () => {
-      const f = sheetBody.fields;
-
-      if (!f.name.value.trim()) {
-        toast('Без названия подарок не сохранить');
-        return false;
-      }
-
-      if (!packed && !art) {
-        toast('Нужна анимация');
-        return false;
-      }
-
-      const id = gift ? gift.id : slug(f.name.value);
-
-      const finish = (ref) => {
-        const next = {
-          id: id,
-          name: f.name.value.trim(),
-          art: ref,
-          price: number(f.price.value, 0),
-          badge: f.badge.value.trim(),
-          kind: f.kind.value,
-          left: number(f.left.value, 0),
-          total: number(f.total.value, 0),
-          status: f.status.value.trim() || 'Non-Unique'
-        };
-
-        save((state) => {
-          state.gifts = state.gifts || [];
-          const at = state.gifts.findIndex((one) => one.id === id);
-          if (at === -1) state.gifts.push(next);
-          else state.gifts[at] = next;
-          return state;
-        });
-
-        done();
-        toast('Подарок сохранён');
-      };
-
-      if (packed) {
-        // Старое вложение больше не нужно — место в базе не бесконечное
-        const stale = art && art.indexOf(Store.ASSET_PREFIX) === 0 ? art : null;
-        Store.putAsset('gift-' + id, 'lottie', packed).then((ref) => {
-          if (stale && stale !== ref) Store.dropAsset(stale);
-          finish(ref);
-        });
-      } else {
-        finish(art);
-      }
-
-      return true;
-    });
-  }
+  let ordering = false;
 
   function renderGifts() {
-    const list = document.getElementById('gift-list');
-    const gifts = Store.state().gifts || [];
-    list.textContent = '';
+    const gifts = content.gifts || [];
+
+    const orderBtn = button(ordering ? 'Готово' : 'Порядок', {
+      kind: ordering ? null : 'ghost',
+      icon: ordering ? 'check' : 'swap',
+      onClick: () => {
+        ordering = !ordering;
+        haptic('pick');
+        go('gifts');
+      }
+    });
+    const add = button('Добавить', { icon: 'plus', onClick: () => giftSheet(null) });
+
+    setTop('Подарки', ordering ? 'Стрелками двигайте подарки на витрине' : num(gifts.length) + ' ' + plural(gifts.length, 'подарок', 'подарка', 'подарков') + ' на витрине', gifts.length > 1 ? [orderBtn, add] : [add]);
 
     if (!gifts.length) {
-      list.appendChild(el('div', 'adm-empty', 'Подарков пока нет'));
+      view.appendChild(empty('gift', 'Витрина пустая', 'Добавьте первый подарок — хватит файла .tgs и цены', button('Добавить подарок', { icon: 'plus', onClick: () => giftSheet(null) })));
       return;
     }
 
+    const grid = el('div', 'ad-gifts');
+
     gifts.forEach((gift, index) => {
-      const row = el('div', 'adm-item');
-      const art = el('div', 'adm-item__art');
+      const cell = el('div', 'ad-gift');
+      const card = giftCard(gift);
+      cell.appendChild(card);
 
-      Store.resolveArt(gift.art).then((source) => {
-        if (!source || !window.lottie) return;
-        window.lottie.loadAnimation(Object.assign({
-          container: art, renderer: 'canvas', loop: true, autoplay: true,
-          rendererSettings: { dpr: 1 }
-        }, source.animationData ? { animationData: source.animationData } : { path: source.path }));
-      });
+      const meta = el('div', 'ad-gift__meta');
+      meta.append(el('b', null, gift.name), el('span', null, num(gift.left) + ' / ' + num(gift.total)));
+      cell.appendChild(meta);
 
-      const body = el('div', 'adm-item__body');
-      body.append(
-        el('div', 'adm-item__name', gift.name),
-        el('div', 'adm-item__meta',
-          gift.price + ' ★ · ' + (gift.badge || 'без плашки') + ' · ' +
-          gift.left + ' из ' + gift.total)
-      );
+      if (ordering) {
+        const move = el('div', 'ad-gift__move');
+        const left = iconButton('left', 'Раньше', () => moveGift(index, -1), 'ad-icon--glass');
+        const right = iconButton('right', 'Позже', () => moveGift(index, 1), 'ad-icon--glass');
+        left.disabled = index === 0;
+        right.disabled = index === gifts.length - 1;
+        move.append(left, right);
+        cell.appendChild(move);
+      } else {
+        card.addEventListener('click', () => giftSheet(gift));
+      }
 
-      const acts = el('div', 'adm-item__acts');
-
-      const up = icon(ICONS.up, 'Выше');
-      up.disabled = index === 0;
-      up.addEventListener('click', () => move('gifts', index, -1, renderGifts));
-
-      const down = icon(ICONS.down, 'Ниже');
-      down.disabled = index === gifts.length - 1;
-      down.addEventListener('click', () => move('gifts', index, 1, renderGifts));
-
-      const edit = icon(ICONS.edit, 'Изменить');
-      edit.addEventListener('click', () => giftForm(gift, renderGifts));
-
-      const drop = icon(ICONS.trash, 'Удалить', 'danger');
-      drop.addEventListener('click', () => {
-        if (!confirm('Удалить «' + gift.name + '»?')) return;
-
-        Store.dropAsset(gift.art);
-        save((state) => {
-          state.gifts = (state.gifts || []).filter((one) => one.id !== gift.id);
-          // Выданные копии тоже убираем, иначе в профиле останется пустота
-          Object.keys(state.users || {}).forEach((key) => {
-            const person = state.users[key];
-            if (Array.isArray(person.gifts)) {
-              person.gifts = person.gifts.filter((one) => one !== gift.id);
-            }
-          });
-          if (Array.isArray(state.defaults && state.defaults.gifts)) {
-            state.defaults.gifts = state.defaults.gifts.filter((one) => one !== gift.id);
-          }
-          return state;
-        });
-
-        renderGifts();
-        toast('Подарок удалён');
-      });
-
-      acts.append(up, down, edit, drop);
-      row.append(art, body, acts);
-      list.appendChild(row);
+      grid.appendChild(cell);
     });
+
+    if (!ordering) grid.appendChild(addTile('Новый подарок', () => giftSheet(null)));
+    view.appendChild(grid);
   }
 
-  function move(key, index, shift, redraw) {
-    save((state) => {
-      const list = state[key] || [];
-      const to = index + shift;
-      if (to < 0 || to >= list.length) return state;
-      const [item] = list.splice(index, 1);
-      list.splice(to, 0, item);
-      return state;
-    });
-    redraw();
+  async function moveGift(index, shift) {
+    const ids = (content.gifts || []).map((gift) => gift.id);
+    const to = index + shift;
+    if (to < 0 || to >= ids.length) return;
+    ids.splice(to, 0, ids.splice(index, 1)[0]);
+
+    // Сразу показываем новый порядок, сервер догонит
+    const byId = new Map(content.gifts.map((gift) => [gift.id, gift]));
+    content.gifts = ids.map((id) => byId.get(id));
+    haptic('pick');
+    go('gifts');
+
+    await run(null, 'gift.order', { ids: ids });
+  }
+
+  function giftSheet(gift) {
+    const draft = Object.assign({ name: '', price: 299, badge: '', kind: 'blood', total: 1000, left: 1000, status: 'Non-Unique' }, gift || {});
+    let upload = null;
+
+    openSheet(gift ? gift.name : 'Новый подарок', (body, foot) => {
+      // Превью: карточка ровно как на витрине и поле для анимации рядом
+      const preview = el('div', 'ad-preview');
+      const card = giftCard(draft, true);
+      preview.appendChild(card);
+
+      const drop = el('div', 'ad-drop');
+      drop.append(icon('upload'), el('b', null, gift ? 'Заменить анимацию' : 'Анимация подарка'), el('span', null, 'файл .tgs — нажмите или перетащите'));
+      preview.appendChild(drop);
+      body.appendChild(preview);
+
+      const take = async (file) => {
+        try {
+          const parsed = await readTgs(file);
+          upload = parsed.base64;
+          release(card);
+          card.art.textContent = '';
+          animate(card.art, parsed.data, true);
+          drop.querySelector('b').textContent = file.name;
+          drop.querySelector('span').textContent = 'готово — сохраните подарок';
+          haptic('ok');
+        } catch (_) {
+          toast('Это не .tgs и не анимация', 'bad');
+        }
+      };
+      drop.addEventListener('click', () => pickFile('.tgs,.json,application/json').then((file) => file && take(file)));
+      dropTarget(drop, take);
+
+      const name = input(draft.name, { placeholder: 'Например, Grooby', max: 40 });
+      const price = input(draft.price, { type: 'number' });
+      const badge = input(draft.badge, { placeholder: 'Пусто — без ленты', max: 24 });
+      const status = input(draft.status, { placeholder: 'Non-Unique', max: 24 });
+      const total = input(draft.total, { type: 'number' });
+      const left = input(draft.left, { type: 'number' });
+
+      const form = el('div', 'ad-form');
+      form.append(
+        field('Название', name, true),
+        field('Цена', affix(price, 'star-img')),
+        field('Статус', status),
+        field('Выпущено всего', total),
+        field('Осталось', left),
+        field('Текст ленты', badge, true)
+      );
+      body.appendChild(form);
+
+      // Цвет ленты — образцами, а не списком
+      const swatchWrap = el('div', 'ad-field');
+      swatchWrap.appendChild(el('span', null, 'Цвет ленты'));
+      const swatches = el('div', 'ad-swatches');
+      RIBBONS.forEach((ribbon) => {
+        const swatch = el('button', 'ad-swatch');
+        swatch.type = 'button';
+        const dot = el('i');
+        dot.style.background = 'linear-gradient(135deg, ' + ribbon.from + ', ' + ribbon.to + ')';
+        swatch.append(dot, el('span', null, ribbon.name));
+        swatch.setAttribute('aria-pressed', String(draft.kind === ribbon.id));
+        swatch.addEventListener('click', () => {
+          draft.kind = ribbon.id;
+          swatches.querySelectorAll('.ad-swatch').forEach((one) => one.setAttribute('aria-pressed', String(one === swatch)));
+          card.paint(draft);
+          haptic('pick');
+        });
+        swatches.appendChild(swatch);
+      });
+      swatchWrap.appendChild(swatches);
+      body.appendChild(swatchWrap);
+
+      const sync = () => {
+        draft.name = name.value;
+        draft.price = Number(price.value) || 0;
+        draft.badge = badge.value.trim();
+        card.paint(draft);
+      };
+      [name, price, badge].forEach((node) => node.addEventListener('input', sync));
+
+      if (gift) {
+        foot.appendChild(button('Удалить', {
+          kind: 'danger',
+          icon: 'trash',
+          onClick: async (event) => {
+            if (!(await ask('Удалить «' + gift.name + '» с витрины? У тех, кому он выдан, он тоже пропадёт.'))) return;
+            await run(event.currentTarget, 'gift.delete', { id: gift.id }, () => {
+              closeSheet();
+              toast('Подарок удалён');
+              go('gifts');
+            });
+          }
+        }));
+      }
+
+      foot.appendChild(el('span', 'ad-grow'));
+      foot.appendChild(button('Отмена', { kind: 'ghost', onClick: closeSheet }));
+      foot.appendChild(button(gift ? 'Сохранить' : 'Добавить', {
+        icon: 'check',
+        onClick: async (event) => {
+          sync();
+          if (!name.value.trim()) {
+            toast('Дайте подарку название', 'bad');
+            name.focus();
+            return;
+          }
+          if (!gift && !upload) {
+            toast('Добавьте анимацию .tgs', 'bad');
+            return;
+          }
+
+          const payload = {
+            gift: {
+              id: gift ? gift.id : undefined,
+              art: gift ? gift.art : undefined,
+              name: name.value.trim(),
+              price: Number(price.value) || 0,
+              badge: badge.value.trim(),
+              kind: draft.kind,
+              total: Number(total.value) || 0,
+              left: Number(left.value) || 0,
+              status: status.value.trim()
+            },
+            file: upload
+          };
+
+          await run(event.currentTarget, 'gift.save', payload, () => {
+            closeSheet();
+            toast(gift ? 'Сохранено — уже на витрине' : 'Подарок на витрине');
+            go('gifts');
+          });
+        }
+      }));
+    }, { wide: true });
   }
 
   // --- Баннеры ---
 
-  function bannerForm(banner, done) {
-    let image = banner ? banner.image : null;
-    let incoming = null;
-
-    openSheet(banner ? 'Баннер' : 'Новый баннер', (body) => {
-      const zone = dropZone(banner ? 'Заменить картинку' : 'Картинка баннера', 'image/*', (file, box) => {
-        readImage(file).then((url) => {
-          incoming = url;
-          box.textContent = '';
-          const img = el('img');
-          img.src = url;
-          box.appendChild(img);
-        });
-      });
-      body.appendChild(zone);
-
-      if (banner) {
-        Store.resolveImage(banner.image).then((url) => {
-          if (!url) return;
-          zone.art.textContent = '';
-          const img = el('img');
-          img.src = url;
-          zone.art.appendChild(img);
-        });
-      }
-
-      const label = text(banner ? banner.label : '', 'Подпись');
-      const href = text(banner ? banner.href : '', 'Ссылка, если нужна');
-
-      const grid = el('div', 'adm-grid');
-      grid.append(field('Подпись', label), field('Ссылка', href));
-      body.appendChild(grid);
-
-      body.fields = { label, href };
-    }, () => {
-      const f = sheetBody.fields;
-
-      if (!incoming && !image) {
-        toast('Нужна картинка');
-        return false;
-      }
-
-      const id = banner ? banner.id : slug(f.label.value || 'banner');
-
-      const finish = (ref) => {
-        const next = {
-          id: id,
-          image: ref,
-          label: f.label.value.trim() || 'Баннер',
-          href: f.href.value.trim()
-        };
-
-        save((state) => {
-          state.banners = state.banners || [];
-          const at = state.banners.findIndex((one) => one.id === id);
-          if (at === -1) state.banners.push(next);
-          else state.banners[at] = next;
-          return state;
-        });
-
-        done();
-        toast('Баннер сохранён');
-      };
-
-      if (incoming) {
-        const stale = image && image.indexOf(Store.ASSET_PREFIX) === 0 ? image : null;
-        Store.putAsset('banner-' + id, 'image', incoming).then((ref) => {
-          if (stale && stale !== ref) Store.dropAsset(stale);
-          finish(ref);
-        });
-      } else {
-        finish(image);
-      }
-
-      return true;
-    });
-  }
-
   function renderBanners() {
-    const list = document.getElementById('banner-list');
-    const banners = Store.state().banners || [];
-    list.textContent = '';
+    const banners = content.banners || [];
+    setTop('Баннеры', banners.length ? 'Листаются на главной по кругу' : '', [
+      button('Добавить', { icon: 'plus', onClick: () => bannerSheet(null) })
+    ]);
 
     if (!banners.length) {
-      list.appendChild(el('div', 'adm-empty', 'Баннеров пока нет'));
+      view.appendChild(empty('image', 'Баннеров нет', 'Карусель на главной спрячется, пока не добавите хотя бы один', button('Добавить баннер', { icon: 'plus', onClick: () => bannerSheet(null) })));
       return;
     }
 
+    const list = el('div', 'ad-banners');
+
     banners.forEach((banner, index) => {
-      const row = el('div', 'adm-item');
-      const art = el('div', 'adm-item__art');
+      const item = el('article', 'ad-banner-item');
 
-      Store.resolveImage(banner.image).then((url) => {
-        if (!url) return;
-        const img = el('img');
-        img.src = url;
-        art.appendChild(img);
-      });
+      // Картинка — ровно как в карусели, без надписей поверх: на баннере
+      // обычно уже нарисован свой текст
+      const card = el('button', 'ad-banner');
+      card.type = 'button';
+      card.style.backgroundImage = 'url("' + banner.image + '")';
+      card.setAttribute('aria-label', 'Изменить баннер «' + banner.label + '»');
+      card.appendChild(el('span', 'ad-banner__num', String(index + 1)));
+      card.addEventListener('click', () => bannerSheet(banner));
+      item.appendChild(card);
 
-      const body = el('div', 'adm-item__body');
-      body.append(
-        el('div', 'adm-item__name', banner.label || 'Баннер'),
-        el('div', 'adm-item__meta', banner.href || 'без ссылки')
-      );
+      const caption = el('div', 'ad-banner__caption');
+      const text = el('div', 'ad-banner__text');
+      text.append(el('b', null, banner.label), el('span', null, banner.href || 'без ссылки'));
+      caption.appendChild(text);
 
-      const acts = el('div', 'adm-item__acts');
-
-      const up = icon(ICONS.up, 'Выше');
+      const acts = el('div', 'ad-banner__acts');
+      const up = iconButton('up', 'Раньше', () => moveBanner(index, -1));
+      const down = iconButton('down', 'Позже', () => moveBanner(index, 1));
       up.disabled = index === 0;
-      up.addEventListener('click', () => move('banners', index, -1, renderBanners));
-
-      const down = icon(ICONS.down, 'Ниже');
       down.disabled = index === banners.length - 1;
-      down.addEventListener('click', () => move('banners', index, 1, renderBanners));
+      acts.append(up, down, iconButton('edit', 'Изменить', () => bannerSheet(banner)));
+      caption.appendChild(acts);
+      item.appendChild(caption);
 
-      const edit = icon(ICONS.edit, 'Изменить');
-      edit.addEventListener('click', () => bannerForm(banner, renderBanners));
+      list.appendChild(item);
+    });
 
-      const drop = icon(ICONS.trash, 'Удалить', 'danger');
-      drop.addEventListener('click', () => {
-        if (!confirm('Удалить баннер?')) return;
-        Store.dropAsset(banner.image);
-        save((state) => {
-          state.banners = (state.banners || []).filter((one) => one.id !== banner.id);
-          return state;
-        });
-        renderBanners();
-        toast('Баннер удалён');
-      });
+    view.appendChild(list);
+  }
 
-      acts.append(up, down, edit, drop);
-      row.append(art, body, acts);
-      list.appendChild(row);
+  async function moveBanner(index, shift) {
+    const ids = (content.banners || []).map((banner) => banner.id);
+    const to = index + shift;
+    if (to < 0 || to >= ids.length) return;
+    ids.splice(to, 0, ids.splice(index, 1)[0]);
+
+    const byId = new Map(content.banners.map((banner) => [banner.id, banner]));
+    content.banners = ids.map((id) => byId.get(id));
+    haptic('pick');
+    go('banners');
+
+    await run(null, 'banner.order', { ids: ids });
+  }
+
+  function bannerSheet(banner) {
+    let upload = null;
+
+    openSheet(banner ? 'Баннер' : 'Новый баннер', (body, foot) => {
+      const shot = el('div', 'ad-shot');
+      const hint = el('span', 'ad-shot__hint');
+      const paint = (url) => {
+        shot.style.backgroundImage = url ? 'url("' + url + '")' : '';
+        shot.dataset.filled = String(Boolean(url));
+        hint.textContent = '';
+        hint.append(icon('upload'), el('span', null, url ? 'Заменить' : 'Выберите картинку · 1392 × 518'));
+      };
+      shot.appendChild(hint);
+      paint(banner ? banner.image : '');
+      body.appendChild(shot);
+
+      const take = async (file) => {
+        if (!/^image\//.test(file.type)) {
+          toast('Нужна картинка', 'bad');
+          return;
+        }
+        try {
+          upload = await shrinkImage(file);
+          paint(upload.preview);
+          haptic('ok');
+        } catch (_) {
+          toast('Картинка не читается', 'bad');
+        }
+      };
+      shot.addEventListener('click', () => pickFile('image/*').then((file) => file && take(file)));
+      dropTarget(shot, take);
+
+      const label = input(banner ? banner.label : '', { placeholder: 'Например, Summer Collection', max: 60 });
+      const href = input(banner ? banner.href : '', { placeholder: 'https://t.me/…', max: 300 });
+      href.inputMode = 'url';
+
+      const form = el('div', 'ad-form');
+      form.append(field('Подпись', label, true), field('Ссылка по нажатию', affix(href, 'link'), true));
+      body.appendChild(form);
+      body.appendChild(el('p', 'ad-note', 'Ссылка необязательна. Ссылки на t.me открываются внутри Telegram, остальные — во встроенном браузере.'));
+
+      if (banner) {
+        foot.appendChild(button('Удалить', {
+          kind: 'danger',
+          icon: 'trash',
+          onClick: async (event) => {
+            if (!(await ask('Удалить этот баннер?'))) return;
+            await run(event.currentTarget, 'banner.delete', { id: banner.id }, () => {
+              closeSheet();
+              toast('Баннер удалён');
+              go('banners');
+            });
+          }
+        }));
+      }
+
+      foot.appendChild(el('span', 'ad-grow'));
+      foot.appendChild(button('Отмена', { kind: 'ghost', onClick: closeSheet }));
+      foot.appendChild(button(banner ? 'Сохранить' : 'Добавить', {
+        icon: 'check',
+        onClick: async (event) => {
+          if (!banner && !upload) {
+            toast('Выберите картинку', 'bad');
+            return;
+          }
+
+          const link = href.value.trim();
+          if (link && !/^https:\/\//i.test(link) && !/^tg:\/\//i.test(link)) {
+            toast('Ссылка должна начинаться с https://', 'bad');
+            href.focus();
+            return;
+          }
+
+          await run(event.currentTarget, 'banner.save', {
+            banner: {
+              id: banner ? banner.id : undefined,
+              image: banner ? banner.image : undefined,
+              label: label.value.trim(),
+              href: link
+            },
+            file: upload ? upload.base64 : undefined,
+            type: upload ? upload.type : undefined
+          }, () => {
+            closeSheet();
+            toast(banner ? 'Баннер обновлён' : 'Баннер в карусели');
+            go('banners');
+          });
+        }
+      }));
     });
   }
 
   // --- Люди ---
 
-  function giftPills(chosen, onToggle) {
-    const box = el('div', 'adm-pills');
-    const gifts = Store.state().gifts || [];
+  const people = { query: '', filter: 'all', items: [], total: 0, loading: false, token: 0 };
 
-    if (!gifts.length) {
-      box.appendChild(el('span', 'adm-note', 'Сначала добавьте подарки'));
-      return box;
+  function avatar(person, big) {
+    const ava = el('span', 'ad-ava' + (big ? ' ad-ava--big' : ''));
+    const title = person.firstName || person.username || person.id;
+    ava.textContent = String(title).charAt(0).toUpperCase();
+
+    if (person.photo) {
+      const img = el('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.referrerPolicy = 'no-referrer';
+      img.src = person.photo;
+      img.onerror = () => img.remove();
+      ava.appendChild(img);
+    }
+    return ava;
+  }
+
+  function nameOf(person) {
+    const full = [person.firstName, person.lastName].filter(Boolean).join(' ');
+    return full || (person.username ? '@' + person.username : 'id ' + person.id);
+  }
+
+  function nameLine(person, className) {
+    const line = el('span', className);
+    const text = el('span', person.gold ? 'is-gold' : '', nameOf(person));
+    line.appendChild(text);
+    if (person.verified) {
+      const tick = el('span', 'ad-tick');
+      tick.appendChild(icon('check'));
+      line.appendChild(tick);
+    }
+    if (person.tgPremium) line.appendChild(el('span', 'ad-badge', 'Premium'));
+    return line;
+  }
+
+  function personRow(person) {
+    const row = el('button', 'ad-person');
+    row.type = 'button';
+
+    const body = el('span', 'ad-person__body');
+    body.append(
+      nameLine(person, 'ad-person__name'),
+      el('span', 'ad-person__sub', (person.username ? '@' + person.username + ' · ' : '') + person.id)
+    );
+
+    const side = el('span', 'ad-person__side');
+    const stars = el('b');
+    stars.append(icon('star'), document.createTextNode(num(person.stars)));
+    side.append(stars, el('span', null, ago(person.lastSeen)));
+
+    row.append(avatar(person), body, side);
+    row.addEventListener('click', () => userSheet(person.id, (fresh) => {
+      // Строку в списке обновляем на месте, без перезагрузки всего списка
+      const next = personRow(fresh);
+      row.replaceWith(next);
+    }));
+    return row;
+  }
+
+  function renderUsers() {
+    setTop('Пользователи', stats ? num(stats.users) + ' ' + plural(stats.users, 'человек', 'человека', 'человек') + ' открывали приложение' : '');
+
+    const bar = el('div', 'ad-search');
+    const search = input(people.query, { placeholder: 'Имя, @username или id' });
+    search.type = 'search';
+    search.enterKeyHint = 'search';
+    bar.appendChild(affix(search, 'search'));
+
+    const seg = el('div', 'ad-seg');
+    [
+      ['all', 'Все'], ['new', 'Новые'], ['gold', 'Золотой ник'], ['verified', 'С галочкой'], ['premium', 'Telegram Premium']
+    ].forEach(([id, label]) => {
+      const chip = el('button', 'ad-chip', label);
+      chip.type = 'button';
+      chip.setAttribute('aria-pressed', String(people.filter === id));
+      chip.addEventListener('click', () => {
+        if (people.filter === id) return;
+        people.filter = id;
+        seg.querySelectorAll('.ad-chip').forEach((one) => one.setAttribute('aria-pressed', String(one === chip)));
+        haptic('pick');
+        loadPeople(true);
+      });
+      seg.appendChild(chip);
+    });
+    bar.appendChild(seg);
+    view.appendChild(bar);
+
+    const counter = el('p', 'ad-note');
+    counter.id = 'people-count';
+    view.appendChild(counter);
+
+    const list = el('div', 'ad-list');
+    list.id = 'people-list';
+    view.appendChild(list);
+
+    const more = button('Показать ещё', { kind: 'ghost', extra: 'ad-more' });
+    more.id = 'people-more';
+    more.hidden = true;
+    more.addEventListener('click', () => loadPeople(false));
+    view.appendChild(more);
+
+    let timer = null;
+    search.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        people.query = search.value.trim();
+        loadPeople(true);
+      }, 280);
+    });
+
+    loadPeople(true);
+  }
+
+  async function loadPeople(reset) {
+    const list = document.getElementById('people-list');
+    const more = document.getElementById('people-more');
+    const counter = document.getElementById('people-count');
+    if (!list) return;
+
+    const token = ++people.token;
+
+    if (reset) {
+      people.items = [];
+      list.textContent = '';
+      list.appendChild(skeletonRows(6));
+      more.hidden = true;
+    } else {
+      busy(more, true);
     }
 
-    gifts.forEach((gift) => {
-      const pill = el('button', 'adm-pill');
-      pill.type = 'button';
-      const count = chosen.filter((one) => one === gift.id).length;
+    try {
+      const data = await api('users.list', {
+        query: people.query,
+        filter: people.filter,
+        offset: people.items.length,
+        limit: USERS_PAGE
+      });
 
-      pill.setAttribute('aria-pressed', String(count > 0));
-      pill.append(el('span', null, gift.name));
-      if (count > 1) pill.appendChild(el('span', 'adm-count', '×' + count));
+      // Пока шёл ответ, запрос уже поменяли — этот устарел
+      if (token !== people.token || !list.isConnected) return;
 
-      pill.addEventListener('click', () => onToggle(gift.id));
-      box.appendChild(pill);
-    });
+      if (reset) list.textContent = '';
+      data.items.forEach((person) => list.appendChild(personRow(person)));
+      people.items = people.items.concat(data.items);
+      people.total = data.total;
 
-    return box;
+      counter.textContent = people.query || people.filter !== 'all'
+        ? 'Найдено: ' + num(data.total)
+        : '';
+
+      if (!people.items.length) {
+        list.appendChild(people.query || people.filter !== 'all'
+          ? empty('search', 'Никого не нашли', 'Попробуйте часть имени, @username или id')
+          : empty('users', 'Пока никого', 'Люди появятся здесь, как только откроют приложение'));
+      }
+
+      more.hidden = people.items.length >= data.total;
+    } catch (error) {
+      if (token !== people.token) return;
+      list.textContent = '';
+      list.appendChild(empty('users', 'Не загрузилось', error.message));
+    } finally {
+      busy(more, false);
+    }
   }
 
-  function personForm(id, done) {
-    const state = Store.state();
-    const saved = (state.users || {})[id] || {};
-    let chosen = Array.isArray(saved.gifts)
-      ? saved.gifts.slice()
-      : ((state.defaults && state.defaults.gifts) || []).slice();
-
-    openSheet('Пользователь ' + id, (body) => {
-      const name = text(saved.name || '', 'Ник вместо телеграмного');
-      const alias = text(saved.alias || '', 'Подменный id');
-      const stars = digits(saved.stars !== undefined ? saved.stars : 0);
-      const coupons = digits(saved.coupons !== undefined ? saved.coupons : 0);
-      const gold = check('Золотой ник', saved.gold);
-      const verified = check('Галочка после ника', saved.verified);
-
-      const grid = el('div', 'adm-grid');
-      grid.append(
-        field('Ник', name),
-        field('Подменный id', alias),
-        field('Звёзды', stars),
-        field('Купоны', coupons)
-      );
-      body.append(grid, gold, verified);
-
-      body.append(el('p', 'adm-note', 'Подарки: нажатие выдаёт ещё одну копию, долгое нажатие — убирает все.'));
-
-      const pills = el('div');
-      const redraw = () => {
-        pills.textContent = '';
-        pills.appendChild(giftPills(chosen, (giftId) => {
-          chosen.push(giftId);
-          redraw();
-        }));
-
-        Array.from(pills.querySelectorAll('.adm-pill')).forEach((pill, index) => {
-          const gift = (Store.state().gifts || [])[index];
-          if (!gift) return;
-          pill.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
-            chosen = chosen.filter((one) => one !== gift.id);
-            redraw();
-          });
-        });
-      };
-      redraw();
-      body.appendChild(pills);
-
-      const clear = el('button', 'adm-btn adm-btn--ghost adm-btn--small', 'Забрать все подарки');
-      clear.type = 'button';
-      clear.addEventListener('click', () => {
-        chosen = [];
-        redraw();
-      });
-      body.appendChild(clear);
-
-      body.fields = { name, alias, stars, coupons, gold: gold.input, verified: verified.input };
-    }, () => {
-      const f = sheetBody.fields;
-
-      save((next) => {
-        next.users = next.users || {};
-        next.users[id] = {
-          name: f.name.value.trim(),
-          alias: f.alias.value.trim(),
-          gold: f.gold.checked,
-          verified: f.verified.checked,
-          stars: number(f.stars.value, 0),
-          coupons: number(f.coupons.value, 0),
-          gifts: chosen
-        };
-        return next;
-      });
-
-      done();
-      toast('Сохранено');
-      return true;
-    });
-  }
-
-  function renderPeople() {
-    const state = Store.state();
-    const list = document.getElementById('person-list');
-    const users = state.users || {};
-    list.textContent = '';
-
-    const form = document.getElementById('defaults-form');
-    form.textContent = '';
-
-    const defaults = state.defaults || {};
-    const stars = digits(defaults.stars || 0);
-    const coupons = digits(defaults.coupons || 0);
-
-    const commit = () => {
-      save((next) => {
-        next.defaults = next.defaults || {};
-        next.defaults.stars = number(stars.value, 0);
-        next.defaults.coupons = number(coupons.value, 0);
-        return next;
-      });
-    };
-
-    stars.addEventListener('change', commit);
-    coupons.addEventListener('change', commit);
-
-    form.append(field('Звёзды', stars), field('Купоны', coupons));
-
-    const pills = el('div');
-    const redrawPills = () => {
-      pills.textContent = '';
-      const chosen = (Store.state().defaults || {}).gifts || [];
-      pills.appendChild(giftPills(chosen, (giftId) => {
-        save((next) => {
-          next.defaults = next.defaults || {};
-          const has = (next.defaults.gifts || []).indexOf(giftId) !== -1;
-          next.defaults.gifts = has
-            ? next.defaults.gifts.filter((one) => one !== giftId)
-            : (next.defaults.gifts || []).concat(giftId);
-          return next;
-        });
-        redrawPills();
-      }));
-    };
-    redrawPills();
-
-    const wrap = el('div', 'adm-field');
-    wrap.append(el('span', null, 'Подарки каждому'), pills);
-    form.appendChild(wrap);
-
-    const ids = Object.keys(users);
-    if (!ids.length) {
-      list.appendChild(el('div', 'adm-empty', 'Отдельных записей пока нет'));
+  async function userSheet(id, onSaved) {
+    let person;
+    try {
+      person = (await api('user.get', { id: id })).user;
+    } catch (error) {
+      toast(error.message, 'bad');
       return;
     }
 
-    ids.forEach((id) => {
-      const person = users[id];
-      const row = el('div', 'adm-item');
+    const catalog = content.gifts || [];
+    const byId = new Map(catalog.map((gift) => [gift.id, gift]));
+    // Снятые с витрины подарки в счёте не показываем: при сохранении сервер
+    // их всё равно отбросит, а сырой id в списке только путает
+    const gifts = (person.gifts || []).filter((id) => byId.has(id));
 
-      const art = el('div', 'adm-item__art');
-      art.style.display = 'grid';
-      art.style.placeItems = 'center';
-      art.style.fontSize = '20px';
-      art.textContent = (person.name || id).replace('@', '').charAt(0).toUpperCase();
+    openSheet('Пользователь', (body, foot) => {
+      // Шапка: кто это
+      const who = el('div', 'ad-who');
+      who.appendChild(avatar(person, true));
+      who.appendChild(nameLine(person, 'ad-who__name'));
 
-      const marks = [];
-      if (person.gold) marks.push('золотой ник');
-      if (person.verified) marks.push('галочка');
-      marks.push(person.stars + ' ★');
-      marks.push((person.gifts || []).length + ' под.');
-
-      const body = el('div', 'adm-item__body');
-      body.append(
-        el('div', 'adm-item__name', (person.name || 'Без ника') + ' · ' + id),
-        el('div', 'adm-item__meta', marks.join(' · '))
-      );
-
-      const acts = el('div', 'adm-item__acts');
-
-      const edit = icon(ICONS.edit, 'Изменить');
-      edit.addEventListener('click', () => personForm(id, renderPeople));
-
-      const drop = icon(ICONS.trash, 'Удалить запись', 'danger');
-      drop.addEventListener('click', () => {
-        if (!confirm('Удалить запись ' + id + '? Человек станет обычным.')) return;
-        save((next) => {
-          delete next.users[id];
-          return next;
+      const sub = el('div', 'ad-who__sub');
+      if (person.username) {
+        const open = el('button');
+        open.type = 'button';
+        open.append(document.createTextNode('@' + person.username), icon('link'));
+        open.addEventListener('click', () => {
+          const link = 'https://t.me/' + person.username;
+          if (tg && tg.openTelegramLink && tg.initData) tg.openTelegramLink(link);
+          else window.open(link, '_blank', 'noopener');
         });
-        renderPeople();
+        sub.appendChild(open);
+      }
+      const copy = el('button');
+      copy.type = 'button';
+      copy.append(document.createTextNode('id ' + person.id), icon('copy'));
+      copy.addEventListener('click', () => {
+        const done = () => toast('id скопирован');
+        if (navigator.clipboard) navigator.clipboard.writeText(person.id).then(done, done);
+      });
+      sub.appendChild(copy);
+      who.appendChild(sub);
+
+      const facts = el('div', 'ad-facts');
+      const fact = (label, value) => {
+        const chip = el('span', 'ad-fact');
+        chip.append(document.createTextNode(label + ' '), el('b', null, value));
+        facts.appendChild(chip);
+      };
+      fact('с нами с', day(person.firstSeen));
+      fact('был', ago(person.lastSeen));
+      fact('заходов', num(person.visits || 0));
+      who.appendChild(facts);
+      body.appendChild(who);
+
+      // Баланс
+      const money = el('section', 'ad-card');
+      money.appendChild(el('h3', null, 'Баланс'));
+      const stars = stepper(person.stars, [1, 100, 500, 1000]);
+      const coupons = stepper(person.coupons, [1, 5, 10, 50]);
+      const grid = el('div', 'ad-form');
+      grid.append(field('Звёзды', stars, true), field('Купоны', coupons, true));
+      money.appendChild(grid);
+      body.appendChild(money);
+
+      // Оформление
+      const look = el('section', 'ad-card');
+      look.appendChild(el('h3', null, 'Оформление'));
+      const gold = toggle('Золотой ник', 'Имя в профиле переливается золотом', person.gold);
+      const verified = toggle('Галочка', 'Синяя галочка после имени', person.verified);
+      const toggles = el('div');
+      toggles.append(gold, verified);
+      look.appendChild(toggles);
+      body.appendChild(look);
+
+      // Подарки
+      const owned = el('section', 'ad-card');
+      const ownedHead = el('div', 'ad-card__head');
+      const ownedTitle = el('h3');
+      ownedHead.appendChild(ownedTitle);
+      owned.appendChild(ownedHead);
+      const ownedList = el('div', 'ad-owned');
+      owned.appendChild(ownedList);
+
+      const picker = el('div', 'ad-pick');
+      picker.hidden = true;
+
+      const giveBtn = el('button', 'ad-dashed');
+      giveBtn.type = 'button';
+      giveBtn.append(icon('gift'), el('span', null, 'Выдать подарок'));
+      giveBtn.addEventListener('click', () => {
+        picker.hidden = !picker.hidden;
+        giveBtn.querySelector('span').textContent = picker.hidden ? 'Выдать подарок' : 'Скрыть каталог';
       });
 
-      acts.append(edit, drop);
-      row.append(art, body, acts);
-      list.appendChild(row);
+      const drawOwned = () => {
+        release(ownedList);
+        ownedList.textContent = '';
+        const counted = new Map();
+        gifts.forEach((giftId) => counted.set(giftId, (counted.get(giftId) || 0) + 1));
+        ownedTitle.textContent = 'Подарки · ' + num(gifts.length);
+
+        if (!counted.size) {
+          ownedList.appendChild(el('p', 'ad-note', 'Подарков нет'));
+          return;
+        }
+
+        counted.forEach((count, giftId) => {
+          const gift = byId.get(giftId);
+          const row = el('div', 'ad-own');
+          const thumb = el('span', 'ad-thumb');
+          if (gift && gift.art) animate(thumb, gift.art);
+
+          const name = el('span', 'ad-own__name');
+          name.append(el('b', null, gift ? gift.name : giftId), el('span', null, gift ? num(gift.price) + ' ★' : 'снят с витрины'));
+
+          const mini = el('div', 'ad-mini');
+          mini.append(
+            iconButton('trash', 'Забрать один', () => {
+              gifts.splice(gifts.lastIndexOf(giftId), 1);
+              haptic('pick');
+              drawOwned();
+            }),
+            el('b', null, '×' + count),
+            iconButton('plus', 'Ещё один', () => {
+              gifts.push(giftId);
+              haptic('pick');
+              drawOwned();
+            })
+          );
+          row.append(thumb, name, mini);
+          ownedList.appendChild(row);
+        });
+      };
+
+      catalog.forEach((gift) => {
+        const item = el('button', 'ad-pick__item');
+        item.type = 'button';
+        const thumb = el('span', 'ad-thumb');
+        animate(thumb, gift.art);
+        item.append(thumb, el('span', null, gift.name));
+        item.addEventListener('click', () => {
+          gifts.push(gift.id);
+          haptic('ok');
+          drawOwned();
+        });
+        picker.appendChild(item);
+      });
+
+      drawOwned();
+      owned.append(giveBtn, picker);
+      body.appendChild(owned);
+
+      foot.appendChild(el('span', 'ad-grow'));
+      foot.appendChild(button('Отмена', { kind: 'ghost', onClick: closeSheet }));
+      foot.appendChild(button('Сохранить', {
+        icon: 'check',
+        onClick: async (event) => {
+          await run(event.currentTarget, 'user.save', {
+            id: person.id,
+            account: {
+              stars: stars.read(),
+              coupons: coupons.read(),
+              gold: gold.input.checked,
+              verified: verified.input.checked,
+              gifts: gifts
+            }
+          }, (data) => {
+            closeSheet();
+            toast('Сохранено');
+            if (onSaved) onSaved(data.user);
+          });
+        }
+      }));
     });
   }
 
   // --- Задания ---
 
-  function taskForm(groupIndex, task, done) {
-    openSheet(task ? 'Задание' : 'Новое задание', (body) => {
-      const name = text(task ? task.name : '', 'Что нужно сделать');
-      const reward = digits(task ? task.reward : 1);
-      const goal = digits(task ? task.goal : 1);
-
-      const grid = el('div', 'adm-grid');
-      grid.append(field('Название', name), field('Награда в купонах', reward), field('Сколько нужно', goal));
-      body.appendChild(grid);
-      body.fields = { name, reward, goal };
-    }, () => {
-      const f = sheetBody.fields;
-      if (!f.name.value.trim()) {
-        toast('Нужно название');
-        return false;
-      }
-
-      const next = {
-        id: task ? task.id : slug(f.name.value),
-        name: f.name.value.trim(),
-        reward: number(f.reward.value, 0),
-        goal: number(f.goal.value, 1)
-      };
-
-      save((state) => {
-        const group = state.tasks[groupIndex];
-        group.items = group.items || [];
-        const at = task ? group.items.findIndex((one) => one.id === task.id) : -1;
-        if (at === -1) group.items.push(next);
-        else group.items[at] = next;
-        return state;
-      });
-
-      done();
-      return true;
-    });
-  }
-
   function renderTasks() {
-    const list = document.getElementById('task-list');
-    const groups = Store.state().tasks || [];
-    list.textContent = '';
+    const groups = content.tasks || [];
+    setTop('Задания', 'Видны на вкладке «Задания» в приложении', [
+      button('Блок', { icon: 'plus', onClick: addGroup })
+    ]);
 
     if (!groups.length) {
-      list.appendChild(el('div', 'adm-empty', 'Блоков пока нет'));
+      view.appendChild(empty('tasks', 'Заданий нет', 'Начните с блока — например, «Специальные»', button('Добавить блок', { icon: 'plus', onClick: addGroup })));
       return;
     }
 
     groups.forEach((group, groupIndex) => {
-      const card = el('div', 'adm-card glass');
+      const card = el('section', 'ad-card');
 
-      const head = el('div', 'adm-head');
-      const title = text(group.title, 'Название блока');
+      const head = el('div', 'ad-card__head');
+      const title = el('input', 'ad-title-input');
+      title.value = group.title;
+      title.maxLength = 40;
+      title.setAttribute('aria-label', 'Название блока');
+      title.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') title.blur();
+      });
       title.addEventListener('change', () => {
-        save((state) => {
-          state.tasks[groupIndex].title = title.value.trim() || 'Без названия';
-          return state;
-        });
+        const tasks = copyTasks();
+        tasks[groupIndex].title = title.value.trim() || 'Без названия';
+        saveTasks(tasks, 'Название сохранено');
       });
 
-      const headField = el('div', 'adm-field');
-      headField.style.flex = '1 1 auto';
-      headField.append(el('span', null, 'Блок'), title);
-
-      const tools = el('div', 'adm-item__acts');
-
-      const add = el('button', 'adm-btn adm-btn--small', 'Задание');
-      add.type = 'button';
-      add.addEventListener('click', () => taskForm(groupIndex, null, renderTasks));
-
-      const dropGroup = icon(ICONS.trash, 'Удалить блок', 'danger');
-      dropGroup.addEventListener('click', () => {
-        if (!confirm('Удалить блок «' + group.title + '»?')) return;
-        save((state) => {
-          state.tasks.splice(groupIndex, 1);
-          return state;
-        });
-        renderTasks();
-      });
-
-      tools.append(add, dropGroup);
-      head.append(headField, tools);
+      head.append(title, iconButton('trash', 'Удалить блок', async () => {
+        if (!(await ask('Удалить блок «' + group.title + '» вместе с заданиями?'))) return;
+        const tasks = copyTasks();
+        tasks.splice(groupIndex, 1);
+        saveTasks(tasks, 'Блок удалён', true);
+      }, 'ad-icon--danger'));
       card.appendChild(head);
 
-      (group.items || []).forEach((task) => {
-        const row = el('div', 'adm-item');
-        const body = el('div', 'adm-item__body');
-        body.append(
-          el('div', 'adm-item__name', task.name),
-          el('div', 'adm-item__meta', 'награда ' + task.reward + ' · цель ' + task.goal)
-        );
+      const rows = el('div');
+      (group.items || []).forEach((task, taskIndex) => {
+        const row = el('button', 'ad-task');
+        row.type = 'button';
 
-        const acts = el('div', 'adm-item__acts');
+        const mark = el('span', 'ad-task__icon');
+        mark.innerHTML = '<svg viewBox="0 0 14 16" aria-hidden="true"><use href="#task-gift"></use></svg>';
 
-        const edit = icon(ICONS.edit, 'Изменить');
-        edit.addEventListener('click', () => taskForm(groupIndex, task, renderTasks));
+        const bodyNode = el('span', 'ad-task__body');
+        const reward = el('span', 'ad-reward');
+        reward.innerHTML = '<svg viewBox="0 0 18 18" aria-hidden="true"><use href="#coupon"></use></svg>';
+        reward.appendChild(document.createTextNode(num(task.reward)));
+        bodyNode.append(el('b', null, task.name), reward);
 
-        const drop = icon(ICONS.trash, 'Удалить', 'danger');
-        drop.addEventListener('click', () => {
-          save((state) => {
-            const items = state.tasks[groupIndex].items;
-            state.tasks[groupIndex].items = items.filter((one) => one.id !== task.id);
-            return state;
-          });
-          renderTasks();
+        row.append(mark, bodyNode, el('span', 'ad-task__goal', '0/' + num(task.goal)));
+        row.addEventListener('click', () => taskSheet(groupIndex, taskIndex));
+        rows.appendChild(row);
+      });
+      card.appendChild(rows);
+
+      const add = el('button', 'ad-dashed');
+      add.type = 'button';
+      add.append(icon('plus'), el('span', null, 'Задание'));
+      add.addEventListener('click', () => taskSheet(groupIndex, -1));
+      card.appendChild(add);
+
+      view.appendChild(card);
+    });
+  }
+
+  function copyTasks() {
+    return JSON.parse(JSON.stringify(content.tasks || []));
+  }
+
+  async function saveTasks(tasks, message, redraw) {
+    const data = await run(null, 'tasks.save', { tasks: tasks });
+    if (data) {
+      toast(message);
+      if (redraw !== false) go('tasks');
+    }
+    return data;
+  }
+
+  function addGroup() {
+    const tasks = copyTasks();
+    tasks.push({ title: 'Новый блок', items: [] });
+    saveTasks(tasks, 'Блок добавлен');
+  }
+
+  function taskSheet(groupIndex, taskIndex) {
+    const group = (content.tasks || [])[groupIndex];
+    const task = taskIndex >= 0 ? group.items[taskIndex] : null;
+
+    openSheet(task ? 'Задание' : 'Новое задание', (body, foot) => {
+      const name = input(task ? task.name : '', { placeholder: 'Например, Отправить 3 подарка', max: 60 });
+      const reward = stepper(task ? task.reward : 1, [1, 5, 10, 50]);
+      const goal = stepper(task ? task.goal : 1, [1, 5, 10]);
+
+      const form = el('div', 'ad-form');
+      form.append(field('Что нужно сделать', name, true), field('Награда в купонах', reward, true), field('Сколько раз', goal, true));
+      body.appendChild(form);
+
+      if (task) {
+        foot.appendChild(button('Удалить', {
+          kind: 'danger',
+          icon: 'trash',
+          onClick: async (event) => {
+            const tasks = copyTasks();
+            tasks[groupIndex].items.splice(taskIndex, 1);
+            busy(event.currentTarget, true);
+            const ok = await saveTasks(tasks, 'Задание удалено');
+            if (ok) closeSheet();
+          }
+        }));
+      }
+
+      foot.appendChild(el('span', 'ad-grow'));
+      foot.appendChild(button('Отмена', { kind: 'ghost', onClick: closeSheet }));
+      foot.appendChild(button(task ? 'Сохранить' : 'Добавить', {
+        icon: 'check',
+        onClick: async (event) => {
+          if (!name.value.trim()) {
+            toast('Напишите, что нужно сделать', 'bad');
+            name.focus();
+            return;
+          }
+
+          const tasks = copyTasks();
+          const next = {
+            id: task ? task.id : undefined,
+            name: name.value.trim(),
+            reward: reward.read(),
+            goal: Math.max(1, goal.read())
+          };
+          if (task) tasks[groupIndex].items[taskIndex] = next;
+          else tasks[groupIndex].items.push(next);
+
+          busy(event.currentTarget, true);
+          const ok = await saveTasks(tasks, task ? 'Задание сохранено' : 'Задание добавлено');
+          busy(event.currentTarget, false);
+          if (ok) closeSheet();
+        }
+      }));
+    });
+  }
+
+  // --- Настройки ---
+
+  function countdown(ts) {
+    const left = ts - Date.now();
+    if (!ts) return 'Дата не задана — отсчёт стоит на нуле';
+    if (left <= 0) return 'Время уже прошло — отсчёт на нуле';
+    const days = Math.floor(left / 86400000);
+    const hours = Math.floor(left / 3600000) % 24;
+    const minutes = Math.floor(left / 60000) % 60;
+    return 'Откроется через ' + days + ' д ' + hours + ' ч ' + minutes + ' мин';
+  }
+
+  function localValue(iso) {
+    const ts = Date.parse(iso);
+    if (!Number.isFinite(ts)) return '';
+    return new Date(ts - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+
+  function renderSettings() {
+    setTop('Настройки', 'Маркет, стартовый набор и массовая выдача');
+
+    const cols = el('div', 'ad-cols');
+
+    // Маркет
+    const market = el('section', 'ad-card');
+    const marketHead = el('div');
+    marketHead.append(el('h3', null, 'Открытие маркета'), el('p', 'ad-note', 'До этого момента на вкладке «Маркет» идёт отсчёт'));
+    market.appendChild(marketHead);
+
+    const when = input(localValue((content.market || {}).opensAt), { type: 'datetime-local' });
+    const preview = el('p', 'ad-note');
+    const paint = () => { preview.textContent = countdown(when.value ? new Date(when.value).getTime() : 0); };
+    when.addEventListener('input', paint);
+    paint();
+    market.append(field('Дата и время', when), preview);
+    market.appendChild(button('Сохранить', {
+      icon: 'check',
+      onClick: (event) => run(event.currentTarget, 'market.save', {
+        opensAt: when.value ? new Date(when.value).toISOString() : ''
+      }, () => toast('Дата открытия сохранена'))
+    }));
+    cols.appendChild(market);
+
+    // Стартовый набор
+    const starter = el('section', 'ad-card');
+    const starterHead = el('div');
+    starterHead.append(el('h3', null, 'Стартовый набор'), el('p', 'ad-note', 'Что получает человек, когда впервые открывает приложение'));
+    starter.appendChild(starterHead);
+
+    const defaults = content.defaults || {};
+    const starterStars = stepper(defaults.stars || 0, [10, 100, 500]);
+    const starterCoupons = stepper(defaults.coupons || 0, [1, 5, 10]);
+    const chosen = new Set(defaults.gifts || []);
+
+    const starterGrid = el('div', 'ad-form');
+    starterGrid.append(field('Звёзды', starterStars, true), field('Купоны', starterCoupons, true));
+    starter.appendChild(starterGrid);
+
+    const giftChips = el('div', 'ad-quick');
+    (content.gifts || []).forEach((gift) => {
+      const chip = el('button', 'ad-chip');
+      chip.type = 'button';
+      chip.append(icon('gift'), document.createTextNode(gift.name));
+      chip.setAttribute('aria-pressed', String(chosen.has(gift.id)));
+      chip.addEventListener('click', () => {
+        if (chosen.has(gift.id)) chosen.delete(gift.id);
+        else chosen.add(gift.id);
+        chip.setAttribute('aria-pressed', String(chosen.has(gift.id)));
+        haptic('pick');
+      });
+      giftChips.appendChild(chip);
+    });
+    starter.appendChild(field('Подарки', giftChips, true));
+    starter.appendChild(button('Сохранить', {
+      icon: 'check',
+      onClick: (event) => run(event.currentTarget, 'defaults.save', {
+        stars: starterStars.read(),
+        coupons: starterCoupons.read(),
+        gifts: Array.from(chosen)
+      }, () => toast('Стартовый набор сохранён'))
+    }));
+    cols.appendChild(starter);
+
+    // Выдать всем
+    const grant = el('section', 'ad-card');
+    const grantHead = el('div');
+    grantHead.append(el('h3', null, 'Выдать всем'), el('p', 'ad-note', 'Получат все, кто хоть раз открывал приложение' + (stats ? ' — ' + num(stats.users) + ' ' + plural(stats.users, 'человек', 'человека', 'человек') : '')));
+    grant.appendChild(grantHead);
+
+    let grantGift = '';
+    const grantChips = el('div', 'ad-quick');
+    (content.gifts || []).forEach((gift) => {
+      const chip = el('button', 'ad-chip');
+      chip.type = 'button';
+      chip.append(icon('gift'), document.createTextNode(gift.name));
+      chip.setAttribute('aria-pressed', 'false');
+      chip.addEventListener('click', () => {
+        grantGift = grantGift === gift.id ? '' : gift.id;
+        grantChips.querySelectorAll('.ad-chip').forEach((one) => one.setAttribute('aria-pressed', String(one === chip && grantGift === gift.id)));
+        haptic('pick');
+      });
+      grantChips.appendChild(chip);
+    });
+
+    const grantStars = stepper(0, [10, 100, 500]);
+    const grantCoupons = stepper(0, [1, 5, 10]);
+    const grantGrid = el('div', 'ad-form');
+    grantGrid.append(field('Подарок (по желанию)', grantChips, true), field('Звёзды', grantStars, true), field('Купоны', grantCoupons, true));
+    grant.appendChild(grantGrid);
+    grant.appendChild(button('Выдать всем', {
+      icon: 'bolt',
+      onClick: async (event) => {
+        const payload = { gift: grantGift, stars: grantStars.read(), coupons: grantCoupons.read() };
+        if (!payload.gift && !payload.stars && !payload.coupons) {
+          toast('Выберите, что выдать', 'bad');
+          return;
+        }
+        if (!(await ask('Выдать всем пользователям? Отменить это будет нельзя.'))) return;
+        await run(event.currentTarget, 'users.grant', payload, (data) => {
+          toast('Выдано: ' + num(data.count) + ' ' + plural(data.count, 'человек', 'человека', 'человек'));
+          go('settings');
         });
-
-        acts.append(edit, drop);
-        row.append(body, acts);
-        card.appendChild(row);
-      });
-
-      if (!(group.items || []).length) {
-        card.appendChild(el('div', 'adm-empty', 'В блоке пока пусто'));
       }
+    }));
+    cols.appendChild(grant);
 
-      list.appendChild(card);
+    // Подключение
+    const link = el('section', 'ad-card');
+    link.appendChild(el('h3', null, 'Подключение'));
+    const rows = el('div');
+    [
+      ['db', 'База данных', 'Upstash Redis · подключена'],
+      ['key', 'Подпись Telegram', 'проверяется на сервере'],
+      ['shield', 'Вы вошли как', (me && me.username ? '@' + me.username + ' · ' : '') + (me ? me.id : '')]
+    ].forEach(([iconName, label, value]) => {
+      const row = el('div', 'ad-switch');
+      const text = el('span', 'ad-switch__text');
+      text.append(el('span', null, label), el('small', null, value));
+      const ok = el('span', 'ad-stat__icon');
+      ok.style.setProperty('--tint', 'rgba(52,199,89,.16)');
+      ok.style.setProperty('--tone', '#34c759');
+      ok.appendChild(icon(iconName));
+      row.append(ok, text);
+      rows.appendChild(row);
     });
+    link.appendChild(rows);
+    cols.appendChild(link);
+
+    view.appendChild(cols);
   }
 
-  // --- Маркет ---
+  const RENDER = {
+    overview: renderOverview,
+    gifts: renderGifts,
+    banners: renderBanners,
+    users: renderUsers,
+    tasks: renderTasks,
+    settings: renderSettings
+  };
 
-  function renderMarket() {
-    const form = document.getElementById('market-form');
-    form.textContent = '';
+  // --- Вход ---
 
-    const current = (Store.state().market || {}).opensAt || '';
-    const parsed = Date.parse(current);
-    const input = el('input');
-    input.type = 'datetime-local';
-    input.style.colorScheme = 'dark';
+  function gateCard(iconName, title, text, extra) {
+    const card = document.getElementById('gate-card');
+    card.textContent = '';
+    const mark = el('span', 'ad-gate__icon');
+    mark.appendChild(icon(iconName));
+    card.append(mark, el('h2', null, title));
+    if (text) card.appendChild(el('p', 'ad-gate__text', text));
+    if (extra) card.appendChild(extra);
+    document.getElementById('gate').hidden = false;
+    document.getElementById('ad').hidden = true;
+  }
 
-    if (Number.isFinite(parsed)) {
-      const date = new Date(parsed - new Date().getTimezoneOffset() * 60000);
-      input.value = date.toISOString().slice(0, 16);
+  function showGate(kind, status) {
+    const back = el('a', 'ad-btn ad-btn--ghost');
+    back.href = 'index.html';
+    back.append(icon('back'), el('span', null, 'В приложение'));
+
+    if (kind === 'setup') {
+      const steps = el('div', 'ad-steps');
+      const step = (done, iconName, title, html) => {
+        const box = el('div', 'ad-step');
+        box.dataset.done = String(done);
+        const mark = el('span', 'ad-step__mark');
+        mark.appendChild(icon(done ? 'check' : iconName));
+        const text = el('div');
+        text.appendChild(el('b', null, title));
+        const p = el('p');
+        p.innerHTML = html;
+        text.appendChild(p);
+        box.append(mark, text);
+        steps.appendChild(box);
+      };
+
+      step(status.db, 'db', 'База данных',
+        status.db ? 'Подключена.' : 'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Upstash for Redis</b>, тариф Free → Connect.');
+      step(Boolean(status.auth), 'key', 'Подпись Telegram',
+        status.auth ? 'Настроена.' : 'Vercel → Settings → Environment Variables → <code>BOT_TOKEN</code> = токен бота из @BotFather.');
+      step(false, 'refresh', 'Передеплой', 'Новые переменные подхватит следующий деплой. После него нажмите «Проверить».');
+
+      const again = button('Проверить', { icon: 'refresh', onClick: () => start() });
+      const wrap = el('div', 'ad-steps');
+      wrap.append(steps, again);
+      gateCard('settings', 'Осталось подключить', 'Чтобы правки видели все, админке нужна общая база.', wrap);
+      return;
     }
 
-    input.addEventListener('change', () => {
-      save((state) => {
-        state.market = state.market || {};
-        // Сохраняем вместе со смещением, иначе час уедет на чужом устройстве
-        state.market.opensAt = input.value ? new Date(input.value).toISOString() : '';
-        return state;
-      });
-      toast('Дата открытия сохранена');
-    });
+    if (kind === 'expired') {
+      gateCard('clock', 'Сессия устарела', 'Откройте админку заново из профиля в приложении.', back);
+      return;
+    }
 
-    form.appendChild(field('Дата и время', input));
+    if (kind === 'outside') {
+      gateCard('shield', 'Откройте из Telegram', 'Админка работает только внутри приложения: так сервер узнаёт, что это вы.', back);
+      return;
+    }
+
+    if (kind === 'network') {
+      const again = button('Повторить', { icon: 'refresh', onClick: () => start() });
+      gateCard('pulse', 'Нет связи с сервером', 'Проверьте интернет и попробуйте ещё раз.', again);
+      return;
+    }
+
+    gateCard('shield', 'Нет доступа', 'Эта страница только для администратора.', back);
   }
 
-  // --- Выгрузка и загрузка ---
+  async function start() {
+    document.getElementById('gate-card').innerHTML = '<span class="ad-spinner" aria-hidden="true"></span><p class="ad-gate__text">Проверяем доступ…</p>';
 
-  function exportContent() {
-    Store.exportAll().then((bundle) => {
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'content.json';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast('Файл собран — положите его в data/content.json');
-    });
-  }
-
-  function importContent() {
-    pickFile('application/json,.json').then((file) => {
-      if (!file) return;
-      return file.text()
-        .then(JSON.parse)
-        .then((bundle) => Store.importAll(bundle))
-        .then(() => {
-          renderAll();
-          markDirty();
-          toast('Загружено');
-        })
-        .catch(() => toast('Файл не читается'));
-    });
-  }
-
-  // --- Сборка ---
-
-  function renderAll() {
-    renderGifts();
-    renderBanners();
-    renderPeople();
-    renderTasks();
-    renderMarket();
-  }
-
-  function bind() {
-    document.getElementById('adm-tabs').addEventListener('click', (event) => {
-      const tab = event.target.closest('[data-tab]');
-      if (!tab) return;
-
-      Array.from(document.querySelectorAll('.adm__tab')).forEach((one) => {
-        one.classList.toggle('is-active', one === tab);
-      });
-      Array.from(document.querySelectorAll('.adm__pane')).forEach((pane) => {
-        pane.classList.toggle('is-on', pane.dataset.pane === tab.dataset.tab);
-      });
-    });
-
-    document.getElementById('gift-new').addEventListener('click', () => giftForm(null, renderGifts));
-    document.getElementById('banner-new').addEventListener('click', () => bannerForm(null, renderBanners));
-    document.getElementById('group-new').addEventListener('click', () => {
-      save((state) => {
-        state.tasks = state.tasks || [];
-        state.tasks.push({ id: slug('block'), title: 'Новый блок', items: [] });
-        return state;
-      });
-      renderTasks();
-    });
-
-    document.getElementById('person-new').addEventListener('click', () => {
-      const id = prompt('Телеграмный id пользователя');
-      if (!id || !/^\d+$/.test(id.trim())) {
-        if (id !== null) toast('id — это только цифры');
-        return;
-      }
-      personForm(id.trim(), renderPeople);
-    });
-
-    document.getElementById('act-export').addEventListener('click', exportContent);
-    document.getElementById('act-export-2').addEventListener('click', exportContent);
-    document.getElementById('act-import').addEventListener('click', importContent);
-
-    document.getElementById('act-reset').addEventListener('click', () => {
-      if (!confirm('Вернуть всё к опубликованному? Правки в этом браузере пропадут.')) return;
-      Store.reset();
-      renderAll();
-      markDirty();
-      toast('Правки сброшены');
-    });
-  }
-
-  // --- Доступ ---
-
-  function start() {
     if (tg) {
-      tg.ready();
-      tg.expand();
+      try {
+        tg.ready();
+        tg.expand();
+        tg.setHeaderColor('#0b0b0e');
+        tg.setBackgroundColor('#0b0b0e');
+      } catch (_) {}
+
+      // Системная «назад»: закрывает лист, а без листа — возвращает в приложение
+      if (tg.BackButton) {
+        try {
+          tg.BackButton.show();
+          tg.BackButton.onClick(() => {
+            if (!sheet.hidden) closeSheet();
+            else location.href = 'index.html';
+          });
+        } catch (_) {}
+      }
     }
 
-    Store.load().then(() => {
-      const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-      // Без Telegram проверять некого: такой заход разрешаем только с
-      // локальной машины, где админку и отлаживают
-      const local = ['localhost', '127.0.0.1'].indexOf(location.hostname) !== -1;
-      const allowed = user ? Store.isAdmin(user.id) : local;
+    let status;
+    try {
+      status = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'status' })
+      }).then((response) => response.json());
+    } catch (_) {
+      showGate('network');
+      return;
+    }
 
-      if (!allowed) {
-        gate.dataset.denied = 'true';
-        gateText.textContent = 'Эта страница только для администраторов.';
-        return;
-      }
+    if (!status.db || !status.auth) {
+      showGate('setup', status);
+      return;
+    }
 
-      gate.hidden = true;
-      root.hidden = false;
-      bind();
-      renderAll();
-      markDirty();
-    });
+    if (!initData()) {
+      showGate('outside');
+      return;
+    }
+
+    try {
+      const data = await api('session');
+      stats = data.stats;
+      me = data.me;
+    } catch (error) {
+      if (error.code === 'unauthorized') showGate('expired');
+      else if (error.code === 'network') showGate('network');
+      else showGate('forbidden');
+      return;
+    }
+
+    document.getElementById('gate').hidden = true;
+    document.getElementById('ad').hidden = false;
+
+    let last = 'overview';
+    try { last = sessionStorage.getItem(LAST_TAB) || 'overview'; } catch (_) {}
+    go(last);
   }
 
   start();
