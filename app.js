@@ -518,12 +518,16 @@
     }
   }
 
+  function prefersStill() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
   // Один прогон и остановка на последнем кадре — так ведут себя все анимации
   // в приложении, кроме той, что в раскрытой карточке.
   function playOnce(container, path) {
     if (!window.lottie) return null;
 
-    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const still = prefersStill();
     const player = window.lottie.loadAnimation({
       container: container,
       renderer: 'canvas',
@@ -556,11 +560,24 @@
     whenLottieReady(() => {
       const observer = new IntersectionObserver((entries, obs) => {
         entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
+          const player = artPlayers.get(entry.target);
 
-          obs.unobserve(entry.target);
-          const player = loop ? loopArt(entry.target, path) : playOnce(entry.target, path);
-          if (player) artPlayers.set(entry.target, player);
+          if (!entry.isIntersecting) {
+            // Зацикленная анимация за кадром рисовала бы по шестьдесят кадров
+            // в секунду в пустоту и тормозила бы весь остальной экран
+            if (player && loop) player.pause();
+            return;
+          }
+
+          if (!player) {
+            const started = loop ? loopArt(entry.target, path) : playOnce(entry.target, path);
+            if (started) artPlayers.set(entry.target, started);
+            // Одиночный прогон отыграл — наблюдать больше не за чем
+            if (!loop) obs.unobserve(entry.target);
+            return;
+          }
+
+          if (loop && !prefersStill()) player.play();
         });
       }, { rootMargin: '120px' });
 
@@ -782,7 +799,7 @@
       container: container,
       renderer: 'canvas',
       loop: true,
-      autoplay: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      autoplay: !prefersStill(),
       path: path,
       rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
     });
@@ -1167,35 +1184,47 @@
 
   // --- Маркет ---
 
-  // Разряд меняется катушкой: старая цифра уходит вверх и размывается,
-  // новая приходит снизу и наводится на резкость.
+  // Разряд — окошко с двумя постоянными слоями: один показан, второй ждёт
+  // снизу. На смене они меняются ролями, и переход ведёт сам браузер.
+  // Узлы здесь не создаются и не удаляются: раньше уходящую цифру снимало
+  // событие animationend, а когда оно не приходило, она оставалась висеть
+  // поверх новой — отсюда и наложение цифр, и копившийся мусор в разметке.
+  function makeDigit() {
+    const cell = document.createElement('span');
+    cell.className = 'digit';
+
+    const front = document.createElement('span');
+    front.className = 'digit__face is-now';
+    const back = document.createElement('span');
+    back.className = 'digit__face is-next';
+
+    cell.append(front, back);
+    return cell;
+  }
+
   function rollDigit(cell, value, animate) {
-    const now = cell.lastElementChild;
-    if (now && now.textContent === value) return;
+    const shown = cell.querySelector('.is-now');
+    if (shown.textContent === value) return;
 
-    const face = document.createElement('span');
-    face.className = 'digit__face';
-    face.textContent = value;
-
-    if (!animate || !now) {
-      cell.textContent = '';
-      cell.appendChild(face);
+    if (!animate) {
+      shown.textContent = value;
       return;
     }
 
-    face.classList.add('is-in');
-    cell.appendChild(face);
+    const hidden = cell.querySelector('.is-next') || cell.querySelector('.is-out');
+    hidden.className = 'digit__face is-next';
+    hidden.textContent = value;
+    // Пересчёт стилей форсируем чтением размера — иначе браузер объединит
+    // обе смены класса в одну и перехода не будет
+    void hidden.offsetWidth;
 
-    now.classList.add('is-out');
-    // Ушедшую цифру снимаем сами: она лежит поверх потока и иначе осталась бы
-    now.addEventListener('animationend', () => now.remove(), { once: true });
+    shown.className = 'digit__face is-out';
+    hidden.className = 'digit__face is-now';
   }
 
   function rollValue(holder, text, animate) {
     while (holder.children.length < text.length) {
-      const cell = document.createElement('span');
-      cell.className = 'digit';
-      holder.appendChild(cell);
+      holder.appendChild(makeDigit());
     }
     while (holder.children.length > text.length) {
       holder.lastElementChild.remove();

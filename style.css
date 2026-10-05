@@ -1582,57 +1582,47 @@ body {
   display: block;
   width: 0.62em;
   height: 1em;
+  /* Уехавшая цифра не должна выглядывать над окошком */
   overflow: hidden;
+  /* Перерисовка не выходит за разряд: соседние цифры и стекло капсулы
+     при каждом тике не трогаются */
+  contain: layout paint;
 }
 
+/* Оба слоя лежат друг на друге и живут всё время — меняются только роли.
+   Двигаем transform и opacity: их браузер крутит на видеокарте, поэтому
+   каждая секунда не стоит перерисовки стеклянной капсулы под ними. */
 .digit__face {
-  display: block;
-  width: 100%;
-  text-align: center;
-}
-
-/* Уходящая цифра поднимается поверх потока, поэтому она вне него */
-.digit__face.is-out {
   position: absolute;
   inset: 0;
-  animation: digit-out 0.42s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  display: block;
+  text-align: center;
+  will-change: transform;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s linear;
 }
 
-.digit__face.is-in {
-  animation: digit-in 0.42s cubic-bezier(0.2, 0.8, 0.3, 1);
+.digit__face.is-now {
+  transform: translateY(0);
+  opacity: 1;
 }
 
-/* Смазка на лету: цифра размывается на ходу и наводится на резкость в покое */
-@keyframes digit-out {
-  from {
-    transform: translateY(0);
-    opacity: 1;
-    filter: blur(0);
-  }
-  to {
-    transform: translateY(-100%);
-    opacity: 0;
-    filter: blur(5px);
-  }
+/* Ушедшая цифра встаёт над окошком, пришедшая ждёт под ним */
+.digit__face.is-out {
+  transform: translateY(-100%);
+  opacity: 0;
 }
 
-@keyframes digit-in {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-    filter: blur(5px);
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-    filter: blur(0);
-  }
+/* Слой на подходе переставляем вниз мгновенно, иначе он бы ехал туда на
+   глазах — и только потом поднимался обратно */
+.digit__face.is-next {
+  transform: translateY(100%);
+  opacity: 0;
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .digit__face.is-out,
-  .digit__face.is-in {
-    animation-duration: 0.01ms;
+  .digit__face {
+    transition-duration: 0.01ms;
   }
 }
 
