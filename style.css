@@ -333,6 +333,18 @@ body {
   overflow: hidden;
 }
 
+/* Холст для снятия цвета с подарка. Нулевого размера он быть не может —
+   lottie нарисовал бы в нём пустоту, поэтому уводим его за край экрана */
+.tint-probe {
+  position: fixed;
+  left: -200px;
+  top: 0;
+  width: 72px;
+  height: 72px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .gifts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1279,10 +1291,11 @@ body {
   gap: 14px;
   padding: 20px 16px 16px;
   /* Подложка монохромная, и её тон задаёт сам подарок: app.js достаёт
-     господствующий цвет из анимации и правит --own-h/--own-s. Значения
-     ниже — запасные, на случай если цвет вытащить не удалось. */
-  --own-h: 174;
-  --own-s: 32%;
+     господствующий цвет из анимации и правит --own-h/--own-s. Запасные
+     значения нарочно бесцветные: если цвет вытащить не удалось, карточка
+     останется нейтрально-тёмной, а не покажет чужой оттенок. */
+  --own-h: 240;
+  --own-s: 7%;
   background:
     radial-gradient(120% 85% at 50% -5%, hsla(var(--own-h), var(--own-s), 62%, 1) 0%, hsla(var(--own-h), var(--own-s), 62%, 0) 65%),
     linear-gradient(180deg, hsl(var(--own-h), var(--own-s), 36%) 0%, hsl(var(--own-h), var(--own-s), 20%) 100%);

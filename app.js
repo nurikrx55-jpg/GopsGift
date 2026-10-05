@@ -706,28 +706,65 @@
   }
 
   // Первый кадр у многих композиций пустой, поэтому пробуем несколько раз
-  const TINT_TRIES = [0, 400, 900];
-  let tintTimers = [];
+  // Цвет считаем заранее и запоминаем по пути анимации: открытый лист должен
+  // быть нужного цвета сразу, а не перекрашиваться на глазах через пару
+  // секунд, пока догружается и доигрывается анимация в самой карточке.
+  const tints = new Map();
 
-  function paintCard(card, container) {
-    tintTimers.forEach(clearTimeout);
-    tintTimers = [];
+  function applyTint(card, tint) {
+    if (!card) return;
 
-    let done = false;
-    const look = () => {
-      if (done) return;
-      const canvas = container.querySelector('canvas');
-      if (!canvas) return;
+    if (!tint) {
+      // Снимаем цвет прошлого подарка, иначе он остался бы на чужой карточке
+      card.style.removeProperty('--own-h');
+      card.style.removeProperty('--own-s');
+      return;
+    }
 
-      const tint = artTint(canvas);
-      if (!tint) return;
+    card.style.setProperty('--own-h', String(tint.hue));
+    card.style.setProperty('--own-s', tint.sat + '%');
+  }
 
-      done = true;
-      card.style.setProperty('--own-h', String(tint.hue));
-      card.style.setProperty('--own-s', tint.sat + '%');
-    };
+  // Пробный прогон в стороне от экрана: кадр берём из середины — первый у
+  // многих композиций пустой, и цвет по нему не вытащить
+  function warmTint(path, done) {
+    if (tints.has(path)) {
+      if (done) done(tints.get(path));
+      return;
+    }
 
-    tintTimers = TINT_TRIES.map((wait) => setTimeout(look, wait));
+    whenLottieReady(() => {
+      if (tints.has(path)) {
+        if (done) done(tints.get(path));
+        return;
+      }
+
+      const box = document.createElement('div');
+      box.className = 'tint-probe';
+      document.body.appendChild(box);
+
+      const probe = window.lottie.loadAnimation({
+        container: box,
+        renderer: 'canvas',
+        loop: false,
+        autoplay: false,
+        path: path,
+        // Цвет от разрешения не зависит, а мелкий кадр считается мгновенно
+        rendererSettings: { dpr: 1 }
+      });
+
+      probe.addEventListener('DOMLoaded', () => {
+        probe.goToAndStop(Math.floor(probe.totalFrames / 2), true);
+
+        const tint = artTint(box.querySelector('canvas'));
+        if (tint) tints.set(path, tint);
+
+        probe.destroy();
+        box.remove();
+
+        if (done) done(tint);
+      });
+    });
   }
 
   // --- Карточка подарка крупным планом ---
@@ -989,6 +1026,16 @@
   function fillOwned(gift) {
     ownGift = gift;
 
+    const card = owned.querySelector('.own-card');
+    // Готовый цвет — сразу; иначе подложка остаётся запасной, пока не
+    // досчитается, и перекрашивается уже под закрытым листом
+    applyTint(card, tints.get(gift.art) || null);
+    if (!tints.has(gift.art)) {
+      warmTint(gift.art, (tint) => {
+        if (tint && ownGift === gift) applyTint(card, tint);
+      });
+    }
+
     document.getElementById('owned-title').textContent = gift.name;
     document.getElementById('owned-owner').textContent = ownerName(gift);
 
@@ -1060,10 +1107,7 @@
     ownSheet = createSheet(owned, {
       fill: fillOwned,
       opened: (gift) => {
-        const art = document.getElementById('owned-art');
-        ownPlayer = loopArt(art, gift.art);
-        // Подложка красится под подарок, как только появился первый кадр
-        paintCard(owned.querySelector('.own-card'), art);
+        ownPlayer = loopArt(document.getElementById('owned-art'), gift.art);
       },
       closed: () => {
         if (ownPlayer) {
@@ -1357,6 +1401,10 @@
       list.appendChild(emptyState());
       return;
     }
+
+    // Пока список на экране, досчитываем цвета: открытая карточка возьмёт
+    // готовое значение и не будет перекрашиваться на глазах
+    items.forEach((gift) => warmTint(gift.art));
 
     const grid = document.createElement('div');
     grid.className = 'gifts';
