@@ -759,6 +759,31 @@ body {
   padding: 14px 16px 0;
 }
 
+/* «Поделиться» рядом со счётчиком: стекло из .glass, внутри одна стрелка */
+.sheet__share {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 99em;
+  display: grid;
+  place-items: center;
+  color: #f5f5f7;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.sheet__share:active {
+  transform: scale(0.92);
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.sheet__share svg {
+  width: 24px;
+  height: 24px;
+}
+
 /* Счётчик штук — высотой вровень с кнопкой покупки */
 /* Фон и ободок приходят из .glass — класс висит на элементе в разметке */
 .sheet__qty {
@@ -1421,34 +1446,35 @@ body {
   align-items: baseline;
   gap: 7px;
   padding: 0 2px 4px;
-  font-size: 21px;
 }
 
-.tasks__count {
+.tasks__head h4 {
+  font-size: 21px;
   font-weight: inherit;
-  color: var(--hint);
 }
 
 .task {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 11px 0;
+  gap: 12px;
+  padding: 10px 0;
 }
 
+/* Иконка задания в серой плитке */
 .task__avatar {
   flex: none;
-  width: 56px;
-  height: 56px;
-  border-radius: 17px;
-  background-size: cover;
-  background-position: center;
-  /* Пока настоящей картинки нет — градиент с буквой вместо неё */
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #242424;
   display: grid;
   place-items: center;
-  font-size: 23px;
-  color: rgba(255, 255, 255, 0.92);
-  overflow: hidden;
+  color: #6f6f6f;
+}
+
+.task__avatar svg {
+  width: 18px;
+  height: 21px;
 }
 
 .task__info {
@@ -1460,7 +1486,8 @@ body {
 }
 
 .task__name {
-  font-size: 17px;
+  font-size: 15px;
+  font-weight: inherit;
   line-height: 1.2;
   /* Длинное название не должно распирать строку */
   max-width: 100%;
@@ -1473,38 +1500,40 @@ body {
 .task__reward {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 11px 4px 9px;
+  gap: 4px;
+  padding: 2px 10px 2px 7px;
   border-radius: 999px;
   background: #a3e04c;
   color: #0e0e0e;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.2;
 }
 
 .task__reward svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   fill: currentColor;
 }
 
-.task__go {
+/* Счётчик выполнения: пока задание не закрыто, нажимать нечего */
+.task__count {
   flex: none;
-  min-height: 46px;
-  padding: 0 24px;
-  border: 0;
+  min-width: 52px;
+  padding: 8px 12px;
   border-radius: 999px;
-  background: #2c2c2c;
+  background: #212121;
   color: #f5f5f7;
-  font-family: inherit;
-  font-size: 16px;
-  cursor: pointer;
-  transition: transform 0.12s ease, background-color 0.2s ease;
+  font-size: 15px;
+  line-height: 1.2;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-.task__go:active {
-  transform: scale(0.94);
-  background: #383838;
+/* Задание закрыто — счётчик подхватывает цвет награды */
+.task__count[data-done="true"] {
+  background: rgba(163, 224, 76, 0.16);
+  color: #a3e04c;
+  box-shadow: none;
 }
 
 .tasks__empty {

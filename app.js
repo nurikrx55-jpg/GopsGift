@@ -51,7 +51,20 @@
 
   // Подарки пользователя по разделам переключателя. Класть сюда записи из
   // CATALOG, а не копии — иначе плашка снова разойдётся.
-  const OWNED = { gifts: [], nft: [] };
+  // Гроб выдан каждому, кто открыл приложение.
+  const OWNED = { gifts: [CATALOG.grooby], nft: [] };
+
+  // Задания. Счётчик прогресса появится вместе с настоящей отправкой подарков.
+  const TASK_BLOCKS = [
+    {
+      title: 'Специальные',
+      items: [
+        { id: 'send-1', name: 'Отправить 1 подарок', reward: 1, done: 0, goal: 1 },
+        { id: 'send-5', name: 'Отправить 5 подарков', reward: 5, done: 0, goal: 5 },
+        { id: 'send-10', name: 'Отправить 10 подарков', reward: 10, done: 0, goal: 10 }
+      ]
+    }
+  ];
 
   // Насколько утянуть лист вниз, чтобы он закрылся
   const SHEET_CLOSE_DRAG = 110;
@@ -757,11 +770,19 @@
 
   let ownGift = null;
 
+  // Подарок лежит у того, кто смотрит, поэтому владелец — он сам.
+  // Собачку убираем: в поле стоит ник, а не упоминание.
+  function ownerName(gift) {
+    const user = tgUser();
+    if (user) return userTitle(user).replace(/^@/, '');
+    return (gift && gift.owner) || '—';
+  }
+
   function fillOwned(gift) {
     ownGift = gift;
 
     document.getElementById('owned-title').textContent = gift.name;
-    document.getElementById('owned-owner').textContent = gift.owner || '—';
+    document.getElementById('owned-owner').textContent = ownerName(gift);
 
     const known = typeof gift.left === 'number' && typeof gift.total === 'number';
     document.getElementById('owned-left').textContent = known
@@ -872,6 +893,14 @@
       }
     });
 
+    const share = document.getElementById('sheet-share');
+    if (share) {
+      share.addEventListener('click', () => {
+        haptic('light');
+        toast('Поделиться скоро заработает');
+      });
+    }
+
     initOwnedTools();
   }
 
@@ -879,6 +908,67 @@
     if (!giftsGrid) return;
 
     GIFTS.forEach((gift) => giftsGrid.appendChild(buildGift(gift, (one) => buySheet.open(one), true)));
+  }
+
+  // --- Задания ---
+
+  // Строка задания: иконка, название с наградой под ним и счётчик справа
+  function buildTask(task) {
+    const row = document.createElement('div');
+    row.className = 'task';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'task__avatar';
+    avatar.innerHTML = '<svg viewBox="0 0 14 16" aria-hidden="true"><use href="#task-gift"></use></svg>';
+
+    const info = document.createElement('div');
+    info.className = 'task__info';
+
+    const name = document.createElement('h4');
+    name.className = 'task__name';
+    name.textContent = task.name;
+
+    const reward = document.createElement('span');
+    reward.className = 'task__reward';
+    reward.innerHTML = '<svg viewBox="0 0 18 18" aria-hidden="true"><use href="#coupon"></use></svg>';
+    const amount = document.createElement('span');
+    amount.textContent = formatPrice(task.reward);
+    reward.appendChild(amount);
+    reward.setAttribute('aria-label', 'Награда: ' + task.reward + ' купонов');
+
+    info.append(name, reward);
+
+    // Счётчик, а не кнопка: пока задание не выполнено, нажимать нечего
+    const count = document.createElement('span');
+    count.className = 'task__count';
+    count.textContent = formatPrice(task.done) + '/' + formatPrice(task.goal);
+    count.dataset.done = String(task.done >= task.goal);
+
+    row.append(avatar, info, count);
+    return row;
+  }
+
+  function initTasks() {
+    const root = document.getElementById('tasks');
+    if (!root) return;
+
+    TASK_BLOCKS.forEach((group) => {
+      const block = document.createElement('section');
+      block.className = 'tasks__block';
+
+      const head = document.createElement('div');
+      head.className = 'tasks__head';
+      const title = document.createElement('h4');
+      title.textContent = group.title;
+      head.appendChild(title);
+
+      const list = document.createElement('div');
+      list.className = 'tasks__list';
+      group.items.forEach((task) => list.appendChild(buildTask(task)));
+
+      block.append(head, list);
+      root.appendChild(block);
+    });
   }
 
   // --- Профиль ---
@@ -1090,6 +1180,7 @@
   initNav();
   initSlider();
   initGifts();
+  initTasks();
   initSheet();
   initHeader();
   initProfile();
