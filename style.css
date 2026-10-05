@@ -124,19 +124,36 @@ body {
 }
 
 .slider__dot {
+  position: relative;
   width: 8px;
   height: 8px;
   padding: 0;
   border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.25);
+  /* Заливка не должна вылезать за скругление вытянутой точки */
+  overflow: hidden;
   cursor: pointer;
-  transition: width 0.3s var(--ease), background-color 0.3s ease;
+  transition: width 0.3s var(--ease);
 }
 
 .slider__dot.is-active {
   width: 22px;
+}
+
+/* Белая заливка — это и есть таймер: дошла до края, баннер сменился */
+.slider__fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
   background: #fff;
+}
+
+/* У неактивной точки заливки нет вовсе */
+.slider__dot:not(.is-active) .slider__fill {
+  width: 0;
+  transition: none;
 }
 
 /* Контейнер — из присланного кода, ширина пересчитана под 4 вкладки */
@@ -1180,11 +1197,26 @@ body {
   height: var(--header-h);
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 18px;
+  justify-content: space-between;
+  gap: 12px;
   padding: 0 20px;
   /* Ничего в шапке не нажимается — не перехватываем касания у содержимого */
   pointer-events: none;
+}
+
+/* Название раздела стоит на одном месте во всех разделах — меняется
+   только текст, поэтому шапка не дёргается при переходах */
+.hdr__section {
+  font-size: 17px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.hdr__balances {
+  display: flex;
+  align-items: center;
+  /* Балансы заметно врозь: вплотную они читались как одно число */
+  gap: 26px;
 }
 
 .hdr__balance {
@@ -1196,10 +1228,20 @@ body {
 }
 
 .hdr__icon {
-  width: 19px;
-  height: 19px;
   display: block;
   -webkit-user-drag: none;
+}
+
+/* Глифы разной плотности: у купона внутри рисунка есть поля, у звезды их
+   нет. Поэтому размеры разные, а на глаз значки выходят одинаковыми. */
+.hdr__icon--coupon {
+  width: 21px;
+  height: 21px;
+}
+
+.hdr__icon--star {
+  width: 17px;
+  height: 17px;
 }
 
 /* Витрина в профиле: три в ряд, значит всё внутри мельче */
@@ -1236,10 +1278,14 @@ body {
   display: grid;
   gap: 14px;
   padding: 20px 16px 16px;
-  /* Подложка — цвет кузова машины: свечение сверху, глубина снизу */
+  /* Подложка монохромная, и её тон задаёт сам подарок: app.js достаёт
+     господствующий цвет из анимации и правит --own-h/--own-s. Значения
+     ниже — запасные, на случай если цвет вытащить не удалось. */
+  --own-h: 174;
+  --own-s: 32%;
   background:
-    radial-gradient(120% 85% at 50% -5%, #78c3b9 0%, rgba(120, 195, 185, 0) 65%),
-    linear-gradient(180deg, #3f8079 0%, #1f4347 100%);
+    radial-gradient(120% 85% at 50% -5%, hsla(var(--own-h), var(--own-s), 62%, 1) 0%, hsla(var(--own-h), var(--own-s), 62%, 0) 65%),
+    linear-gradient(180deg, hsl(var(--own-h), var(--own-s), 36%) 0%, hsl(var(--own-h), var(--own-s), 20%) 100%);
   /* Карточка — ручка для перетаскивания листа */
   touch-action: none;
 }
@@ -1248,10 +1294,9 @@ body {
   position: absolute;
   inset: 0;
   background-image: url("gifts/pattern.png");
-  /* Мельче, чем было: картинка рисуется уменьшенной и замощается. Кубы
-     редкие и полупрозрачные, поэтому стыки плитки глазом не ловятся. */
-  background-size: 58% auto;
-  background-repeat: repeat;
+  /* Узор ложится один раз на всю подложку: замощение давало вторую копию */
+  background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   opacity: 0.3;
   pointer-events: none;
@@ -1312,10 +1357,10 @@ body {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  height: 50px;
+  height: 58px;
   padding: 0 10px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   color: #fff;
   font-family: inherit;
   font-size: 14px;
@@ -1409,8 +1454,7 @@ body {
   width: 100%;
   min-height: 52px;
   border: 0;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.07);
+  border-radius: 99em;
   color: #fff;
   font-family: inherit;
   font-size: 17px;
@@ -1421,6 +1465,39 @@ body {
 .own-dismiss:active {
   transform: scale(0.98);
   background: rgba(255, 255, 255, 0.12);
+}
+
+/* Маркет — пока заглушка */
+
+.stage[data-section="market"] .pane[data-pane="market"] {
+  display: block;
+}
+
+.soon {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 90px 36px 0;
+  text-align: center;
+  color: var(--hint);
+}
+
+.soon__icon {
+  width: 54px;
+  height: 54px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.soon b {
+  font-size: 21px;
+  font-weight: inherit;
+  color: #f5f5f7;
+}
+
+.soon p {
+  font-size: 15px;
+  line-height: 1.4;
+  max-width: 260px;
 }
 
 /* Задания */

@@ -11,6 +11,8 @@
   const SPLASH_MIN_MS = 1100;
   // Сколько висит всплывающее уведомление
   const TOAST_MS = 1900;
+  // Сколько баннер стоит, прежде чем смениться сам
+  const SLIDE_MS = 5000;
 
   // Единый каталог подарков. Витрина и профиль ссылаются на одни и те же
   // записи, поэтому плашка редкости не может разойтись: купленный подарок
@@ -155,6 +157,10 @@
 
   // Подсветка иконок без переноса подложки — нужна во время перетаскивания
   function paint(index) {
+    const title = document.getElementById('hdr-section');
+    const named = tabs[index] && tabs[index].dataset.title;
+    if (title && named) title.textContent = named;
+
     tabs.forEach((tab, i) => {
       const active = i === index;
       tab.classList.toggle('active', active);
@@ -328,13 +334,59 @@
       dot.setAttribute('role', 'tab');
       dot.setAttribute('aria-label', slide.getAttribute('aria-label') || `Баннер ${index + 1}`);
 
+      // Заливка внутри точки — заодно и шкала таймера
+      const fill = document.createElement('span');
+      fill.className = 'slider__fill';
+      dot.appendChild(fill);
+
       dot.addEventListener('click', () => {
-        sliderTrack.scrollTo({ left: slide.offsetLeft - sliderTrack.offsetLeft, behavior: 'smooth' });
+        goTo(index);
       });
 
       sliderDots.appendChild(dot);
       return dot;
     });
+
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let shown = -1;
+    let timer = null;
+
+    function goTo(index) {
+      const slide = slides[index % slides.length];
+      sliderTrack.scrollTo({
+        left: slide.offsetLeft - sliderTrack.offsetLeft,
+        behavior: 'smooth'
+      });
+    }
+
+    // Заливку перезапускаем вручную: без сброса ширины переход не повторится
+    function run(index) {
+      clearTimeout(timer);
+
+      const fill = dots[index].firstElementChild;
+      fill.style.transition = 'none';
+      fill.style.width = '0%';
+      // Пересчёт стилей форсируем чтением размера — иначе перехода не будет
+      void fill.offsetWidth;
+
+      if (still) {
+        fill.style.width = '100%';
+        return;
+      }
+
+      fill.style.transition = 'width ' + SLIDE_MS + 'ms linear';
+      fill.style.width = '100%';
+
+      timer = setTimeout(() => {
+        // Пока карусель не на экране, прокрутка пропала бы впустую: у
+        // скрытой дорожки scrollTo ничего не делает. Просто ждём дальше.
+        if (document.hidden || !sliderTrack.offsetParent) {
+          run(index);
+          return;
+        }
+        goTo(index + 1);
+      }, SLIDE_MS);
+    }
 
     function sync() {
       // Ближайший к левому краю слайд и считается текущим
@@ -355,6 +407,13 @@
         dot.classList.toggle('is-active', on);
         dot.setAttribute('aria-selected', String(on));
       });
+
+      // Отсчёт начинаем заново только при настоящей смене баннера, иначе
+      // заливка сбрасывалась бы на каждом кадре прокрутки
+      if (active !== shown) {
+        shown = active;
+        run(active);
+      }
     }
 
     sliderTrack.addEventListener('scroll', () => {
@@ -520,6 +579,134 @@
       observer.disconnect();
       artWatchers.delete(node);
     });
+  }
+
+  // --- Цвет подложки из самого подарка ---
+
+  // Подложка в карточке купленного подарка монохромная, и тон ей задаёт сам
+  // подарок: читаем кадр анимации и берём господствующий оттенок. Новый
+  // подарок раскрашивает карточку сам, руками ничего прописывать не нужно.
+  const HUE_BINS = 36;
+  // Сколько проб берём с кадра — больше не точнее, только медленнее
+  const HUE_SAMPLES = 12000;
+  // Бледнее этого пиксель считаем серым и в расчёт не берём
+  const HUE_MIN_CHROMA = 0.12;
+  // Границы насыщенности подложки: ядовитый фон спорил бы с подарком
+  const TINT_MIN_S = 0.2;
+  const TINT_MAX_S = 0.46;
+
+  function artTint(canvas) {
+    const w = canvas && canvas.width;
+    const h = canvas && canvas.height;
+    if (!w || !h) return null;
+
+    let pixels;
+    try {
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return null;
+      pixels = ctx.getImageData(0, 0, w, h).data;
+    } catch (_) {
+      // Холст из чужого источника читать нельзя — остаётся запасной цвет
+      return null;
+    }
+
+    // Голос пикселя тем весомее, чем он насыщеннее: серая обводка и блики
+    // почти не влияют на итог
+    const weight = new Float64Array(HUE_BINS);
+    const chroma = new Float64Array(HUE_BINS);
+    const step = Math.max(1, Math.round(Math.sqrt((w * h) / HUE_SAMPLES)));
+
+    for (let y = 0; y < h; y += step) {
+      for (let x = 0; x < w; x += step) {
+        const i = (y * w + x) * 4;
+        if (pixels[i + 3] < 150) continue;
+
+        const r = pixels[i] / 255;
+        const g = pixels[i + 1] / 255;
+        const b = pixels[i + 2] / 255;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const span = max - min;
+        const light = (max + min) / 2;
+
+        // Серое, чёрное и белое оттенка не несут
+        if (span < HUE_MIN_CHROMA || light < 0.12 || light > 0.93) continue;
+
+        const sat = span / (1 - Math.abs(2 * light - 1));
+
+        let hue;
+        if (max === r) hue = ((g - b) / span + 6) % 6;
+        else if (max === g) hue = (b - r) / span + 2;
+        else hue = (r - g) / span + 4;
+        hue *= 60;
+
+        const bin = Math.min(HUE_BINS - 1, Math.floor(hue / (360 / HUE_BINS)));
+        weight[bin] += sat;
+        chroma[bin] += sat * sat;
+      }
+    }
+
+    // Пик ищем по тройке соседних корзин: иначе оттенок прыгал бы между
+    // двумя половинами одного и того же цвета
+    let best = -1;
+    let bestSum = 0;
+    for (let i = 0; i < HUE_BINS; i += 1) {
+      const left = weight[(i + HUE_BINS - 1) % HUE_BINS];
+      const right = weight[(i + 1) % HUE_BINS];
+      const sum = left + weight[i] + right;
+      if (sum > bestSum) {
+        bestSum = sum;
+        best = i;
+      }
+    }
+
+    if (best < 0 || bestSum <= 0) return null;
+
+    // Внутри тройки берём взвешенную середину — так тон попадает точнее,
+    // чем в центр корзины
+    const width = 360 / HUE_BINS;
+    let offset = 0;
+    let mass = 0;
+    let sat = 0;
+    for (let d = -1; d <= 1; d += 1) {
+      const bin = (best + d + HUE_BINS) % HUE_BINS;
+      offset += weight[bin] * d;
+      mass += weight[bin];
+      sat += chroma[bin];
+    }
+
+    const hue = ((best + 0.5 + (mass ? offset / mass : 0)) * width + 360) % 360;
+    const share = mass ? sat / mass : TINT_MIN_S;
+
+    return {
+      hue: Math.round(hue),
+      sat: Math.round(Math.min(Math.max(share, TINT_MIN_S), TINT_MAX_S) * 100)
+    };
+  }
+
+  // Первый кадр у многих композиций пустой, поэтому пробуем несколько раз
+  const TINT_TRIES = [0, 400, 900];
+  let tintTimers = [];
+
+  function paintCard(card, container) {
+    tintTimers.forEach(clearTimeout);
+    tintTimers = [];
+
+    let done = false;
+    const look = () => {
+      if (done) return;
+      const canvas = container.querySelector('canvas');
+      if (!canvas) return;
+
+      const tint = artTint(canvas);
+      if (!tint) return;
+
+      done = true;
+      card.style.setProperty('--own-h', String(tint.hue));
+      card.style.setProperty('--own-s', tint.sat + '%');
+    };
+
+    tintTimers = TINT_TRIES.map((wait) => setTimeout(look, wait));
   }
 
   // --- Карточка подарка крупным планом ---
@@ -852,7 +1039,10 @@
     ownSheet = createSheet(owned, {
       fill: fillOwned,
       opened: (gift) => {
-        ownPlayer = loopArt(document.getElementById('owned-art'), gift.art);
+        const art = document.getElementById('owned-art');
+        ownPlayer = loopArt(art, gift.art);
+        // Подложка красится под подарок, как только появился первый кадр
+        paintCard(owned.querySelector('.own-card'), art);
       },
       closed: () => {
         if (ownPlayer) {
