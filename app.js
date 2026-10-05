@@ -19,54 +19,17 @@
   // показывает ровно ту же, что была на витрине.
   const NFT_NOTE = 'Подарок скоро можно будет улучшить, продать и выпустить как NFT';
 
-  const CATALOG = {
-    grooby: {
-      id: 'grooby',
-      name: 'Grooby',
-      art: 'gifts/grooby.json',
-      price: 399,
-      badge: 'Легендарный',
-      kind: 'blood',
-      note: NFT_NOTE,
-      owner: '—',
-      left: 2000,
-      total: 2000,
-      status: 'Non-Unique'
-    },
-    car: {
-      id: 'car',
-      name: 'Car',
-      art: 'gifts/car.json',
-      price: 299,
-      badge: 'Premium',
-      kind: 'premium',
-      note: NFT_NOTE,
-      owner: '—',
-      left: 5000,
-      total: 5000,
-      status: 'Non-Unique'
-    }
-  };
+  // Содержимое — подарки, баннеры, задания, люди — приходит из хранилища
+  // (data/content.json плюс правки из админки). Здесь только то, что
+  // хранилище наполняет на старте.
+  let GIFTS = [];
+  let OWNED = { gifts: [], nft: [] };
+  let TASK_BLOCKS = [];
+  let ME = null;
 
-  // Витрина
-  const GIFTS = [CATALOG.grooby, CATALOG.car];
-
-  // Подарки пользователя по разделам переключателя. Класть сюда записи из
-  // CATALOG, а не копии — иначе плашка снова разойдётся.
-  // Гроб выдан каждому, кто открыл приложение.
-  const OWNED = { gifts: [CATALOG.grooby], nft: [] };
-
-  // Задания. Счётчик прогресса появится вместе с настоящей отправкой подарков.
-  const TASK_BLOCKS = [
-    {
-      title: 'Специальные',
-      items: [
-        { id: 'send-1', name: 'Отправить 1 подарок', reward: 1, done: 0, goal: 1 },
-        { id: 'send-5', name: 'Отправить 5 подарков', reward: 5, done: 0, goal: 5 },
-        { id: 'send-10', name: 'Отправить 10 подарков', reward: 10, done: 0, goal: 10 }
-      ]
-    }
-  ];
+  function giftById(id) {
+    return GIFTS.find((one) => one.id === id) || null;
+  }
 
   // Насколько утянуть лист вниз, чтобы он закрылся
   const SHEET_CLOSE_DRAG = 110;
@@ -77,23 +40,10 @@
   // Потолок на случай, если наличие не указано
   const QTY_MAX = 99;
 
-  // Особый пользователь: ник золотом и своё имя, а вместо настоящего
-  // идентификатора показывается и копируется подменный. После ника —
-  // анимированная галочка. Никаких подписей про статус.
-  const PREMIUM_ID = 6955456382;
-  const PREMIUM_ALIAS = '8888888888';
-  const PREMIUM_NAME = 'SHEP';
-  const PREMIUM_STARS = 1000;
   const VERIFIED_ART = 'gifts/verified.json';
-
-  // Маркет откроется в этот час, до него идёт отсчёт на вкладке
-  const MARKET_OPENS_AT = Date.parse('2026-11-04T12:00:00+03:00');
   const MARKET_ART = 'gifts/duck.json';
-
-  // Балансы брать пока неоткуда — появится счёт, подставить сюда
-  const STARS = 0;
-  const COUPONS = 0;
-  // Подарки пользователя по разделам переключателя
+  // Если дата открытия маркета не задана, отсчёт просто стоит на нуле
+  let marketOpensAt = 0;
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
@@ -325,11 +275,33 @@
     enterFullscreen();
   }
 
-  function initSlider() {
-    if (!sliderTrack || !sliderDots) return;
+  // Баннеры живут в хранилище: картинка либо лежит в репозитории, либо
+  // загружена через админку и достаётся из базы
+  function buildBanners() {
+    if (!sliderTrack) return Promise.resolve([]);
 
-    const slides = Array.from(sliderTrack.children);
-    if (slides.length < 2) return;
+    const banners = (Store.state().banners || []).filter((one) => one && one.image);
+    sliderTrack.textContent = '';
+
+    return Promise.all(banners.map((banner) =>
+      Store.resolveImage(banner.image).then((url) => {
+        if (!url) return null;
+
+        const slide = document.createElement('a');
+        slide.className = 'slider__slide';
+        slide.href = banner.href || '#';
+        slide.setAttribute('aria-label', banner.label || 'Баннер');
+        slide.style.backgroundImage = 'url("' + url + '")';
+        slide.draggable = false;
+        sliderTrack.appendChild(slide);
+        return slide;
+      })
+    )).then((made) => made.filter(Boolean));
+  }
+
+  function initSlider(slides) {
+    if (!sliderTrack || !sliderDots) return;
+    if (!slides || slides.length < 2) return;
 
     const dots = slides.map((slide, index) => {
       const dot = document.createElement('button');
@@ -524,19 +496,26 @@
 
   // Один прогон и остановка на последнем кадре — так ведут себя все анимации
   // в приложении, кроме той, что в раскрытой карточке.
-  function playOnce(container, path) {
-    if (!window.lottie) return null;
+  // Подарок из репозитория приходит путём к файлу, подарок из админки —
+  // уже разобранным содержимым. lottie принимает и то, и другое.
+  function artConfig(source) {
+    if (!source) return null;
+    return source.animationData ? { animationData: source.animationData } : { path: source.path };
+  }
+
+  function playOnce(container, source) {
+    const art = artConfig(source);
+    if (!window.lottie || !art) return null;
 
     const still = prefersStill();
-    const player = window.lottie.loadAnimation({
+    const player = window.lottie.loadAnimation(Object.assign({
       container: container,
       renderer: 'canvas',
       loop: false,
       autoplay: !still,
-      path: path,
       // Ретина: рисуем в большем разрешении, выше 2x смысла нет
       rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
-    });
+    }, art));
 
     // У некоторых композиций нулевой кадр пустой: просто не запускать нельзя,
     // иначе на месте анимации останется пустое место
@@ -556,7 +535,9 @@
   const artPlayers = new Map();
   const artWatchers = new Map();
 
-  function playWhenSeen(container, path, loop) {
+  const artPending = new Set();
+
+  function playWhenSeen(container, ref, loop) {
     whenLottieReady(() => {
       const observer = new IntersectionObserver((entries, obs) => {
         entries.forEach((entry) => {
@@ -570,10 +551,20 @@
           }
 
           if (!player) {
-            const started = loop ? loopArt(entry.target, path) : playOnce(entry.target, path);
-            if (started) artPlayers.set(entry.target, started);
-            // Одиночный прогон отыграл — наблюдать больше не за чем
-            if (!loop) obs.unobserve(entry.target);
+            // Пока содержимое достаётся из базы, наблюдатель может сработать
+            // ещё раз — второй плеер на том же месте нам не нужен
+            if (artPending.has(entry.target)) return;
+            artPending.add(entry.target);
+
+            Store.resolveArt(ref).then((source) => {
+              artPending.delete(entry.target);
+              if (!source || !entry.target.isConnected) return;
+
+              const started = loop ? loopArt(entry.target, source) : playOnce(entry.target, source);
+              if (started) artPlayers.set(entry.target, started);
+              // Одиночный прогон отыграл — наблюдать больше не за чем
+              if (!loop) obs.unobserve(entry.target);
+            });
             return;
           }
 
@@ -727,15 +718,21 @@
 
   // Пробный прогон в стороне от экрана: кадр берём из середины — первый у
   // многих композиций пустой, и цвет по нему не вытащить
-  function warmTint(path, done) {
-    if (tints.has(path)) {
-      if (done) done(tints.get(path));
+  function warmTint(ref, done) {
+    if (tints.has(ref)) {
+      if (done) done(tints.get(ref));
       return;
     }
 
-    whenLottieReady(() => {
-      if (tints.has(path)) {
-        if (done) done(tints.get(path));
+    whenLottieReady(() => Store.resolveArt(ref).then((source) => {
+      const art = artConfig(source);
+      if (!art) {
+        if (done) done(null);
+        return;
+      }
+
+      if (tints.has(ref)) {
+        if (done) done(tints.get(ref));
         return;
       }
 
@@ -743,28 +740,27 @@
       box.className = 'tint-probe';
       document.body.appendChild(box);
 
-      const probe = window.lottie.loadAnimation({
+      const probe = window.lottie.loadAnimation(Object.assign({
         container: box,
         renderer: 'canvas',
         loop: false,
         autoplay: false,
-        path: path,
         // Цвет от разрешения не зависит, а мелкий кадр считается мгновенно
         rendererSettings: { dpr: 1 }
-      });
+      }, art));
 
       probe.addEventListener('DOMLoaded', () => {
         probe.goToAndStop(Math.floor(probe.totalFrames / 2), true);
 
         const tint = artTint(box.querySelector('canvas'));
-        if (tint) tints.set(path, tint);
+        if (tint) tints.set(ref, tint);
 
         probe.destroy();
         box.remove();
 
         if (done) done(tint);
       });
-    });
+    }));
   }
 
   // --- Карточка подарка крупным планом ---
@@ -829,17 +825,42 @@
   }
 
   // Зацикленная анимация — такая нужна только в раскрытой карточке
-  function loopArt(container, path) {
-    if (!window.lottie) return null;
+  function loopArt(container, source) {
+    const art = artConfig(source);
+    if (!window.lottie || !art) return null;
 
-    return window.lottie.loadAnimation({
+    return window.lottie.loadAnimation(Object.assign({
       container: container,
       renderer: 'canvas',
       loop: true,
       autoplay: !prefersStill(),
-      path: path,
       rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
+    }, art));
+  }
+
+  // Содержимое анимации может ещё доставаться из базы, когда лист уже
+  // закрыли. Метка открытия отличает «пришло вовремя» от «пришло поздно»:
+  // опоздавший плеер сразу уничтожаем, иначе он остался бы крутиться.
+  let artToken = 0;
+
+  function loopWhenLoaded(container, ref, keep) {
+    const token = ++artToken;
+
+    Store.resolveArt(ref).then((source) => {
+      if (!source) return;
+
+      const player = loopArt(container, source);
+      if (!player) return;
+
+      if (token !== artToken || !container.isConnected) {
+        player.destroy();
+        return;
+      }
+
+      keep(player);
     });
+
+    return token;
   }
 
   // Один механизм на все нижние листы: выезд, закрытие, перетаскивание и
@@ -1093,9 +1114,12 @@
         if (sheet.dataset.fill) {
           document.getElementById('sheet-gauge-fill').style.width = sheet.dataset.fill;
         }
-        sheetPlayer = loopArt(document.getElementById('sheet-art'), gift.art);
+        loopWhenLoaded(document.getElementById('sheet-art'), gift.art, (player) => {
+          sheetPlayer = player;
+        });
       },
       closed: () => {
+        artToken += 1;
         if (sheetPlayer) {
           sheetPlayer.destroy();
           sheetPlayer = null;
@@ -1107,9 +1131,12 @@
     ownSheet = createSheet(owned, {
       fill: fillOwned,
       opened: (gift) => {
-        ownPlayer = loopArt(document.getElementById('owned-art'), gift.art);
+        loopWhenLoaded(document.getElementById('owned-art'), gift.art, (player) => {
+          ownPlayer = player;
+        });
       },
       closed: () => {
+        artToken += 1;
         if (ownPlayer) {
           ownPlayer.destroy();
           ownPlayer = null;
@@ -1313,7 +1340,7 @@
         return;
       }
 
-      const left = Math.max(0, MARKET_OPENS_AT - Date.now());
+      const left = Math.max(0, marketOpensAt - Date.now());
       const total = Math.floor(left / 1000);
       const parts = {
         days: Math.floor(total / 86400),
@@ -1345,13 +1372,14 @@
     return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
   }
 
-  function isPremium(user) {
-    return Boolean(user) && user.id === PREMIUM_ID;
+  // Золотой ник и галочку выдаёт админка, а не зашитый идентификатор
+  function isPremium() {
+    return Boolean(ME && ME.gold);
   }
 
   function userTitle(user) {
+    if (ME && ME.name) return ME.name;
     if (!user) return 'Гость';
-    if (isPremium(user)) return PREMIUM_NAME;
     if (user.username) return '@' + user.username;
     return [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Без имени';
   }
@@ -1448,8 +1476,8 @@
     const coupons = document.getElementById('hdr-coupons');
     if (!stars || !coupons) return;
 
-    stars.textContent = formatPrice(isPremium(tgUser()) ? PREMIUM_STARS : STARS);
-    coupons.textContent = formatPrice(COUPONS);
+    stars.textContent = formatPrice(ME ? ME.stars : 0);
+    coupons.textContent = formatPrice(ME ? ME.coupons : 0);
   }
 
   function initProfile() {
@@ -1459,7 +1487,7 @@
     const user = tgUser();
     const owned = OWNED.gifts.length + OWNED.nft.length;
 
-    const premium = isPremium(user);
+    const premium = isPremium();
 
     const name = document.getElementById('prf-name');
     name.textContent = userTitle(user);
@@ -1468,8 +1496,9 @@
     // Галочка только у особого пользователя, и крутится один раз
     const verified = document.getElementById('prf-verified');
     if (verified) {
-      verified.hidden = !premium;
-      if (premium) playWhenSeen(verified, VERIFIED_ART);
+      const show = Boolean(ME && ME.verified);
+      verified.hidden = !show;
+      if (show) playWhenSeen(verified, VERIFIED_ART);
     }
     document.getElementById('prf-count').textContent =
       formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
@@ -1482,12 +1511,15 @@
       avatar.textContent = userTitle(user).replace('@', '').charAt(0).toUpperCase();
     }
 
+    const admin = document.getElementById('prf-admin');
+    if (admin) admin.hidden = !(user && Store.isAdmin(user.id));
+
     const id = document.getElementById('prf-id');
     const copy = document.getElementById('prf-copy');
 
     // Копируется ровно то, что показано, иначе в буфере окажется не то,
     // что человек видел на экране
-    const shownId = user ? (premium ? PREMIUM_ALIAS : String(user.id)) : null;
+    const shownId = user ? ((ME && ME.alias) || String(user.id)) : null;
     id.textContent = shownId || '—';
     copy.hidden = !user;
 
@@ -1548,14 +1580,46 @@
     }
   }
 
+  // Пока содержимое не пришло, рисовать нечего: на экране заставка
+  function fillFromStore() {
+    const state = Store.state();
+    const user = tgUser();
+
+    ME = Store.person(user ? user.id : 'guest');
+    marketOpensAt = Date.parse(state.market && state.market.opensAt) || 0;
+
+    GIFTS = (state.gifts || []).map((gift) => Object.assign({ note: NFT_NOTE, owner: '—' }, gift));
+
+    // В профиле лежат те же записи, что на витрине: иначе плашка редкости
+    // у купленного подарка разошлась бы с витринной
+    OWNED = {
+      gifts: (ME.gifts || []).map(giftById).filter(Boolean),
+      nft: []
+    };
+
+    TASK_BLOCKS = (state.tasks || []).map((group) => ({
+      title: group.title,
+      items: (group.items || []).map((task) => Object.assign({ done: 0 }, task))
+    }));
+  }
+
   initTelegram();
   initNav();
-  initSlider();
-  initGifts();
-  initTasks();
-  initMarket();
-  initSheet();
-  initHeader();
-  initProfile();
   initSplash();
+
+  Store.load()
+    .then(() => {
+      fillFromStore();
+
+      initGifts();
+      initTasks();
+      initMarket();
+      initSheet();
+      initHeader();
+      initProfile();
+
+      return buildBanners();
+    })
+    .then((slides) => initSlider(slides))
+    .catch((error) => console.warn('Содержимое не загрузилось:', error));
 })();

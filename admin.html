@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0d10">
+  <title>GopsGift · Админка</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="admin.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light_canvas.min.js"></script>
+</head>
+<body class="adm-body">
+  <!-- Пока не выяснили, кто пришёл, не показываем ничего -->
+  <div class="adm-gate" id="gate">
+    <div class="adm-gate__box glass">
+      <div class="adm-gate__spinner" aria-hidden="true"></div>
+      <p id="gate-text">Проверяем доступ…</p>
+    </div>
+  </div>
+
+  <div class="adm" id="adm" hidden>
+    <header class="adm__top glass">
+      <a class="adm__back" href="index.html" aria-label="В приложение">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14.5 5 8 12l6.5 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+
+      <div class="adm__title">
+        <b>Админка</b>
+        <span class="adm__state" id="adm-state">всё опубликовано</span>
+      </div>
+
+      <div class="adm__tools">
+        <button class="adm-btn adm-btn--ghost" type="button" id="act-import">Загрузить</button>
+        <button class="adm-btn" type="button" id="act-export">Выгрузить</button>
+      </div>
+    </header>
+
+    <nav class="adm__tabs glass" id="adm-tabs">
+      <button class="adm__tab is-active" type="button" data-tab="gifts">Подарки</button>
+      <button class="adm__tab" type="button" data-tab="banners">Баннеры</button>
+      <button class="adm__tab" type="button" data-tab="people">Люди</button>
+      <button class="adm__tab" type="button" data-tab="tasks">Задания</button>
+      <button class="adm__tab" type="button" data-tab="market">Маркет</button>
+    </nav>
+
+    <main class="adm__body">
+      <section class="adm__pane is-on" data-pane="gifts">
+        <div class="adm-head">
+          <h2>Подарки</h2>
+          <button class="adm-btn" type="button" id="gift-new">Добавить подарок</button>
+        </div>
+        <div class="adm-list" id="gift-list"></div>
+      </section>
+
+      <section class="adm__pane" data-pane="banners">
+        <div class="adm-head">
+          <h2>Баннеры</h2>
+          <button class="adm-btn" type="button" id="banner-new">Добавить баннер</button>
+        </div>
+        <div class="adm-list" id="banner-list"></div>
+      </section>
+
+      <section class="adm__pane" data-pane="people">
+        <div class="adm-head">
+          <h2>Люди</h2>
+          <button class="adm-btn" type="button" id="person-new">Добавить по id</button>
+        </div>
+
+        <div class="adm-card glass adm-card--wide">
+          <h3>Всем по умолчанию</h3>
+          <p class="adm-note">Это получает каждый, у кого нет своей записи.</p>
+          <div class="adm-grid" id="defaults-form"></div>
+        </div>
+
+        <div class="adm-list" id="person-list"></div>
+      </section>
+
+      <section class="adm__pane" data-pane="tasks">
+        <div class="adm-head">
+          <h2>Задания</h2>
+          <button class="adm-btn" type="button" id="group-new">Добавить блок</button>
+        </div>
+        <div class="adm-list" id="task-list"></div>
+      </section>
+
+      <section class="adm__pane" data-pane="market">
+        <div class="adm-head">
+          <h2>Маркет</h2>
+        </div>
+        <div class="adm-card glass adm-card--wide">
+          <h3>Открытие</h3>
+          <p class="adm-note">До этого часа на вкладке идёт отсчёт.</p>
+          <div class="adm-grid" id="market-form"></div>
+        </div>
+
+        <div class="adm-card glass adm-card--wide">
+          <h3>Публикация</h3>
+          <p class="adm-note">
+            Правки видны только в этом браузере. «Выгрузить» отдаёт готовый
+            content.json со всеми вложениями — после публикации его видят все.
+          </p>
+          <div class="adm-row">
+            <button class="adm-btn" type="button" id="act-export-2">Выгрузить content.json</button>
+            <button class="adm-btn adm-btn--danger" type="button" id="act-reset">Сбросить правки</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Разбор формы живёт здесь: содержимое подставляет admin.js -->
+  <div class="adm-sheet" id="sheet" hidden>
+    <div class="adm-sheet__backdrop" data-close></div>
+    <form class="adm-sheet__panel glass" id="sheet-form">
+      <div class="adm-sheet__head">
+        <h3 id="sheet-title">Подарок</h3>
+        <button class="adm-sheet__close" type="button" data-close aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7 17 17M17 7 7 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="adm-sheet__body" id="sheet-body"></div>
+
+      <div class="adm-sheet__foot">
+        <button class="adm-btn adm-btn--ghost" type="button" data-close>Отмена</button>
+        <button class="adm-btn" type="submit" id="sheet-save">Сохранить</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="adm-toast glass" id="toast" hidden></div>
+
+  <input class="adm-file" type="file" id="picker" hidden>
+
+  <script src="store.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

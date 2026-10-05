@@ -110,10 +110,8 @@
   <main class="stage">
     <section class="pane" data-pane="home">
       <div class="slider">
-        <div class="slider__track" id="slider-track">
-          <a class="slider__slide" href="#" aria-label="Mint &amp; GetGems" style="background-image: url('home/slider-1.jpg')"></a>
-          <a class="slider__slide" href="#" aria-label="Summer Collection" style="background-image: url('home/slider-2.jpg')"></a>
-        </div>
+        <!-- Баннеры подставляет app.js из хранилища -->
+        <div class="slider__track" id="slider-track"></div>
         <div class="slider__dots" id="slider-dots" role="tablist" aria-label="Баннеры"></div>
       </div>
 
@@ -176,6 +174,15 @@
             <path d="M15 5.5A2.5 2.5 0 0 0 12.5 3h-7A2.5 2.5 0 0 0 3 5.5v7A2.5 2.5 0 0 0 5.5 15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
           </svg>
         </p>
+
+        <!-- Вход в админку виден только тем, кто в ней числится -->
+        <a class="prf__admin glass" id="prf-admin" href="admin.html" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3 20 6.5V12c0 4.6-3.2 7.9-8 9-4.8-1.1-8-4.4-8-9V6.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="m8.8 12.2 2.2 2.2 4.2-4.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Админка</span>
+        </a>
       </div>
 
       <div class="prf-tabs glass" id="prf-tabs" style="--prf-index: 0">
@@ -356,6 +363,7 @@
     <span id="toast-text"></span>
   </div>
 
+  <script src="store.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

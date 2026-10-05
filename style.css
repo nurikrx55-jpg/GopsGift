@@ -1026,6 +1026,33 @@ body {
   transform: scale(0.86);
 }
 
+/* Вход в админку — только у тех, кто в ней числится */
+.prf__admin[hidden] {
+  display: none;
+}
+
+.prf__admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 8px 15px 8px 12px;
+  border-radius: 99em;
+  color: #f5f5f7;
+  font-size: 14px;
+  text-decoration: none;
+  transition: transform 0.12s ease;
+}
+
+.prf__admin:active {
+  transform: scale(0.94);
+}
+
+.prf__admin svg {
+  width: 17px;
+  height: 17px;
+}
+
 /* Переключатель «Подарки / NFT» */
 .prf-tabs {
   position: relative;

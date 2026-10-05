@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "gifts": [
+    {
+      "id": "grooby",
+      "name": "Grooby",
+      "art": "gifts/grooby.json",
+      "price": 399,
+      "badge": "Легендарный",
+      "kind": "blood",
+      "left": 2000,
+      "total": 2000,
+      "status": "Non-Unique"
+    },
+    {
+      "id": "car",
+      "name": "Car",
+      "art": "gifts/car.json",
+      "price": 299,
+      "badge": "Premium",
+      "kind": "premium",
+      "left": 5000,
+      "total": 5000,
+      "status": "Non-Unique"
+    }
+  ],
+  "banners": [
+    { "id": "mint", "image": "home/slider-1.jpg", "label": "Mint & GetGems", "href": "" },
+    { "id": "summer", "image": "home/slider-2.jpg", "label": "Summer Collection", "href": "" }
+  ],
+  "tasks": [
+    {
+      "id": "special",
+      "title": "Специальные",
+      "items": [
+        { "id": "send-1", "name": "Отправить 1 подарок", "reward": 1, "goal": 1 },
+        { "id": "send-5", "name": "Отправить 5 подарков", "reward": 5, "goal": 5 },
+        { "id": "send-10", "name": "Отправить 10 подарков", "reward": 10, "goal": 10 }
+      ]
+    }
+  ],
+  "market": {
+    "opensAt": "2026-11-04T12:00:00+03:00"
+  },
+  "defaults": {
+    "stars": 0,
+    "coupons": 0,
+    "gifts": ["grooby"]
+  },
+  "users": {
+    "6955456382": {
+      "name": "SHEP",
+      "alias": "8888888888",
+      "verified": true,
+      "gold": true,
+      "stars": 1000,
+      "coupons": 0,
+      "gifts": ["grooby"]
+    }
+  },
+  "admins": ["8387706094"]
+}

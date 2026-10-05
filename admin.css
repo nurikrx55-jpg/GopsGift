@@ -1,0 +1,637 @@
+/* Админка. Палитра, шрифт и стекло взяты из приложения — это та же вещь,
+   только с другой стороны. Экран может быть и телефонным, и широким,
+   поэтому раскладка везде построена на сетке с автопереносом. */
+
+.adm-body {
+  overflow: auto;
+  background: #0d0d10;
+}
+
+/* --- Проверка доступа --- */
+
+.adm-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #0d0d10;
+}
+
+.adm-gate[hidden] {
+  display: none;
+}
+
+.adm-gate__box {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 28px 32px;
+  border-radius: 24px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--hint);
+  max-width: 320px;
+}
+
+.adm-gate__spinner {
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid rgba(255, 255, 255, 0.14);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: adm-spin 0.9s linear infinite;
+}
+
+.adm-gate[data-denied="true"] .adm-gate__spinner {
+  display: none;
+}
+
+@keyframes adm-spin {
+  to { transform: rotate(1turn); }
+}
+
+/* --- Каркас --- */
+
+.adm {
+  min-height: 100%;
+  padding: 0 16px calc(32px + var(--safe-area-bottom));
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.adm[hidden] {
+  display: none;
+}
+
+.adm__top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: calc(12px + var(--safe-area-top)) 0 0;
+  padding: 12px 14px;
+  border-radius: 20px;
+}
+
+.adm__back {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f5f5f7;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.adm__back:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.adm__back svg {
+  width: 20px;
+  height: 20px;
+}
+
+.adm__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.adm__title b {
+  font-size: 17px;
+  font-weight: inherit;
+}
+
+/* Состояние черновика: красить его в тревожный цвет незачем, но и молчать
+   нельзя — иначе непонятно, видят ли правки остальные */
+.adm__state {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.adm__state[data-dirty="true"] {
+  color: #f6b329;
+}
+
+.adm__tools {
+  display: flex;
+  gap: 8px;
+}
+
+.adm__tabs {
+  position: relative;
+  z-index: 19;
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 4px;
+  border-radius: 99em;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.adm__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.adm__tab {
+  flex: 1 0 auto;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 99em;
+  background: none;
+  color: var(--hint);
+  font-family: inherit;
+  font-size: 15px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.adm__tab.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f5f5f7;
+}
+
+.adm__pane {
+  display: none;
+  padding-top: 18px;
+}
+
+.adm__pane.is-on {
+  display: block;
+}
+
+.adm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.adm-head h2 {
+  font-size: 21px;
+  font-weight: inherit;
+}
+
+/* --- Кнопки и поля --- */
+
+.adm-btn {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 99em;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.2s ease;
+}
+
+.adm-btn:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+}
+
+.adm-btn--ghost {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.adm-btn--danger {
+  background: rgba(239, 91, 91, 0.16);
+  color: #ef7b7b;
+}
+
+.adm-btn--small {
+  padding: 7px 12px;
+  font-size: 13px;
+}
+
+.adm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.adm-field {
+  display: grid;
+  gap: 6px;
+}
+
+.adm-field > span {
+  font-size: 13px;
+  color: var(--hint);
+}
+
+.adm-field input,
+.adm-field select,
+.adm-field textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 15px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.adm-field input:focus,
+.adm-field select:focus,
+.adm-field textarea:focus {
+  outline: none;
+  border-color: rgba(62, 136, 247, 0.6);
+  background: rgba(62, 136, 247, 0.07);
+}
+
+.adm-field select {
+  /* Родной список на тёмном фоне иначе остаётся белым */
+  color-scheme: dark;
+}
+
+.adm-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.adm-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.adm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+/* --- Карточки --- */
+
+.adm-list {
+  display: grid;
+  gap: 12px;
+}
+
+.adm-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 22px;
+}
+
+.adm-card h3 {
+  font-size: 17px;
+  font-weight: inherit;
+}
+
+.adm-note {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hint);
+}
+
+/* Строка списка: превью, описание, кнопки — и всё это переносится на узком */
+.adm-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+}
+
+.adm-item__art {
+  flex: none;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: linear-gradient(161deg, #3b3b42, #16161a);
+  overflow: hidden;
+}
+
+.adm-item__art canvas,
+.adm-item__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.adm-item__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.adm-item__name {
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Подробности подарка в одну строку не влезают на телефоне, поэтому им
+   разрешено занять две — дальше обрезаем */
+.adm-item__meta {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--hint);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.adm-item__acts {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adm-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f5f5f7;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.adm-icon:active {
+  transform: scale(0.9);
+}
+
+.adm-icon:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.adm-icon--danger {
+  color: #ef7b7b;
+}
+
+.adm-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.adm-empty {
+  padding: 34px 16px;
+  border-radius: 20px;
+  border: 1px dashed var(--line);
+  text-align: center;
+  font-size: 14px;
+  color: var(--hint);
+}
+
+/* Поле, куда кладут файл */
+.adm-drop {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 22px 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--hint);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.adm-drop:hover,
+.adm-drop[data-over="true"] {
+  border-color: rgba(62, 136, 247, 0.7);
+  background: rgba(62, 136, 247, 0.07);
+}
+
+.adm-drop b {
+  font-weight: inherit;
+  color: #f5f5f7;
+}
+
+.adm-drop__art {
+  width: 86px;
+  height: 86px;
+}
+
+.adm-drop__art canvas,
+.adm-drop__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Выдача подарков: плитки, которые просто нажимаются */
+.adm-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.adm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 99em;
+  background: none;
+  color: var(--hint);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.adm-pill[aria-pressed="true"] {
+  border-color: transparent;
+  background: rgba(62, 136, 247, 0.2);
+  color: #8fc0ff;
+}
+
+.adm-count {
+  padding: 2px 8px;
+  border-radius: 99em;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+}
+
+/* --- Разбор формы --- */
+
+.adm-sheet[hidden] {
+  display: none;
+}
+
+.adm-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: end center;
+}
+
+.adm-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.adm-sheet__panel {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 26px 26px 0 0;
+  background-color: #141417;
+  animation: adm-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes adm-rise {
+  from { transform: translateY(16px); opacity: 0; }
+}
+
+@media (min-width: 620px) {
+  .adm-sheet {
+    place-items: center;
+    padding: 24px;
+  }
+
+  .adm-sheet__panel {
+    border-radius: 26px;
+  }
+}
+
+.adm-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 10px;
+}
+
+.adm-sheet__head h3 {
+  font-size: 19px;
+  font-weight: inherit;
+}
+
+.adm-sheet__close {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f5f5f7;
+  cursor: pointer;
+}
+
+.adm-sheet__close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.adm-sheet__body {
+  flex: 1 1 auto;
+  display: grid;
+  gap: 12px;
+  padding: 4px 18px 18px;
+  overflow-y: auto;
+}
+
+.adm-sheet__foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px calc(18px + var(--safe-area-bottom));
+  border-top: 1px solid var(--line);
+}
+
+/* --- Уведомление --- */
+
+.adm-toast[hidden] {
+  display: none;
+}
+
+.adm-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + var(--safe-area-bottom));
+  z-index: 80;
+  transform: translateX(-50%);
+  padding: 12px 18px;
+  border-radius: 99em;
+  font-size: 14px;
+  animation: adm-rise 0.26s ease;
+}
+
+.adm-file {
+  display: none;
+}
+
+/* На телефоне кнопки шапки уходят под заголовок: втроём в строке они
+   съедали название, и оно ломалось пополам */
+@media (max-width: 560px) {
+  .adm__top {
+    flex-wrap: wrap;
+  }
+
+  .adm__tools {
+    flex: 1 1 100%;
+  }
+
+  .adm__tools .adm-btn {
+    flex: 1 1 0;
+  }
+
+  .adm-head {
+    flex-wrap: wrap;
+  }
+
+  .adm-item {
+    flex-wrap: wrap;
+  }
+
+  .adm-item__body {
+    flex-basis: calc(100% - 72px);
+  }
+
+  .adm-item__acts {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+}
