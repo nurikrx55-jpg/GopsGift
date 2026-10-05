@@ -41,6 +41,10 @@
   const QTY_MAX = 99;
 
   const VERIFIED_ART = 'gifts/verified.json';
+  // Кому показывать вход в админку, пока сервер не может узнать человека
+  // (база или токен бота ещё не подключены). Это только ссылка: доступ
+  // проверяет сама админка на сервере
+  const ADMIN_HINT = ['8387706094'];
   const MARKET_ART = 'gifts/duck.json';
   // Если дата открытия маркета не задана, отсчёт просто стоит на нуле
   let marketOpensAt = 0;
@@ -1469,9 +1473,16 @@
       avatar.textContent = userTitle(user).replace('@', '').charAt(0).toUpperCase();
     }
 
-    // Кто админ, решает сервер по проверенной подписи Telegram
+    // Кто админ, решает сервер по проверенной подписи Telegram. Не узнал
+    // сервер человека — подсказка по id, иначе до экрана подключения базы
+    // было бы не добраться
+    const known = Store.me();
     const admin = document.getElementById('prf-admin');
-    if (admin) admin.hidden = !(ME && ME.admin);
+    if (admin) {
+      admin.hidden = !(known
+        ? known.admin
+        : Boolean(user) && ADMIN_HINT.indexOf(String(user.id)) !== -1);
+    }
 
     const id = document.getElementById('prf-id');
     const copy = document.getElementById('prf-copy');
