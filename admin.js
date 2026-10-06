@@ -1843,7 +1843,9 @@
       step(status.db, 'db', 'База данных',
         status.db ? 'Подключена.' : 'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Upstash for Redis</b>, тариф Free → Connect.');
       step(Boolean(status.auth), 'key', 'Подпись Telegram',
-        status.auth ? 'Настроена.' : 'Vercel → Settings → Environment Variables → <code>BOT_TOKEN</code> = токен бота из @BotFather.');
+        status.auth
+          ? 'Настроена.'
+          : 'Vercel → Settings → Environment Variables → <code>BOT_TOKEN</code> = токен бота из @BotFather. Без него сервер не может отличить вас от постороннего, поэтому люди не записываются, а правки не уходят дальше устройства.');
       step(false, 'refresh', 'Передеплой', 'Новые переменные подхватит следующий деплой. После него нажмите «Проверить».');
 
       const again = button('Проверить', { icon: 'refresh', onClick: () => start() });
