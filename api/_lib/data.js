@@ -33,6 +33,7 @@ const DAY = 24 * 60 * 60 * 1000;
 // пересчитывает одно и то же на каждый запрос
 const CONTENT_TTL = 3000;
 const MGET_CHUNK = 500;
+const MSET_CHUNK = 500;
 
 let contentCache = null;
 
@@ -344,16 +345,19 @@ export async function grantAll(input, content) {
   const ids = (await command('ZRANGE', K.seen, 0, -1)) || [];
   const accounts = await mgetJson(ids.map(K.acct));
 
-  const writes = ids.map((id, index) => {
+  const pairs = [];
+  ids.forEach((id, index) => {
     const acct = accounts[index] ? normalAccount(accounts[index]) : starterAccount(content);
     if (gift) acct.gifts.push(gift);
     acct.stars += stars;
     acct.coupons += coupons;
-    return ['SET', K.acct(id), JSON.stringify(acct)];
+    pairs.push(K.acct(id), JSON.stringify(acct));
   });
 
-  for (let i = 0; i < writes.length; i += 200) {
-    await pipeline(writes.slice(i, i + 200));
+  // Пишем пачками по пятьсот счетов за запрос: выдача всем не должна
+  // превращаться в тысячу обращений к базе
+  for (let i = 0; i < pairs.length; i += MSET_CHUNK * 2) {
+    await command('MSET', ...pairs.slice(i, i + MSET_CHUNK * 2));
   }
 
   return { count: ids.length };

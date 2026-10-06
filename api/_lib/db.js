@@ -9,6 +9,7 @@
    остального, а при желании вернуть Redis достаточно подменить исполнителя. */
 
 let runner = null;
+let batcher = null;
 let schema = null;
 
 export class DbError extends Error {}
@@ -36,8 +37,9 @@ export function configured() {
 
 // Подменить исполнителя запросов: так локальный стенд гоняет тот же SQL
 // на Postgres в памяти, без настоящей базы
-export function useRunner(fn) {
+export function useRunner(fn, batch) {
   runner = fn;
+  batcher = batch || null;
   schema = null;
 }
 
@@ -51,6 +53,9 @@ async function connect() {
   const sql = neon(url);
 
   runner = (text, params) => sql.query(text, params || []);
+  // Пачка уходит одной поездкой по сети вместо запроса на каждую команду:
+  // по отдельности десяток команд стоил бы десяток обращений к базе
+  batcher = (queries) => sql.transaction(queries.map((q) => sql.query(q.text, q.params || [])));
   return runner;
 }
 
@@ -127,6 +132,24 @@ async function one(query, command) {
       return done.length;
     }
 
+    case 'MSET': {
+      // Пишем сколько угодно пар за один запрос: выдача подарка пяти сотням
+      // человек не должна превращаться в пятьсот обращений к базе
+      const keys = [];
+      const values = [];
+      for (let i = 0; i < args.length; i += 2) {
+        keys.push(String(args[i]));
+        values.push(String(args[i + 1]));
+      }
+
+      await query(
+        'INSERT INTO kv (k, v) SELECT k, v FROM unnest($1::text[], $2::text[]) AS t(k, v)' +
+        ' ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v',
+        [keys, values]
+      );
+      return 'OK';
+    }
+
     case 'MGET': {
       const found = rows(await query('SELECT k, v FROM kv WHERE k = ANY($1)', [args]));
       const byKey = new Map(found.map((row) => [row.k, row.v]));
@@ -194,11 +217,70 @@ async function one(query, command) {
   }
 }
 
+// Команды, которым не нужен разбор ответа: их можно собрать в один пакет.
+// У остальных (чтение, разбор порядка) результат нужен по дороге
+const SIMPLE = {
+  SET: (args) => {
+    const only = args.slice(2).map(String).some((flag) => flag.toUpperCase() === 'NX');
+    return {
+      text: only
+        ? 'INSERT INTO kv (k, v) VALUES ($1, $2) ON CONFLICT (k) DO NOTHING'
+        : 'INSERT INTO kv (k, v) VALUES ($1, $2) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v',
+      params: [args[0], String(args[1])]
+    };
+  },
+  ZADD: (args) => {
+    let rest = args.slice(1);
+    let only = false;
+    if (String(rest[0]).toUpperCase() === 'NX') {
+      only = true;
+      rest = rest.slice(1);
+    }
+
+    const members = [];
+    const scores = [];
+    for (let i = 0; i < rest.length; i += 2) {
+      scores.push(Number(rest[i]));
+      members.push(String(rest[i + 1]));
+    }
+
+    return {
+      text: 'INSERT INTO zset (k, m, s) SELECT $1, m, s FROM unnest($2::text[], $3::float8[]) AS t(m, s)' +
+        (only ? ' ON CONFLICT (k, m) DO NOTHING' : ' ON CONFLICT (k, m) DO UPDATE SET s = EXCLUDED.s'),
+      params: [args[0], members, scores]
+    };
+  },
+  MSET: (args) => {
+    const keys = [];
+    const values = [];
+    for (let i = 0; i < args.length; i += 2) {
+      keys.push(String(args[i]));
+      values.push(String(args[i + 1]));
+    }
+
+    return {
+      text: 'INSERT INTO kv (k, v) SELECT k, v FROM unnest($1::text[], $2::text[]) AS t(k, v)' +
+        ' ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v',
+      params: [keys, values]
+    };
+  }
+};
+
 export async function pipeline(commands) {
   if (!commands.length) return [];
 
   const query = await connect();
   await ready(query);
+
+  // Пачка целиком из записей уходит одной поездкой: на заходе в приложение
+  // это разница между пятью обращениями к базе и двумя
+  const plain = commands.every(([name]) => SIMPLE[String(name).toUpperCase()]);
+  if (plain && batcher && commands.length > 1) {
+    const queries = commands.map(([name, ...args]) => SIMPLE[String(name).toUpperCase()](args));
+    await batcher(queries);
+    // Записи отвечают числом затронутого, но этого никто не ждёт
+    return commands.map(() => null);
+  }
 
   const out = [];
   for (const command of commands) {
