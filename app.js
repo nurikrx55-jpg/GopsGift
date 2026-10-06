@@ -355,6 +355,17 @@
     function run(index) {
       clearTimeout(timer);
 
+      // Залитой остаётся ровно одна точка — текущая. Ширину мы прописываем
+      // прямо в элементе, а она сильнее правила из стилей, поэтому снять
+      // заливку с прежней точки нужно тоже вручную: иначе после
+      // переключения белыми остаются обе.
+      dots.forEach((dot, i) => {
+        if (i === index) return;
+        const spent = dot.firstElementChild;
+        spent.style.transition = 'none';
+        spent.style.width = '0%';
+      });
+
       const fill = dots[index].firstElementChild;
       fill.style.transition = 'none';
       fill.style.width = '0%';
