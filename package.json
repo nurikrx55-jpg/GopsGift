@@ -1,5 +1,11 @@
 {
   "name": "gopsgift",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
+  }
 }
