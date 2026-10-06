@@ -10,6 +10,9 @@
   'use strict';
 
   const API = '/api/boot';
+  // Пока сервер не может проверить подпись, админа узнаём по id. Настоящую
+  // проверку делает сервер, как только база подключена
+  const ADMINS = ['8387706094'];
   const FALLBACK = 'data/content.json';
   // Админка открывается отдельной страницей; подпись Telegram передаём ей
   // через вкладку, а не адресом — в адресе она осела бы в истории
@@ -50,6 +53,21 @@
     });
   }
 
+  // Базы ещё нет: содержимое и счёт берём из локального двигателя, чтобы
+  // приложение работало целиком уже сейчас
+  function fromLocal() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const user = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+
+    if (!window.Local) return fromRepo();
+
+    return window.Local.boot(user).then((data) => {
+      content = data.content || empty();
+      me = data.me || null;
+      if (me) me.admin = ADMINS.indexOf(String(me.id)) !== -1;
+    }).catch(fromRepo);
+  }
+
   function fromRepo() {
     return fetch(FALLBACK, { cache: 'no-cache' })
       .then((response) => response.json())
@@ -58,7 +76,7 @@
   }
 
   function load() {
-    if (!ready) ready = fromServer().catch(fromRepo).then(() => content);
+    if (!ready) ready = fromServer().catch(fromLocal).then(() => content);
     return ready;
   }
 

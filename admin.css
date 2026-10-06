@@ -2025,3 +2025,58 @@
     display: none;
   }
 }
+
+/* Подсказка о локальном режиме: заметная, но не тревожная — ничего не
+   сломано, просто правки пока не уходят дальше устройства */
+.ad-local {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(246, 179, 41, 0.22);
+  border-radius: var(--r-card);
+  background: rgba(246, 179, 41, 0.07);
+}
+
+.ad-local__icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(246, 179, 41, 0.16);
+  color: var(--warn);
+}
+
+.ad-local__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.ad-local__text b {
+  font-weight: inherit;
+}
+
+.ad-local__text p {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hint);
+}
+
+.ad-local .ad-link {
+  flex: none;
+  align-self: center;
+}
+
+@media (max-width: 599px) {
+  .ad-local {
+    flex-wrap: wrap;
+  }
+
+  .ad-local .ad-link {
+    margin-left: 48px;
+  }
+}

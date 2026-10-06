@@ -186,7 +186,17 @@
     'no-auth': 'Не настроена подпись Telegram'
   };
 
+  // Пока база не подключена, действия выполняет локальный двигатель: набор
+  // и формат те же, поэтому экранам всё равно, куда они обращаются
+  let offline = false;
+
   async function api(action, payload) {
+    if (offline && window.Local) {
+      const data = await window.Local.call(action, payload);
+      if (data.content) content = data.content;
+      return data;
+    }
+
     let response;
     try {
       response = await fetch(API, {
@@ -614,6 +624,8 @@
       iconButton('refresh', 'Обновить', (event) => refreshStats(event.currentTarget))
     ]);
 
+    if (offline) view.appendChild(localNote());
+
     const tiles = el('div', 'ad-stats');
     [
       { icon: 'users', value: stats.users, label: 'Пользователей всего' },
@@ -686,6 +698,27 @@
     cols.appendChild(shelf);
 
     view.appendChild(cols);
+  }
+
+  // Пока базы нет, об этом нужно сказать прямо: иначе легко решить, что
+  // правки уже видны всем
+  function localNote() {
+    const card = el('section', 'ad-local');
+    const mark = el('span', 'ad-local__icon');
+    mark.appendChild(icon('db'));
+
+    const text = el('div', 'ad-local__text');
+    text.append(
+      el('b', null, 'Пока без общей базы'),
+      el('p', null, 'Всё работает, но правки и список людей живут только на этом устройстве. Подключите базу — и их увидят все.')
+    );
+
+    const more = el('button', 'ad-link', 'Как подключить');
+    more.appendChild(icon('right'));
+    more.addEventListener('click', () => go('settings'));
+
+    card.append(mark, text, more);
+    return card;
   }
 
   async function refreshStats(node) {
@@ -1705,23 +1738,59 @@
     // Подключение
     const link = el('section', 'ad-card');
     link.appendChild(el('h3', null, 'Подключение'));
+
     const rows = el('div');
-    [
-      ['db', 'База данных', 'Upstash Redis · подключена'],
-      ['key', 'Подпись Telegram', 'проверяется на сервере'],
-      ['shield', 'Вы вошли как', (me && me.username ? '@' + me.username + ' · ' : '') + (me ? me.id : '')]
-    ].forEach(([iconName, label, value]) => {
-      const row = el('div', 'ad-switch');
+    const row = (ok, iconName, label, value) => {
+      const line = el('div', 'ad-switch');
       const text = el('span', 'ad-switch__text');
       text.append(el('span', null, label), el('small', null, value));
-      const ok = el('span', 'ad-stat__icon');
-      ok.style.setProperty('--tint', 'rgba(52,199,89,.16)');
-      ok.style.setProperty('--tone', '#34c759');
-      ok.appendChild(icon(iconName));
-      row.append(ok, text);
-      rows.appendChild(row);
-    });
+      const mark = el('span', 'ad-stat__icon');
+      mark.style.setProperty('--tint', ok ? 'rgba(52,199,89,.16)' : 'rgba(246,179,41,.16)');
+      mark.style.setProperty('--tone', ok ? '#34c759' : '#f6b329');
+      mark.appendChild(icon(iconName));
+      line.append(mark, text);
+      rows.appendChild(line);
+    };
+
+    row(!offline, 'db', 'База данных',
+      offline ? 'не подключена — правки не уходят дальше устройства' : 'подключена, правки видны всем');
+    row(!offline, 'key', 'Подпись Telegram',
+      offline ? 'не настроена' : 'проверяется на сервере');
+    row(true, 'shield', 'Вы вошли как',
+      (me && me.username ? '@' + me.username + ' · ' : '') + (me ? me.id : ''));
+
     link.appendChild(rows);
+
+    if (offline) {
+      const steps = el('div', 'ad-steps');
+      const step = (iconName, title, html) => {
+        const box = el('div', 'ad-step');
+        const mark = el('span', 'ad-step__mark');
+        mark.appendChild(icon(iconName));
+        const text = el('div');
+        text.appendChild(el('b', null, title));
+        const p = el('p');
+        p.innerHTML = html;
+        text.appendChild(p);
+        box.append(mark, text);
+        steps.appendChild(box);
+      };
+
+      step('db', 'База данных',
+        'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Upstash for Redis</b>, тариф Free → Connect.');
+      step('key', 'Подпись Telegram',
+        'Vercel → Settings → Environment Variables → <code>BOT_TOKEN</code> = токен бота из @BotFather.');
+      step('refresh', 'Передеплой',
+        'Новые переменные подхватит следующий деплой. После него админка сама перейдёт на базу.');
+
+      link.appendChild(steps);
+      link.appendChild(button('Проверить подключение', {
+        kind: 'ghost',
+        icon: 'refresh',
+        onClick: () => location.reload()
+      }));
+    }
+
     cols.appendChild(link);
 
     view.appendChild(cols);
@@ -1838,12 +1907,11 @@
       return;
     }
 
-    if (!status.db || !status.auth) {
-      showGate('setup', status);
-      return;
-    }
+    // Без базы админка работает локально: так проект можно проверить
+    // целиком, а подключение остаётся следующим шагом
+    offline = !status.db || !status.auth;
 
-    if (!initData()) {
+    if (!offline && !initData()) {
       showGate('outside');
       return;
     }
@@ -1851,7 +1919,7 @@
     try {
       const data = await api('session');
       stats = data.stats;
-      me = data.me;
+      me = data.me || (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
     } catch (error) {
       if (error.code === 'unauthorized') showGate('expired');
       else if (error.code === 'network') showGate('network');
