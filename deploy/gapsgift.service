@@ -1,0 +1,43 @@
+[Unit]
+Description=GapsGift
+Documentation=https://gapsgift.online
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gapsgift
+Group=gapsgift
+WorkingDirectory=/opt/gapsgift
+
+# Токен бота и строка подключения к базе лежат здесь, а не в репозитории
+EnvironmentFile=/etc/gapsgift.env
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=3000
+
+ExecStart=/usr/bin/node server.mjs
+Restart=always
+RestartSec=2
+
+# Служба ничего не пишет на диск: всё состояние лежит в базе. Поэтому
+# отдаём ей систему только на чтение и забираем всё лишнее
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gapsgift
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-# GopsGift
+# GapsGift
 
 Telegram Mini App: тёмная тема, нижняя навигация из четырёх вкладок, карусель
 баннеров на главной и витрина подарков.
@@ -244,7 +244,7 @@ Telegram будет «Гость»: подписи Telegram в браузере 
 
 ## Деплой
 
-Продакшн: https://gopsgift.vercel.app (проект Vercel `gopsgift`).
+Продакшн: https://gapsgift.online — свой сервер, см. [deploy/README.md](deploy/README.md).
 
 Framework preset «Other», build command пустой, output directory — корень.
 Функции из `api/` Vercel собирает сам. Переменные окружения (`BOT_TOKEN`,

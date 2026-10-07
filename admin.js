@@ -1,4 +1,4 @@
-/* Админка GopsGift.
+/* Админка GapsGift.
 
    Всё, что здесь меняется, уходит на сервер и сразу видно всем: каждый
    заход в приложение берёт витрину, баннеры и счёт из общей базы. Кто
@@ -30,6 +30,9 @@
     { id: 'sold', name: 'Бордо', from: '#5f3a3e', to: '#471f20' },
     { id: 'default', name: 'Графит', from: '#364b5c', to: '#172d42' }
   ];
+
+  // Куда класть переменные, если база или токен ещё не настроены
+  const ENV_FILE = '<code>/etc/gapsgift.env</code> на сервере';
 
   const BANNER_WIDTH = 1392;
   const BANNER_HEIGHT = 518;
@@ -1880,11 +1883,11 @@
       };
 
       step('db', 'База данных',
-        'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Neon Postgres</b>, тариф Free → Connect.');
+        'Строка подключения к базе — <code>DATABASE_URL</code> в ' + ENV_FILE + '.');
       step('key', 'Подпись Telegram',
-        'Vercel → Settings → Environment Variables → <code>BOT_TOKEN</code> = токен бота из @BotFather.');
-      step('refresh', 'Передеплой',
-        'Новые переменные подхватит следующий деплой. После него админка сама перейдёт на базу.');
+        '<code>BOT_TOKEN</code> в ' + ENV_FILE + ' — токен бота из @BotFather.');
+      step('refresh', 'Перезапуск',
+        'Новые переменные подхватит <code>systemctl restart gapsgift</code>. После него админка сама перейдёт на базу.');
 
       link.appendChild(steps);
       link.appendChild(button('Проверить подключение', {
@@ -1944,12 +1947,12 @@
       };
 
       step(status.db, 'db', 'База данных',
-        status.db ? 'Подключена.' : 'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Neon Postgres</b>, тариф Free → Connect.');
+        status.db ? 'Подключена.' : 'Строка подключения — <code>DATABASE_URL</code> в ' + ENV_FILE + '.');
       step(Boolean(status.auth), 'key', 'Подпись Telegram',
         status.auth
           ? 'Настроена.'
-          : 'Vercel → Settings → Environment Variables → <code>BOT_TOKEN</code> = токен бота из @BotFather. Без него сервер не может отличить вас от постороннего, поэтому люди не записываются, а правки не уходят дальше устройства.');
-      step(false, 'refresh', 'Передеплой', 'Новые переменные подхватит следующий деплой. После него нажмите «Проверить».');
+          : '<code>BOT_TOKEN</code> в ' + ENV_FILE + ' — токен бота из @BotFather. Без него сервер не может отличить вас от постороннего, поэтому люди не записываются, а правки не уходят дальше устройства.');
+      step(false, 'refresh', 'Перезапуск', 'Новые переменные подхватит <code>systemctl restart gapsgift</code>. После него нажмите «Проверить».');
 
       const again = button('Проверить', { icon: 'refresh', onClick: () => start() });
       const wrap = el('div', 'ad-steps');
