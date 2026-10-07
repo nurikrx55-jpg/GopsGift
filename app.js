@@ -40,14 +40,10 @@
   // Потолок на случай, если наличие не указано
   const QTY_MAX = 99;
 
-  const VERIFIED_ART = 'gifts/verified.json';
   // Кому показывать вход в админку, пока сервер не может узнать человека
   // (база или токен бота ещё не подключены). Это только ссылка: доступ
   // проверяет сама админка на сервере
   const ADMIN_HINT = ['8387706094'];
-  const MARKET_ART = 'gifts/duck.json';
-  // Если дата открытия маркета не задана, отсчёт просто стоит на нуле
-  let marketOpensAt = 0;
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
@@ -113,12 +109,10 @@
     tg.requestFullscreen();
   }
 
-  // Подсветка иконок без переноса подложки — нужна во время перетаскивания
+  // Подсветка иконок без переноса подложки — нужна во время перетаскивания.
+  // Название раздела здесь не меняем: пока палец ведёт капсулу, на экране
+  // ещё прежняя страница, и заголовок обгонял бы её
   function paint(index) {
-    const title = document.getElementById('hdr-section');
-    const named = tabs[index] && tabs[index].dataset.title;
-    if (title && named) title.textContent = named;
-
     tabs.forEach((tab, i) => {
       const active = i === index;
       tab.classList.toggle('active', active);
@@ -140,6 +134,12 @@
 
     current = index;
     paint(index);
+
+    // Заголовок меняется ровно вместе со страницей — на входе в раздел
+    const title = document.getElementById('hdr-section');
+    const named = tabs[index].dataset.title;
+    if (title && named) title.textContent = named;
+
     nav.style.setProperty('--active-index', String(index));
     stage.dataset.section = tabs[index].dataset.section;
   }
@@ -441,7 +441,8 @@
     art.className = 'gift__art';
     if (gift.name) art.setAttribute('aria-label', gift.name);
     card.appendChild(art);
-    playWhenSeen(art, gift.art);
+    if (isStill(gift)) showStill(art, gift.art);
+    else playWhenSeen(art, gift.art);
 
     if (gift.badge) {
       const badge = document.createElement('span');
@@ -496,6 +497,23 @@
     }
 
     return card;
+  }
+
+  // Подарок рисует либо анимация lottie, либо картинка .svg
+  function isStill(gift) {
+    return Boolean(gift) && gift.artType === 'svg';
+  }
+
+  // Картинку показываем обычным <img>: скрипт внутри svg так не запускается,
+  // и загрузку браузер тянет сам, когда карточка доедет до экрана
+  function showStill(container, path) {
+    container.textContent = '';
+    const img = document.createElement('img');
+    img.src = path;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.draggable = false;
+    container.appendChild(img);
   }
 
   // lottie подключён с defer — когда app.js выполняется, его ещё нет в window
@@ -725,11 +743,43 @@
     card.style.setProperty('--own-s', tint.sat + '%');
   }
 
-  // Пробный прогон в стороне от экрана: кадр берём из середины — первый у
-  // многих композиций пустой, и цвет по нему не вытащить
-  function warmTint(path, done) {
+  // Картинку просто рисуем в холст в стороне от экрана и считаем по нему
+  // господствующий оттенок
+  function stillTint(path, done) {
+    const img = new Image();
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(img.naturalWidth || 256, 256);
+      canvas.height = Math.min(img.naturalHeight || 256, 256);
+      canvas.getContext('2d', { willReadFrequently: true })
+        .drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      const tint = artTint(canvas);
+      if (tint) tints.set(path, tint);
+      if (done) done(tint);
+    };
+
+    img.onerror = () => { if (done) done(null); };
+    img.src = path;
+  }
+
+  // У анимации пробный прогон идёт в стороне от экрана, и кадр берём из
+  // середины: первый у многих композиций пустой, и цвет по нему не вытащить
+  function warmTint(gift, done) {
+    const path = gift && gift.art;
+    if (!path) {
+      if (done) done(null);
+      return;
+    }
+
     if (tints.has(path)) {
       if (done) done(tints.get(path));
+      return;
+    }
+
+    if (isStill(gift)) {
+      stillTint(path, done);
       return;
     }
 
@@ -826,6 +876,22 @@
       fill.style.width = '0%';
       sheet.dataset.fill = (share * 100).toFixed(1) + '%';
     }
+  }
+
+  // Раскрытая карточка: анимация играет по кругу, картинка просто лежит
+  function openArt(container, gift) {
+    if (!container) return null;
+    container.textContent = '';
+    if (isStill(gift)) {
+      showStill(container, gift.art);
+      return null;
+    }
+    return loopArt(container, gift.art);
+  }
+
+  function closeArt(container, player) {
+    if (player) player.destroy();
+    if (container) container.textContent = '';
   }
 
   // Зацикленная анимация — такая нужна только в раскрытой карточке
@@ -1031,7 +1097,7 @@
     // досчитается, и перекрашивается уже под закрытым листом
     applyTint(card, tints.get(gift.art) || null);
     if (!tints.has(gift.art)) {
-      warmTint(gift.art, (tint) => {
+      warmTint(gift, (tint) => {
         if (tint && ownGift === gift) applyTint(card, tint);
       });
     }
@@ -1093,13 +1159,11 @@
         if (sheet.dataset.fill) {
           document.getElementById('sheet-gauge-fill').style.width = sheet.dataset.fill;
         }
-        sheetPlayer = loopArt(document.getElementById('sheet-art'), gift.art);
+        sheetPlayer = openArt(document.getElementById('sheet-art'), gift);
       },
       closed: () => {
-        if (sheetPlayer) {
-          sheetPlayer.destroy();
-          sheetPlayer = null;
-        }
+        closeArt(document.getElementById('sheet-art'), sheetPlayer);
+        sheetPlayer = null;
         sheetGift = null;
       }
     });
@@ -1107,13 +1171,11 @@
     ownSheet = createSheet(owned, {
       fill: fillOwned,
       opened: (gift) => {
-        ownPlayer = loopArt(document.getElementById('owned-art'), gift.art);
+        ownPlayer = openArt(document.getElementById('owned-art'), gift);
       },
       closed: () => {
-        if (ownPlayer) {
-          ownPlayer.destroy();
-          ownPlayer = null;
-        }
+        closeArt(document.getElementById('owned-art'), ownPlayer);
+        ownPlayer = null;
         ownGift = null;
       }
     });
@@ -1226,128 +1288,10 @@
     });
   }
 
-  // --- Маркет ---
-
-  // Разряд — окошко с двумя постоянными слоями: один показан, второй ждёт
-  // снизу. На смене они меняются ролями, и переход ведёт сам браузер.
-  // Узлы здесь не создаются и не удаляются: раньше уходящую цифру снимало
-  // событие animationend, а когда оно не приходило, она оставалась висеть
-  // поверх новой — отсюда и наложение цифр, и копившийся мусор в разметке.
-  function makeDigit() {
-    const cell = document.createElement('span');
-    cell.className = 'digit';
-
-    const front = document.createElement('span');
-    front.className = 'digit__face is-now';
-    const back = document.createElement('span');
-    back.className = 'digit__face is-next';
-
-    cell.append(front, back);
-    return cell;
-  }
-
-  function rollDigit(cell, value, animate) {
-    const shown = cell.querySelector('.is-now');
-    if (shown.textContent === value) return;
-
-    if (!animate) {
-      shown.textContent = value;
-      return;
-    }
-
-    const hidden = cell.querySelector('.is-next') || cell.querySelector('.is-out');
-    hidden.className = 'digit__face is-next';
-    hidden.textContent = value;
-    // Пересчёт стилей форсируем чтением размера — иначе браузер объединит
-    // обе смены класса в одну и перехода не будет
-    void hidden.offsetWidth;
-
-    shown.className = 'digit__face is-out';
-    hidden.className = 'digit__face is-now';
-  }
-
-  function rollValue(holder, text, animate) {
-    while (holder.children.length < text.length) {
-      holder.appendChild(makeDigit());
-    }
-    while (holder.children.length > text.length) {
-      holder.lastElementChild.remove();
-    }
-
-    for (let i = 0; i < text.length; i += 1) {
-      rollDigit(holder.children[i], text[i], animate);
-    }
-  }
-
-  function initMarket() {
-    const art = document.getElementById('market-art');
-    if (art) playWhenSeen(art, MARKET_ART, true);
-
-    const timer = document.getElementById('market-timer');
-    if (!timer) return;
-
-    const values = {};
-    const labels = {};
-    timer.querySelectorAll('[data-unit]').forEach((node) => {
-      values[node.dataset.unit] = node;
-    });
-    timer.querySelectorAll('[data-label]').forEach((node) => {
-      labels[node.dataset.label] = node;
-    });
-
-    const words = {
-      days: ['день', 'дня', 'дней'],
-      hours: ['час', 'часа', 'часов'],
-      minutes: ['минута', 'минуты', 'минут'],
-      seconds: ['секунда', 'секунды', 'секунд']
-    };
-
-    let wasSeen = false;
-
-    function tick() {
-      // Пока раздел не на экране, катушки крутить незачем — но и показать
-      // при возврате надо уже верные цифры, поэтому первый тик без анимации
-      const seen = Boolean(timer.offsetParent);
-      if (!seen) {
-        wasSeen = false;
-        return;
-      }
-
-      const left = Math.max(0, marketOpensAt - Date.now());
-      const total = Math.floor(left / 1000);
-      const parts = {
-        days: Math.floor(total / 86400),
-        hours: Math.floor(total / 3600) % 24,
-        minutes: Math.floor(total / 60) % 60,
-        seconds: total % 60
-      };
-
-      Object.keys(parts).forEach((unit) => {
-        const text = String(parts[unit]).padStart(2, '0');
-        rollValue(values[unit], text, wasSeen);
-        labels[unit].textContent = plural(parts[unit], words[unit][0], words[unit][1], words[unit][2]);
-      });
-
-      timer.setAttribute('aria-label',
-        'До открытия маркета ' + parts.days + ' д ' + parts.hours + ' ч ' +
-        parts.minutes + ' мин ' + parts.seconds + ' с');
-
-      wasSeen = true;
-    }
-
-    tick();
-    setInterval(tick, 1000);
-  }
-
   // --- Профиль ---
 
   function tgUser() {
     return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
-  }
-
-  // Золотой ник и галочку выдаёт админка
-  function isPremium() {
-    return Boolean(ME && ME.gold);
   }
 
   // Имя — ровно то, что отдаёт Telegram: никаких подменных ников
@@ -1405,7 +1349,7 @@
 
     // Пока список на экране, досчитываем цвета: открытая карточка возьмёт
     // готовое значение и не будет перекрашиваться на глазах
-    items.forEach((gift) => warmTint(gift.art));
+    items.forEach((gift) => warmTint(gift));
 
     const grid = document.createElement('div');
     grid.className = 'gifts';
@@ -1460,19 +1404,9 @@
     const user = tgUser();
     const owned = OWNED.gifts.length + OWNED.nft.length;
 
-    const premium = isPremium();
-
     const name = document.getElementById('prf-name');
     name.textContent = userTitle(user);
-    name.dataset.premium = String(premium);
 
-    // Галочка только у особого пользователя, и крутится один раз
-    const verified = document.getElementById('prf-verified');
-    if (verified) {
-      const show = Boolean(ME && ME.verified);
-      verified.hidden = !show;
-      if (show) playWhenSeen(verified, VERIFIED_ART);
-    }
     document.getElementById('prf-count').textContent =
       formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
 
@@ -1566,18 +1500,9 @@
     const state = Store.state();
     const user = tgUser();
 
-    // Счёт приходит с сервера. Нет его — гость: пустой баланс и стартовый
-    // набор, чтобы витрина и профиль не выглядели сломанными
-    const defaults = state.defaults || {};
-    ME = Store.me() || {
-      stars: 0,
-      coupons: 0,
-      gifts: (defaults.gifts || []).slice(),
-      gold: false,
-      verified: false,
-      admin: false
-    };
-    marketOpensAt = Date.parse(state.market && state.market.opensAt) || 0;
+    // Счёт приходит с сервера. Нет его — гость с пустым балансом, чтобы
+    // витрина и профиль не выглядели сломанными
+    ME = Store.me() || { stars: 0, coupons: 0, gifts: [], admin: false };
 
     GIFTS = (state.gifts || []).map((gift) => Object.assign({ note: NFT_NOTE, owner: '—' }, gift));
 
@@ -1604,7 +1529,6 @@
 
       initGifts();
       initTasks();
-      initMarket();
       initSheet();
       initHeader();
       initProfile();

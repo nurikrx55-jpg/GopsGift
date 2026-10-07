@@ -1,8 +1,8 @@
 /* Данные приложения в Redis.
 
-   gg:content         — витрина, баннеры, задания, маркет, стартовый набор
+   gg:content         — витрина, баннеры и задания
    gg:user:<id>       — профиль из Telegram: имя, фото, когда заходил
-   gg:acct:<id>       — счёт: звёзды, купоны, подарки, золотой ник, галочка
+   gg:acct:<id>       — счёт: звёзды, купоны, подарки
    gg:users:seen      — все, кто открывал приложение, по последнему заходу
    gg:users:joined    — те же люди по дате первого захода
    gg:file:<id>       — загруженные из админки анимации и картинки
@@ -33,7 +33,6 @@ const DAY = 24 * 60 * 60 * 1000;
 // пересчитывает одно и то же на каждый запрос
 const CONTENT_TTL = 3000;
 const MGET_CHUNK = 500;
-const MSET_CHUNK = 500;
 
 let contentCache = null;
 
@@ -65,7 +64,7 @@ const KINDS = ['blood', 'legend', 'premium', 'epic', 'rare', 'time', 'sold', 'de
 function assetRef(value) {
   const ref = str(value, 200);
   if (/^\/api\/file\?id=[a-z0-9-]{6,64}$/.test(ref)) return ref;
-  if (/^[a-z0-9_\-/]+\.(json|jpg|jpeg|png|webp)$/i.test(ref) && ref.indexOf('..') === -1) return ref;
+  if (/^[a-z0-9_\-/]+\.(json|svg|jpg|jpeg|png|webp)$/i.test(ref) && ref.indexOf('..') === -1) return ref;
   return '';
 }
 
@@ -74,6 +73,9 @@ export function cleanGift(input) {
     id: slug(input.id) || newId('gift'),
     name: str(input.name, 40),
     art: assetRef(input.art),
+    // Подарок рисует либо анимация lottie, либо картинка .svg — показывают
+    // их по-разному, поэтому вид храним рядом с путём
+    artType: input.artType === 'svg' ? 'svg' : 'lottie',
     price: int(input.price, 0, 1000000),
     badge: str(input.badge, 24),
     kind: KINDS.indexOf(input.kind) === -1 ? 'default' : input.kind,
@@ -83,7 +85,7 @@ export function cleanGift(input) {
   };
 
   if (!gift.name) throw new InputError('Без названия подарок не сохранить');
-  if (!gift.art) throw new InputError('Нужна анимация подарка');
+  if (!gift.art) throw new InputError('Нужен файл подарка — .tgs или .svg');
   if (gift.left > gift.total) gift.left = gift.total;
 
   return gift;
@@ -136,8 +138,6 @@ function readSeed() {
     gifts: seed.gifts || [],
     banners: seed.banners || [],
     tasks: seed.tasks || [],
-    market: seed.market || {},
-    defaults: seed.defaults || { stars: 0, coupons: 0, gifts: [] },
     updatedAt: Date.now()
   };
 }
@@ -185,23 +185,15 @@ export function publicContent(content) {
     gifts: content.gifts || [],
     banners: content.banners || [],
     tasks: content.tasks || [],
-    market: content.market || {},
-    defaults: content.defaults || {},
     updatedAt: content.updatedAt || 0
   };
 }
 
 // --- Люди ---
 
-function starterAccount(content) {
-  const defaults = content.defaults || {};
-  return {
-    stars: int(defaults.stars, 0, 1e9),
-    coupons: int(defaults.coupons, 0, 1e9),
-    gifts: cleanGiftList(defaults.gifts),
-    gold: false,
-    verified: false
-  };
+// Новичок начинает с нуля: ни звёзд, ни купонов, ни подарков
+function emptyAccount() {
+  return { stars: 0, coupons: 0, gifts: [] };
 }
 
 function normalAccount(raw) {
@@ -209,15 +201,13 @@ function normalAccount(raw) {
   return {
     stars: int(acct.stars, 0, 1e9),
     coupons: int(acct.coupons, 0, 1e9),
-    gifts: Array.isArray(acct.gifts) ? acct.gifts : [],
-    gold: Boolean(acct.gold),
-    verified: Boolean(acct.verified)
+    gifts: Array.isArray(acct.gifts) ? acct.gifts : []
   };
 }
 
 // Заход в приложение: обновляем профиль и отдаём счёт. Новичку заводим
-// счёт со стартовым набором
-export async function touchUser(tg, content) {
+// пустой счёт
+export async function touchUser(tg) {
   const id = String(tg.id);
   const now = Date.now();
   const [rawProfile, rawAcct] = await pipeline([
@@ -247,7 +237,7 @@ export async function touchUser(tg, content) {
 
   let acct = rawAcct ? normalAccount(rawAcct) : null;
   if (!acct) {
-    acct = starterAccount(content);
+    acct = emptyAccount();
     commands.push(['SET', K.acct(id), JSON.stringify(acct), 'NX']);
   }
 
@@ -306,8 +296,6 @@ export async function listUsers(options) {
   const everyone = await people(ids);
 
   const found = everyone.filter((person) => {
-    if (filter === 'gold' && !person.gold) return false;
-    if (filter === 'verified' && !person.verified) return false;
     if (filter === 'premium' && !person.tgPremium) return false;
     return !query || matches(person, query);
   });
@@ -325,42 +313,11 @@ export async function saveAccount(id, input, content) {
   const acct = {
     stars: int(input.stars, 0, 1e9),
     coupons: int(input.coupons, 0, 1e9),
-    gifts: cleanGiftList(input.gifts, known),
-    gold: Boolean(input.gold),
-    verified: Boolean(input.verified)
+    gifts: cleanGiftList(input.gifts, known)
   };
 
   await command('SET', K.acct(String(id)), JSON.stringify(acct));
   return acct;
-}
-
-// Выдача всем, кто когда-либо заходил: подарок и/или звёзды с купонами
-export async function grantAll(input, content) {
-  const known = (content.gifts || []).map((gift) => gift.id);
-  const gift = input.gift && known.indexOf(input.gift) !== -1 ? input.gift : '';
-  const stars = int(input.stars, 0, 1e9);
-  const coupons = int(input.coupons, 0, 1e9);
-  if (!gift && !stars && !coupons) throw new InputError('Нечего выдавать');
-
-  const ids = (await command('ZRANGE', K.seen, 0, -1)) || [];
-  const accounts = await mgetJson(ids.map(K.acct));
-
-  const pairs = [];
-  ids.forEach((id, index) => {
-    const acct = accounts[index] ? normalAccount(accounts[index]) : starterAccount(content);
-    if (gift) acct.gifts.push(gift);
-    acct.stars += stars;
-    acct.coupons += coupons;
-    pairs.push(K.acct(id), JSON.stringify(acct));
-  });
-
-  // Пишем пачками по пятьсот счетов за запрос: выдача всем не должна
-  // превращаться в тысячу обращений к базе
-  for (let i = 0; i < pairs.length; i += MSET_CHUNK * 2) {
-    await command('MSET', ...pairs.slice(i, i + MSET_CHUNK * 2));
-  }
-
-  return { count: ids.length };
 }
 
 export async function stats(content) {
@@ -387,6 +344,7 @@ export async function stats(content) {
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE = 2.5 * 1024 * 1024;
 const MAX_LOTTIE = 4 * 1024 * 1024;
+const MAX_SVG = 1.5 * 1024 * 1024;
 
 // Анимация приходит .tgs (это gzip поверх json) или голым json. Храним
 // всегда сжатой: так она в десять раз меньше и в базе, и в пути
@@ -418,6 +376,28 @@ export async function saveLottie(base64) {
 
   const id = newId('a');
   await command('SET', K.file(id), JSON.stringify({ type: 'lottie', data: packed.toString('base64') }));
+  return '/api/file?id=' + id;
+}
+
+// Картинка подарка. Чужой svg — это документ, в котором может лежать скрипт,
+// поэтому опасное вырезаем здесь, а показываем файл через <img>: в нём
+// браузер скрипты не запускает в любом случае
+export async function saveSvg(base64) {
+  const bytes = Buffer.from(String(base64 || ''), 'base64');
+  if (!bytes.length) throw new InputError('Файл пустой');
+  if (bytes.length > MAX_SVG) throw new InputError('Картинка больше 1,5 МБ');
+
+  let text = bytes.toString('utf8');
+  if (!/<svg[\s>]/i.test(text)) throw new InputError('Внутри не картинка .svg');
+
+  text = text
+    .replace(/<\s*(script|foreignObject)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/<\s*(script|foreignObject)\b[^>]*\/?>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|xlink:href)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*')/gi, '');
+
+  const id = newId('s');
+  await command('SET', K.file(id), JSON.stringify({ type: 'image/svg+xml', data: Buffer.from(text, 'utf8').toString('base64') }));
   return '/api/file?id=' + id;
 }
 

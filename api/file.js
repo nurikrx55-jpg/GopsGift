@@ -25,15 +25,23 @@ export default {
 
     const bytes = Buffer.from(file.data, 'base64');
     const lottie = file.type === 'lottie';
+    const svg = file.type === 'image/svg+xml';
+
+    const headers = {
+      'Content-Type': lottie ? 'application/json; charset=utf-8' : file.type,
+      'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff'
+    };
+
+    // Открытый напрямую svg — это страница на нашем домене. Запрещаем ей всё,
+    // кроме собственной разметки: внутри картинки код не нужен
+    if (svg) {
+      headers['Content-Security-Policy'] =
+        "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox";
+    }
 
     // Анимацию храним сжатой, а отдаём json: сжимать по пути Vercel умеет
     // сам, а lottie ждёт именно json
-    return new Response(lottie ? zlib.gunzipSync(bytes) : bytes, {
-      headers: {
-        'Content-Type': lottie ? 'application/json; charset=utf-8' : file.type,
-        'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
+    return new Response(lottie ? zlib.gunzipSync(bytes) : bytes, { headers: headers });
   }
 };

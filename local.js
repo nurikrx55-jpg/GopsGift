@@ -128,6 +128,12 @@
     return unpack.then((json) => putFile(new Blob([json], { type: 'application/json' }), 'a'));
   }
 
+  // Картинку подарка кладём как есть: показывает её <img>, а значит скрипт
+  // внутри svg не запустится
+  function putSvg(base64) {
+    return putFile(new Blob([bytesFrom(base64)], { type: 'image/svg+xml' }), 's');
+  }
+
   function putImage(base64, type) {
     return putFile(new Blob([bytesFrom(base64)], { type: type || 'image/webp' }), 'i');
   }
@@ -187,14 +193,12 @@
 
     ready = fetch(SEED, { cache: 'no-cache' })
       .then((response) => response.json())
-      .catch(() => ({ gifts: [], banners: [], tasks: [], market: {}, defaults: {} }))
+      .catch(() => ({ gifts: [], banners: [], tasks: [] }))
       .then((seed) => {
         content = {
           gifts: seed.gifts || [],
           banners: seed.banners || [],
           tasks: seed.tasks || [],
-          market: seed.market || {},
-          defaults: seed.defaults || { stars: 0, coupons: 0, gifts: [] },
           updatedAt: Date.now()
         };
         return content;
@@ -221,26 +225,18 @@
     return read(KEY_USERS, {});
   }
 
-  function starter() {
-    const defaults = content.defaults || {};
-    return {
-      stars: Number(defaults.stars) || 0,
-      coupons: Number(defaults.coupons) || 0,
-      gifts: (defaults.gifts || []).slice(),
-      gold: false,
-      verified: false
-    };
+  // Новичок начинает с нуля — как и на сервере
+  function blank() {
+    return { stars: 0, coupons: 0, gifts: [] };
   }
 
   function account(id) {
     const saved = accounts()[String(id)];
-    if (!saved) return starter();
+    if (!saved) return blank();
     return {
       stars: Number(saved.stars) || 0,
       coupons: Number(saved.coupons) || 0,
-      gifts: Array.isArray(saved.gifts) ? saved.gifts : [],
-      gold: Boolean(saved.gold),
-      verified: Boolean(saved.verified)
+      gifts: Array.isArray(saved.gifts) ? saved.gifts : []
     };
   }
 
@@ -272,7 +268,7 @@
 
     const money = accounts();
     if (!money[id]) {
-      money[id] = starter();
+      money[id] = blank();
       write(KEY_ACCOUNTS, money);
     }
 
@@ -322,7 +318,11 @@
 
     'gift.save': (payload) => {
       const input = payload.gift || {};
-      const start = payload.file ? putLottie(payload.file) : Promise.resolve(input.art);
+      const svg = payload.kind === 'svg';
+      const artType = payload.file ? (svg ? 'svg' : 'lottie') : (input.artType || 'lottie');
+      const start = payload.file
+        ? (svg ? putSvg(payload.file) : putLottie(payload.file))
+        : Promise.resolve(input.art);
 
       return start.then((art) => {
         let stale = null;
@@ -333,6 +333,7 @@
             id: input.id || newId('gift'),
             name: String(input.name || '').trim(),
             art: art,
+            artType: artType,
             price: Number(input.price) || 0,
             badge: String(input.badge || '').trim(),
             kind: input.kind || 'default',
@@ -356,9 +357,6 @@
       return save((state) => {
         gone = (state.gifts || []).find((one) => one.id === payload.id) || null;
         state.gifts = (state.gifts || []).filter((one) => one.id !== payload.id);
-        if (state.defaults && Array.isArray(state.defaults.gifts)) {
-          state.defaults.gifts = state.defaults.gifts.filter((one) => one !== payload.id);
-        }
         return state;
       }).then((state) => dropFile(gone && gone.art).then(() => ({ content: state })));
     },
@@ -422,21 +420,6 @@
       return state;
     }).then((state) => ({ content: state })),
 
-    'market.save': (payload) => save((state) => {
-      state.market = Object.assign({}, state.market, { opensAt: payload.opensAt || '' });
-      return state;
-    }).then((state) => ({ content: state })),
-
-    'defaults.save': (payload) => save((state) => {
-      const known = (state.gifts || []).map((gift) => gift.id);
-      state.defaults = {
-        stars: Math.max(0, Number(payload.stars) || 0),
-        coupons: Math.max(0, Number(payload.coupons) || 0),
-        gifts: (payload.gifts || []).filter((id) => known.indexOf(id) !== -1)
-      };
-      return state;
-    }).then((state) => ({ content: state })),
-
     'users.list': (payload) => {
       const query = String(payload.query || '').trim();
       const filter = payload.filter || 'all';
@@ -445,8 +428,6 @@
 
       let found = everyone();
       if (filter === 'new') found = found.slice().sort((a, b) => (b.firstSeen || 0) - (a.firstSeen || 0));
-      if (filter === 'gold') found = found.filter((one) => one.gold);
-      if (filter === 'verified') found = found.filter((one) => one.verified);
       if (filter === 'premium') found = found.filter((one) => one.tgPremium);
       if (query) found = found.filter((one) => matches(one, query));
 
@@ -464,33 +445,11 @@
       all[id] = {
         stars: Math.max(0, Number(input.stars) || 0),
         coupons: Math.max(0, Number(input.coupons) || 0),
-        gifts: (input.gifts || []).filter((one) => known.indexOf(one) !== -1),
-        gold: Boolean(input.gold),
-        verified: Boolean(input.verified)
+        gifts: (input.gifts || []).filter((one) => known.indexOf(one) !== -1)
       };
       write(KEY_ACCOUNTS, all);
 
       return Promise.resolve({ user: person(id) });
-    },
-
-    'users.grant': (payload) => {
-      const known = (content.gifts || []).map((gift) => gift.id);
-      const gift = known.indexOf(payload.gift) !== -1 ? payload.gift : '';
-      const stars = Math.max(0, Number(payload.stars) || 0);
-      const coupons = Math.max(0, Number(payload.coupons) || 0);
-
-      const all = accounts();
-      const ids = Object.keys(users());
-      ids.forEach((id) => {
-        const money = all[id] || starter();
-        if (gift) money.gifts = (money.gifts || []).concat(gift);
-        money.stars = (Number(money.stars) || 0) + stars;
-        money.coupons = (Number(money.coupons) || 0) + coupons;
-        all[id] = money;
-      });
-      write(KEY_ACCOUNTS, all);
-
-      return Promise.resolve({ count: ids.length });
     }
   };
 

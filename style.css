@@ -426,10 +426,12 @@ body {
 }
 
 .gift__art canvas,
-.gift__art svg {
+.gift__art svg,
+.gift__art img {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 /* Лента в углу.
@@ -629,10 +631,12 @@ body {
 }
 
 .sheet__art canvas,
-.sheet__art svg {
+.sheet__art svg,
+.sheet__art img {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 .sheet__title {
@@ -965,36 +969,6 @@ body {
 .prf__name {
   font-size: 19px;
   line-height: 1.2;
-}
-
-/* Галочка после ника. Размер в em — растёт вместе с ником */
-.prf__verified {
-  flex: none;
-  display: block;
-  width: 1.15em;
-  height: 1.15em;
-  font-size: 19px;
-}
-
-.prf__verified[hidden] {
-  display: none;
-}
-
-.prf__verified canvas,
-.prf__verified svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* Золото вместо белого. color — запасной вариант: если обрезка фона по
-   тексту не поддержана, ник останется золотым, а не исчезнет */
-.prf__name[data-premium="true"] {
-  color: #e9b949;
-  background-image: linear-gradient(100deg, #fde08a 0%, #e4ad3c 42%, #fff3c4 58%, #d2912a 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .prf__meta {
@@ -1379,10 +1353,12 @@ body {
 }
 
 .own-card__art canvas,
-.own-card__art svg {
+.own-card__art svg,
+.own-card__art img {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 .own-card__acts {
@@ -1507,163 +1483,10 @@ body {
   background: rgba(255, 255, 255, 0.12);
 }
 
-/* Маркет — пока заглушка */
+/* Маркет — пока пустой раздел */
 
 .stage[data-section="market"] .pane[data-pane="market"] {
   display: block;
-}
-
-.soon {
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  padding: 44px 36px 0;
-  text-align: center;
-  color: var(--hint);
-}
-
-/* Подарок висит в мягком свете: размытое пятно под ним держит композицию,
-   иначе анимация болталась бы в пустоте */
-.soon__art {
-  position: relative;
-  width: 168px;
-  aspect-ratio: 1;
-  margin-bottom: 4px;
-}
-
-.soon__art::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 56%;
-  width: 150%;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 214, 102, 0.18) 0%, rgba(255, 214, 102, 0) 62%);
-  filter: blur(14px);
-  pointer-events: none;
-}
-
-.soon__art canvas,
-.soon__art svg {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.soon b {
-  font-size: 21px;
-  font-weight: inherit;
-  color: #f5f5f7;
-}
-
-.soon p {
-  font-size: 15px;
-  line-height: 1.4;
-  max-width: 260px;
-}
-
-/* Отсчёт до открытия. Стекло приходит из .glass, здесь — только раскладка */
-.timer {
-  display: flex;
-  align-items: flex-start;
-  gap: 2px;
-  margin-top: 22px;
-  padding: 14px 10px 12px;
-  border-radius: 26px;
-}
-
-.timer__cell {
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-  min-width: 62px;
-}
-
-.timer__value {
-  display: flex;
-  /* Цифры одной ширины: иначе 11 и 00 разъезжались бы по сторонам */
-  font-variant-numeric: tabular-nums;
-  font-size: 30px;
-  line-height: 1;
-  color: #f5f5f7;
-}
-
-.timer__label {
-  font-size: 12px;
-  line-height: 1;
-  color: var(--hint);
-}
-
-/* Точки между ячейками — ровно по центру цифр, а не подписей */
-.timer__sep {
-  width: 6px;
-  height: 30px;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 6px;
-}
-
-.timer__sep::before,
-.timer__sep::after {
-  content: '';
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-/* Разряд — окошко, в котором цифра едет снизу вверх */
-.digit {
-  position: relative;
-  display: block;
-  width: 0.62em;
-  height: 1em;
-  /* Уехавшая цифра не должна выглядывать над окошком */
-  overflow: hidden;
-  /* Перерисовка не выходит за разряд: соседние цифры и стекло капсулы
-     при каждом тике не трогаются */
-  contain: layout paint;
-}
-
-/* Оба слоя лежат друг на друге и живут всё время — меняются только роли.
-   Двигаем transform и opacity: их браузер крутит на видеокарте, поэтому
-   каждая секунда не стоит перерисовки стеклянной капсулы под ними. */
-.digit__face {
-  position: absolute;
-  inset: 0;
-  display: block;
-  text-align: center;
-  will-change: transform;
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s linear;
-}
-
-.digit__face.is-now {
-  transform: translateY(0);
-  opacity: 1;
-}
-
-/* Ушедшая цифра встаёт над окошком, пришедшая ждёт под ним */
-.digit__face.is-out {
-  transform: translateY(-100%);
-  opacity: 0;
-}
-
-/* Слой на подходе переставляем вниз мгновенно, иначе он бы ехал туда на
-   глазах — и только потом поднимался обратно */
-.digit__face.is-next {
-  transform: translateY(100%);
-  opacity: 0;
-  transition: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .digit__face {
-    transition-duration: 0.01ms;
-  }
 }
 
 /* Задания */

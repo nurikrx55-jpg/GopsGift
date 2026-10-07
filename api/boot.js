@@ -22,7 +22,7 @@ export default {
     try {
       const content = await readContent();
       const tg = verify(input.initData, MAX_AGE);
-      const me = tg ? await touchUser(tg, content) : null;
+      const me = tg ? await touchUser(tg) : null;
 
       if (me) me.admin = isAdmin(me.id);
 

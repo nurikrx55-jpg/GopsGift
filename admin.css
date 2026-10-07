@@ -26,6 +26,9 @@
   min-height: 100%;
   overflow: auto;
   overscroll-behavior-y: none;
+  /* Админку не приближают: двумя пальцами и двойным касанием страница
+     только сбивалась бы, а разметка и так рассчитана на телефон */
+  touch-action: manipulation;
   background:
     radial-gradient(120% 60% at 50% -10%, rgba(62, 136, 247, 0.09), transparent 60%),
     var(--bg);
@@ -893,13 +896,12 @@
   color: var(--text);
 }
 
-/* Переключатель как в iOS */
+/* Строка со значком и подписью — ею выложены пункты «Подключения» */
 .ad-switch {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  cursor: pointer;
 }
 
 .ad-switch + .ad-switch {
@@ -915,47 +917,6 @@
 .ad-switch__text small {
   font-size: 12px;
   color: var(--hint);
-}
-
-.ad-switch input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.ad-switch__track {
-  flex: none;
-  position: relative;
-  width: 50px;
-  height: 30px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  transition: background-color 0.22s ease;
-}
-
-.ad-switch__track::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  transition: transform 0.25s var(--ease);
-}
-
-.ad-switch input:checked + .ad-switch__track {
-  background: var(--ok);
-}
-
-.ad-switch input:checked + .ad-switch__track::after {
-  transform: translateX(20px);
-}
-
-.ad-switch input:focus-visible + .ad-switch__track {
-  box-shadow: 0 0 0 3px rgba(62, 136, 247, 0.4);
 }
 
 /* Сегменты фильтра в людях */
@@ -1232,8 +1193,13 @@
   gap: 6px;
 }
 
-/* Выбор картинки баннера: сама картинка и есть поле */
-.ad-shot {
+/* Кадрирование баннера: рамка показывает ровно то, что попадёт в карусель */
+.ad-crop {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-crop__stage {
   position: relative;
   display: grid;
   place-items: center;
@@ -1243,29 +1209,60 @@
   background: center / cover no-repeat;
   color: var(--hint);
   font-size: 14px;
-  cursor: pointer;
   overflow: hidden;
 }
 
-.ad-shot[data-filled="true"] {
+.ad-crop__stage[data-filled="true"] {
   border-style: solid;
   border-color: transparent;
 }
 
-.ad-shot__hint {
+/* Пока в рамке лежит своя картинка, жест принадлежит ей, а не прокрутке
+   листа: иначе сдвинуть кадр на телефоне было бы нельзя */
+.ad-crop__stage[data-dragging] {
+  touch-action: none;
+  cursor: grab;
+}
+
+.ad-crop__stage[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.ad-crop__stage[data-over="true"] {
+  border-style: dashed;
+  border-color: rgba(62, 136, 247, 0.75);
+}
+
+.ad-crop__img {
+  position: absolute;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Кнопка выбора: на пустой рамке — по центру, на заполненной — ярлыком в углу */
+.ad-crop__pick {
+  position: relative;
+  z-index: 1;
   display: grid;
   justify-items: center;
   gap: 6px;
   padding: 10px 16px;
+  border: 0;
   border-radius: 14px;
+  background: none;
+  color: inherit;
+  font: inherit;
   text-align: center;
+  cursor: pointer;
 }
 
-.ad-shot[data-filled="true"] .ad-shot__hint {
+.ad-crop__stage[data-filled="true"] .ad-crop__pick {
   position: absolute;
   right: 10px;
   bottom: 10px;
   display: flex;
+  align-items: center;
   gap: 6px;
   padding: 8px 12px;
   border-radius: 999px;
@@ -1276,16 +1273,64 @@
   font-size: 13px;
 }
 
-.ad-shot svg {
+.ad-crop__pick svg {
   width: 22px;
   height: 22px;
   color: var(--accent);
 }
 
-.ad-shot[data-filled="true"] svg {
+.ad-crop__stage[data-filled="true"] .ad-crop__pick svg {
   width: 16px;
   height: 16px;
   color: var(--text);
+}
+
+.ad-crop__tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ad-crop__zoom {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.ad-crop__zoom::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--s3);
+}
+
+.ad-crop__zoom::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--s3);
+}
+
+.ad-crop__zoom::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.ad-crop__zoom::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
 }
 
 /* --- Люди --- */
@@ -1422,32 +1467,6 @@
   stroke: none;
 }
 
-/* Золотой ник — тот же градиент, что в профиле приложения */
-.is-gold {
-  color: #e9b949;
-  background-image: linear-gradient(100deg, #fde08a 0%, #e4ad3c 42%, #fff3c4 58%, #d2912a 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.ad-tick {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #3e88f7;
-  color: #fff;
-}
-
-.ad-tick svg {
-  width: 11px;
-  height: 11px;
-  stroke-width: 3;
-}
-
 .ad-badge {
   flex: none;
   padding: 2px 7px;
@@ -1545,10 +1564,12 @@
   overflow: hidden;
 }
 
-.ad-thumb canvas {
+.ad-thumb canvas,
+.ad-thumb img {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 .ad-own__name {

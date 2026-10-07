@@ -122,46 +122,13 @@
       <div class="tasks" id="tasks"></div>
     </section>
 
-    <section class="pane" data-pane="market">
-      <div class="soon">
-        <div class="soon__art" id="market-art" role="img" aria-label="Маркет готовится"></div>
-
-        <b>Маркет в работе</b>
-        <p>Скоро здесь можно будет покупать и продавать подарки друг у друга</p>
-
-        <!-- Отсчёт до открытия. Цифры подставляет app.js -->
-        <div class="timer glass" id="market-timer" role="timer" aria-live="off">
-          <div class="timer__cell">
-            <span class="timer__value" data-unit="days"></span>
-            <span class="timer__label" data-label="days">дней</span>
-          </div>
-          <span class="timer__sep" aria-hidden="true"></span>
-          <div class="timer__cell">
-            <span class="timer__value" data-unit="hours"></span>
-            <span class="timer__label" data-label="hours">часов</span>
-          </div>
-          <span class="timer__sep" aria-hidden="true"></span>
-          <div class="timer__cell">
-            <span class="timer__value" data-unit="minutes"></span>
-            <span class="timer__label" data-label="minutes">минут</span>
-          </div>
-          <span class="timer__sep" aria-hidden="true"></span>
-          <div class="timer__cell">
-            <span class="timer__value" data-unit="seconds"></span>
-            <span class="timer__label" data-label="seconds">секунд</span>
-          </div>
-        </div>
-      </div>
-    </section>
+    <section class="pane" data-pane="market"></section>
 
     <section class="pane" data-pane="profile">
       <div class="prf__card">
         <div class="prf__avatar" id="prf-avatar"></div>
-        <!-- Галочка — отдельный узел: градиент ника обрезается по его тексту,
-             и вложенная анимация в нём бы потерялась -->
         <p class="prf__title">
           <span class="prf__name" id="prf-name"></span>
-          <span class="prf__verified" id="prf-verified" role="img" aria-label="Проверенный аккаунт" hidden></span>
         </p>
 
         <p class="prf__meta">

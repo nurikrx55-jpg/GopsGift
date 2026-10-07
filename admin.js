@@ -32,6 +32,8 @@
   ];
 
   const BANNER_WIDTH = 1392;
+  const BANNER_HEIGHT = 518;
+  const CROP_MAX_ZOOM = 3;
   const USERS_PAGE = 40;
 
   const view = document.getElementById('view');
@@ -269,6 +271,28 @@
     });
   }
 
+  // Подарок рисует либо анимация lottie, либо картинка .svg
+  function isStill(gift) {
+    return Boolean(gift) && gift.artType === 'svg';
+  }
+
+  // Картинку показываем обычным <img> — ровно как витрина
+  function showStill(box, path) {
+    release(box);
+    box.textContent = '';
+    const img = el('img');
+    img.src = path;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.draggable = false;
+    box.appendChild(img);
+  }
+
+  function showArt(box, gift, loop) {
+    if (isStill(gift)) showStill(box, gift.art);
+    else if (gift.art) animate(box, gift.art, loop);
+  }
+
   function release(root) {
     players.forEach((player, box) => {
       if (root && !root.contains(box)) return;
@@ -335,36 +359,26 @@
     return { data: data, base64: toBase64(buffer) };
   }
 
-  // Баннер ужимаем в браузере до ширины слайда: оригинал с камеры весит
-  // мегабайты, а на экране он всё равно шириной в телефон
-  async function shrinkImage(file) {
+  // .svg уходит на сервер как есть; для превью хватает ссылки на сам файл
+  async function readSvg(file) {
+    const buffer = await file.arrayBuffer();
+    if (!/<svg[\s>]/i.test(new TextDecoder().decode(buffer))) throw new Error('not svg');
+    return { base64: toBase64(buffer), url: URL.createObjectURL(file) };
+  }
+
+  // Картинку только открываем — остальное решает рамка кадрирования
+  function readPicture(file) {
     const url = URL.createObjectURL(file);
-    try {
-      const img = await new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = reject;
-        image.src = url;
-      });
 
-      const scale = Math.min(1, BANNER_WIDTH / img.naturalWidth);
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.naturalWidth * scale);
-      canvas.height = Math.round(img.naturalHeight * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      const toBlob = (type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-      let blob = await toBlob('image/webp', 0.86);
-      if (!blob || blob.type !== 'image/webp') blob = await toBlob('image/jpeg', 0.88);
-
-      return {
-        base64: toBase64(await blob.arrayBuffer()),
-        type: blob.type,
-        preview: canvas.toDataURL(blob.type, 0.8)
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ img: img, url: url });
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('image'));
       };
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+      img.src = url;
+    });
   }
 
   function dropTarget(node, onFile) {
@@ -465,22 +479,6 @@
     return wrap;
   }
 
-  function toggle(label, hint, checked) {
-    const wrap = el('label', 'ad-switch');
-    const text = el('span', 'ad-switch__text');
-    text.appendChild(el('span', null, label));
-    if (hint) text.appendChild(el('small', null, hint));
-
-    const box = el('input');
-    box.type = 'checkbox';
-    box.checked = Boolean(checked);
-    box.addEventListener('change', () => haptic('pick'));
-
-    wrap.append(text, box, el('span', 'ad-switch__track'));
-    wrap.input = box;
-    return wrap;
-  }
-
   function empty(iconName, title, text, action) {
     const box = el('div', 'ad-empty');
     const badge = el('span', 'ad-empty__icon');
@@ -498,7 +496,7 @@
 
     const art = el('div', 'gift__art');
     card.appendChild(art);
-    if (gift.art) animate(art, gift.art, loop);
+    showArt(art, gift, loop);
 
     const badge = el('span', 'gift__badge');
     badge.innerHTML = '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true"><use href="#ribbon-shape"></use></svg>';
@@ -779,7 +777,7 @@
     setTop('Подарки', ordering ? 'Стрелками двигайте подарки на витрине' : num(gifts.length) + ' ' + plural(gifts.length, 'подарок', 'подарка', 'подарков') + ' на витрине', gifts.length > 1 ? [orderBtn, add] : [add]);
 
     if (!gifts.length) {
-      view.appendChild(empty('gift', 'Витрина пустая', 'Добавьте первый подарок — хватит файла .tgs и цены', button('Добавить подарок', { icon: 'plus', onClick: () => giftSheet(null) })));
+      view.appendChild(empty('gift', 'Витрина пустая', 'Добавьте первый подарок — хватит файла .tgs или .svg и цены', button('Добавить подарок', { icon: 'plus', onClick: () => giftSheet(null) })));
       return;
     }
 
@@ -829,35 +827,50 @@
   }
 
   function giftSheet(gift) {
-    const draft = Object.assign({ name: '', price: 299, badge: '', kind: 'blood', total: 1000, left: 1000, status: 'Non-Unique' }, gift || {});
+    const draft = Object.assign({ name: '', price: 299, badge: '', kind: 'blood', total: 1000, left: 1000, status: 'Non-Unique', artType: 'lottie' }, gift || {});
     let upload = null;
+    let previewUrl = '';
 
     openSheet(gift ? gift.name : 'Новый подарок', (body, foot) => {
-      // Превью: карточка ровно как на витрине и поле для анимации рядом
+      // Превью: карточка ровно как на витрине и поле для файла рядом
       const preview = el('div', 'ad-preview');
       const card = giftCard(draft, true);
       preview.appendChild(card);
 
       const drop = el('div', 'ad-drop');
-      drop.append(icon('upload'), el('b', null, gift ? 'Заменить анимацию' : 'Анимация подарка'), el('span', null, 'файл .tgs — нажмите или перетащите'));
+      drop.append(icon('upload'), el('b', null, gift ? 'Заменить картинку' : 'Картинка подарка'), el('span', null, '.tgs или .svg — нажмите или перетащите'));
       preview.appendChild(drop);
       body.appendChild(preview);
 
+      // Анимация и картинка живут рядом: по файлу и решаем, что пришло
       const take = async (file) => {
+        const svg = /\.svg$/i.test(file.name) || file.type === 'image/svg+xml';
+
         try {
-          const parsed = await readTgs(file);
-          upload = parsed.base64;
-          release(card);
-          card.art.textContent = '';
-          animate(card.art, parsed.data, true);
+          if (svg) {
+            const read = await readSvg(file);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            previewUrl = read.url;
+            upload = { base64: read.base64, kind: 'svg' };
+            draft.artType = 'svg';
+            showStill(card.art, read.url);
+          } else {
+            const parsed = await readTgs(file);
+            upload = { base64: parsed.base64, kind: 'lottie' };
+            draft.artType = 'lottie';
+            release(card);
+            card.art.textContent = '';
+            animate(card.art, parsed.data, true);
+          }
+
           drop.querySelector('b').textContent = file.name;
           drop.querySelector('span').textContent = 'готово — сохраните подарок';
           haptic('ok');
         } catch (_) {
-          toast('Это не .tgs и не анимация', 'bad');
+          toast(svg ? 'Это не картинка .svg' : 'Это не .tgs и не анимация', 'bad');
         }
       };
-      drop.addEventListener('click', () => pickFile('.tgs,.json,application/json').then((file) => file && take(file)));
+      drop.addEventListener('click', () => pickFile('.tgs,.json,.svg,application/json,image/svg+xml').then((file) => file && take(file)));
       dropTarget(drop, take);
 
       const name = input(draft.name, { placeholder: 'Например, Grooby', max: 40 });
@@ -935,7 +948,7 @@
             return;
           }
           if (!gift && !upload) {
-            toast('Добавьте анимацию .tgs', 'bad');
+            toast('Добавьте файл .tgs или .svg', 'bad');
             return;
           }
 
@@ -943,6 +956,7 @@
             gift: {
               id: gift ? gift.id : undefined,
               art: gift ? gift.art : undefined,
+              artType: draft.artType,
               name: name.value.trim(),
               price: Number(price.value) || 0,
               badge: badge.value.trim(),
@@ -951,7 +965,8 @@
               left: Number(left.value) || 0,
               status: status.value.trim()
             },
-            file: upload
+            file: upload ? upload.base64 : undefined,
+            kind: upload ? upload.kind : undefined
           };
 
           await run(event.currentTarget, 'gift.save', payload, () => {
@@ -961,7 +976,13 @@
           });
         }
       }));
-    }, { wide: true });
+    }, {
+      wide: true,
+      onClose: () => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = '';
+      }
+    });
   }
 
   // --- Баннеры ---
@@ -1026,37 +1047,245 @@
     await run(null, 'banner.order', { ids: ids });
   }
 
+  // Кадрирование баннера.
+  //
+  // На главной слайд всегда 1392 × 518, а картинку приносят любую. Рамка
+  // показывает ровно тот кусок, который попадёт в карусель: картинку внутри
+  // двигают пальцем, приближают ползунком, и этот же кусок уходит на сервер.
+  function bannerCrop() {
+    let img = null;
+    let objectUrl = '';
+    let zoomValue = 1;
+    // Середина кадра в долях картинки — от размера рамки не зависит и
+    // переживает поворот телефона
+    let cx = 0.5;
+    let cy = 0.5;
+
+    const wrap = el('div', 'ad-crop');
+
+    const stage = el('div', 'ad-crop__stage');
+    const pic = el('img', 'ad-crop__img');
+    pic.alt = '';
+    pic.draggable = false;
+    pic.hidden = true;
+
+    const pickBtn = el('button', 'ad-crop__pick');
+    pickBtn.type = 'button';
+
+    stage.append(pic, pickBtn);
+    wrap.appendChild(stage);
+
+    const tools = el('div', 'ad-crop__tools');
+    const zoom = el('input', 'ad-crop__zoom');
+    zoom.type = 'range';
+    zoom.min = '1';
+    zoom.max = String(CROP_MAX_ZOOM);
+    zoom.step = '0.01';
+    zoom.value = '1';
+    zoom.setAttribute('aria-label', 'Приближение');
+    tools.append(zoom, button('По центру', { kind: 'ghost', icon: 'refresh', onClick: center }));
+    tools.hidden = true;
+    wrap.appendChild(tools);
+
+    // Подсказка нужна только над своей картинкой: сохранённый баннер уже
+    // обрезан, двигать в нём нечего
+    const note = el('p', 'ad-note', 'Видно ровно то, что попадёт в карусель: картинку можно двигать и приближать.');
+    note.hidden = true;
+    wrap.appendChild(note);
+
+    function paintPick(filled) {
+      pickBtn.textContent = '';
+      pickBtn.append(icon('upload'), el('span', null, filled ? 'Заменить' : 'Выберите картинку · 1392 × 518'));
+    }
+
+    // Размеры картинки в рамке: «накрыть целиком» плюс приближение
+    function size() {
+      const w = stage.clientWidth;
+      const h = stage.clientHeight;
+      if (!img || !w || !h) return null;
+
+      const base = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const k = base * zoomValue;
+      return { w: w, h: h, rw: img.naturalWidth * k, rh: img.naturalHeight * k };
+    }
+
+    function layout() {
+      const box = size();
+      if (!box) return;
+
+      // Край картинки не отходит от рамки: середина кадра не подходит к краю
+      // ближе, чем на половину рамки
+      const edgeX = box.w / 2 / box.rw;
+      const edgeY = box.h / 2 / box.rh;
+      cx = Math.min(Math.max(cx, edgeX), 1 - edgeX);
+      cy = Math.min(Math.max(cy, edgeY), 1 - edgeY);
+
+      pic.style.width = box.rw + 'px';
+      pic.style.height = box.rh + 'px';
+      pic.style.left = (box.w / 2 - cx * box.rw) + 'px';
+      pic.style.top = (box.h / 2 - cy * box.rh) + 'px';
+    }
+
+    function center() {
+      zoomValue = 1;
+      zoom.value = '1';
+      cx = 0.5;
+      cy = 0.5;
+      layout();
+      haptic('pick');
+    }
+
+    function setZoom(next) {
+      zoomValue = Math.min(CROP_MAX_ZOOM, Math.max(1, next));
+      zoom.value = String(zoomValue);
+      layout();
+    }
+
+    async function take(file) {
+      if (!/^image\//.test(file.type)) {
+        toast('Нужна картинка', 'bad');
+        return;
+      }
+
+      let read;
+      try {
+        read = await readPicture(file);
+      } catch (_) {
+        toast('Картинка не читается', 'bad');
+        return;
+      }
+
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = read.url;
+      img = read.img;
+
+      pic.src = read.url;
+      pic.hidden = false;
+      stage.style.backgroundImage = '';
+      stage.dataset.filled = 'true';
+      // Отметка «кадр свой» — по ней стили отдают рамке жест и курсор
+      stage.dataset.dragging = 'false';
+      tools.hidden = false;
+      note.hidden = false;
+      paintPick(true);
+      center();
+      haptic('ok');
+    }
+
+    // Сохранённый баннер уже обрезан — его просто показываем
+    function show(url) {
+      stage.style.backgroundImage = url ? 'url("' + url + '")' : '';
+      stage.dataset.filled = String(Boolean(url));
+      paintPick(Boolean(url));
+    }
+
+    pickBtn.addEventListener('click', () => pickFile('image/*').then((file) => file && take(file)));
+    dropTarget(stage, take);
+    zoom.addEventListener('input', () => setZoom(Number(zoom.value) || 1));
+
+    stage.addEventListener('wheel', (event) => {
+      if (!img) return;
+      event.preventDefault();
+      setZoom(zoomValue - event.deltaY * 0.0015);
+    }, { passive: false });
+
+    let pointerId = null;
+    let lastX = 0;
+    let lastY = 0;
+
+    stage.addEventListener('pointerdown', (event) => {
+      if (!img || pointerId !== null || event.target.closest('.ad-crop__pick')) return;
+
+      pointerId = event.pointerId;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      stage.dataset.dragging = 'true';
+
+      try {
+        stage.setPointerCapture(pointerId);
+      } catch (_) {}
+    });
+
+    stage.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== pointerId) return;
+
+      const box = size();
+      if (!box) return;
+
+      cx -= (event.clientX - lastX) / box.rw;
+      cy -= (event.clientY - lastY) / box.rh;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      layout();
+    });
+
+    const drop = (event) => {
+      if (event.pointerId !== pointerId) return;
+
+      try {
+        if (stage.hasPointerCapture(pointerId)) stage.releasePointerCapture(pointerId);
+      } catch (_) {}
+
+      pointerId = null;
+      stage.dataset.dragging = 'false';
+    };
+
+    stage.addEventListener('pointerup', drop);
+    stage.addEventListener('pointercancel', drop);
+
+    // Рамка тянется по ширине листа: при повороте телефона пересчитываем
+    const watch = typeof ResizeObserver === 'function' ? new ResizeObserver(layout) : null;
+    if (watch) watch.observe(stage);
+
+    // Из рамки вырезаем тот самый кусок — уже в размере слайда
+    async function read() {
+      const box = size();
+      if (!box) return null;
+
+      const partX = Math.min(1, box.w / box.rw);
+      const partY = Math.min(1, box.h / box.rh);
+      const sw = partX * img.naturalWidth;
+      const sh = partY * img.naturalHeight;
+      const sx = Math.min(Math.max((cx - partX / 2) * img.naturalWidth, 0), img.naturalWidth - sw);
+      const sy = Math.min(Math.max((cy - partY / 2) * img.naturalHeight, 0), img.naturalHeight - sh);
+
+      // Мелкую картинку не растягиваем: больше исходника резкости не будет
+      const width = Math.max(1, Math.min(BANNER_WIDTH, Math.round(sw)));
+      const height = Math.max(1, Math.round((width * BANNER_HEIGHT) / BANNER_WIDTH));
+
+      const canvas = el('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, width, height);
+
+      const toBlob = (type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+      let blob = await toBlob('image/webp', 0.86);
+      if (!blob || blob.type !== 'image/webp') blob = await toBlob('image/jpeg', 0.88);
+
+      return { base64: toBase64(await blob.arrayBuffer()), type: blob.type };
+    }
+
+    paintPick(false);
+
+    return {
+      node: wrap,
+      show: show,
+      read: read,
+      release: () => {
+        if (watch) watch.disconnect();
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = '';
+        img = null;
+      }
+    };
+  }
+
   function bannerSheet(banner) {
-    let upload = null;
+    const crop = bannerCrop();
 
     openSheet(banner ? 'Баннер' : 'Новый баннер', (body, foot) => {
-      const shot = el('div', 'ad-shot');
-      const hint = el('span', 'ad-shot__hint');
-      const paint = (url) => {
-        shot.style.backgroundImage = url ? 'url("' + url + '")' : '';
-        shot.dataset.filled = String(Boolean(url));
-        hint.textContent = '';
-        hint.append(icon('upload'), el('span', null, url ? 'Заменить' : 'Выберите картинку · 1392 × 518'));
-      };
-      shot.appendChild(hint);
-      paint(banner ? banner.image : '');
-      body.appendChild(shot);
-
-      const take = async (file) => {
-        if (!/^image\//.test(file.type)) {
-          toast('Нужна картинка', 'bad');
-          return;
-        }
-        try {
-          upload = await shrinkImage(file);
-          paint(upload.preview);
-          haptic('ok');
-        } catch (_) {
-          toast('Картинка не читается', 'bad');
-        }
-      };
-      shot.addEventListener('click', () => pickFile('image/*').then((file) => file && take(file)));
-      dropTarget(shot, take);
+      crop.show(banner ? banner.image : '');
+      body.appendChild(crop.node);
 
       const label = input(banner ? banner.label : '', { placeholder: 'Например, Summer Collection', max: 60 });
       const href = input(banner ? banner.href : '', { placeholder: 'https://t.me/…', max: 300 });
@@ -1087,6 +1316,17 @@
       foot.appendChild(button(banner ? 'Сохранить' : 'Добавить', {
         icon: 'check',
         onClick: async (event) => {
+          busy(event.currentTarget, true);
+          let upload = null;
+          try {
+            upload = await crop.read();
+          } catch (_) {
+            busy(event.currentTarget, false);
+            toast('Картинка не обрезалась', 'bad');
+            return;
+          }
+          busy(event.currentTarget, false);
+
           if (!banner && !upload) {
             toast('Выберите картинку', 'bad');
             return;
@@ -1115,7 +1355,7 @@
           });
         }
       }));
-    });
+    }, { onClose: crop.release });
   }
 
   // --- Люди ---
@@ -1146,13 +1386,7 @@
 
   function nameLine(person, className) {
     const line = el('span', className);
-    const text = el('span', person.gold ? 'is-gold' : '', nameOf(person));
-    line.appendChild(text);
-    if (person.verified) {
-      const tick = el('span', 'ad-tick');
-      tick.appendChild(icon('check'));
-      line.appendChild(tick);
-    }
+    line.appendChild(el('span', null, nameOf(person)));
     if (person.tgPremium) line.appendChild(el('span', 'ad-badge', 'Premium'));
     return line;
   }
@@ -1192,7 +1426,7 @@
 
     const seg = el('div', 'ad-seg');
     [
-      ['all', 'Все'], ['new', 'Новые'], ['gold', 'Золотой ник'], ['verified', 'С галочкой'], ['premium', 'Telegram Premium']
+      ['all', 'Все'], ['new', 'Новые'], ['premium', 'Telegram Premium']
     ].forEach(([id, label]) => {
       const chip = el('button', 'ad-chip', label);
       chip.type = 'button';
@@ -1353,16 +1587,6 @@
       money.appendChild(grid);
       body.appendChild(money);
 
-      // Оформление
-      const look = el('section', 'ad-card');
-      look.appendChild(el('h3', null, 'Оформление'));
-      const gold = toggle('Золотой ник', 'Имя в профиле переливается золотом', person.gold);
-      const verified = toggle('Галочка', 'Синяя галочка после имени', person.verified);
-      const toggles = el('div');
-      toggles.append(gold, verified);
-      look.appendChild(toggles);
-      body.appendChild(look);
-
       // Подарки
       const owned = el('section', 'ad-card');
       const ownedHead = el('div', 'ad-card__head');
@@ -1399,7 +1623,7 @@
           const gift = byId.get(giftId);
           const row = el('div', 'ad-own');
           const thumb = el('span', 'ad-thumb');
-          if (gift && gift.art) animate(thumb, gift.art);
+          if (gift) showArt(thumb, gift);
 
           const name = el('span', 'ad-own__name');
           name.append(el('b', null, gift ? gift.name : giftId), el('span', null, gift ? num(gift.price) + ' ★' : 'снят с витрины'));
@@ -1427,7 +1651,7 @@
         const item = el('button', 'ad-pick__item');
         item.type = 'button';
         const thumb = el('span', 'ad-thumb');
-        animate(thumb, gift.art);
+        showArt(thumb, gift);
         item.append(thumb, el('span', null, gift.name));
         item.addEventListener('click', () => {
           gifts.push(gift.id);
@@ -1451,8 +1675,6 @@
             account: {
               stars: stars.read(),
               coupons: coupons.read(),
-              gold: gold.input.checked,
-              verified: verified.input.checked,
               gifts: gifts
             }
           }, (data) => {
@@ -1611,129 +1833,10 @@
 
   // --- Настройки ---
 
-  function countdown(ts) {
-    const left = ts - Date.now();
-    if (!ts) return 'Дата не задана — отсчёт стоит на нуле';
-    if (left <= 0) return 'Время уже прошло — отсчёт на нуле';
-    const days = Math.floor(left / 86400000);
-    const hours = Math.floor(left / 3600000) % 24;
-    const minutes = Math.floor(left / 60000) % 60;
-    return 'Откроется через ' + days + ' д ' + hours + ' ч ' + minutes + ' мин';
-  }
-
-  function localValue(iso) {
-    const ts = Date.parse(iso);
-    if (!Number.isFinite(ts)) return '';
-    return new Date(ts - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  }
-
   function renderSettings() {
-    setTop('Настройки', 'Маркет, стартовый набор и массовая выдача');
+    setTop('Настройки', 'Как админка связана с сервером');
 
     const cols = el('div', 'ad-cols');
-
-    // Маркет
-    const market = el('section', 'ad-card');
-    const marketHead = el('div');
-    marketHead.append(el('h3', null, 'Открытие маркета'), el('p', 'ad-note', 'До этого момента на вкладке «Маркет» идёт отсчёт'));
-    market.appendChild(marketHead);
-
-    const when = input(localValue((content.market || {}).opensAt), { type: 'datetime-local' });
-    const preview = el('p', 'ad-note');
-    const paint = () => { preview.textContent = countdown(when.value ? new Date(when.value).getTime() : 0); };
-    when.addEventListener('input', paint);
-    paint();
-    market.append(field('Дата и время', when), preview);
-    market.appendChild(button('Сохранить', {
-      icon: 'check',
-      onClick: (event) => run(event.currentTarget, 'market.save', {
-        opensAt: when.value ? new Date(when.value).toISOString() : ''
-      }, () => toast('Дата открытия сохранена'))
-    }));
-    cols.appendChild(market);
-
-    // Стартовый набор
-    const starter = el('section', 'ad-card');
-    const starterHead = el('div');
-    starterHead.append(el('h3', null, 'Стартовый набор'), el('p', 'ad-note', 'Что получает человек, когда впервые открывает приложение'));
-    starter.appendChild(starterHead);
-
-    const defaults = content.defaults || {};
-    const starterStars = stepper(defaults.stars || 0, [10, 100, 500]);
-    const starterCoupons = stepper(defaults.coupons || 0, [1, 5, 10]);
-    const chosen = new Set(defaults.gifts || []);
-
-    const starterGrid = el('div', 'ad-form');
-    starterGrid.append(field('Звёзды', starterStars, true), field('Купоны', starterCoupons, true));
-    starter.appendChild(starterGrid);
-
-    const giftChips = el('div', 'ad-quick');
-    (content.gifts || []).forEach((gift) => {
-      const chip = el('button', 'ad-chip');
-      chip.type = 'button';
-      chip.append(icon('gift'), document.createTextNode(gift.name));
-      chip.setAttribute('aria-pressed', String(chosen.has(gift.id)));
-      chip.addEventListener('click', () => {
-        if (chosen.has(gift.id)) chosen.delete(gift.id);
-        else chosen.add(gift.id);
-        chip.setAttribute('aria-pressed', String(chosen.has(gift.id)));
-        haptic('pick');
-      });
-      giftChips.appendChild(chip);
-    });
-    starter.appendChild(field('Подарки', giftChips, true));
-    starter.appendChild(button('Сохранить', {
-      icon: 'check',
-      onClick: (event) => run(event.currentTarget, 'defaults.save', {
-        stars: starterStars.read(),
-        coupons: starterCoupons.read(),
-        gifts: Array.from(chosen)
-      }, () => toast('Стартовый набор сохранён'))
-    }));
-    cols.appendChild(starter);
-
-    // Выдать всем
-    const grant = el('section', 'ad-card');
-    const grantHead = el('div');
-    grantHead.append(el('h3', null, 'Выдать всем'), el('p', 'ad-note', 'Получат все, кто хоть раз открывал приложение' + (stats ? ' — ' + num(stats.users) + ' ' + plural(stats.users, 'человек', 'человека', 'человек') : '')));
-    grant.appendChild(grantHead);
-
-    let grantGift = '';
-    const grantChips = el('div', 'ad-quick');
-    (content.gifts || []).forEach((gift) => {
-      const chip = el('button', 'ad-chip');
-      chip.type = 'button';
-      chip.append(icon('gift'), document.createTextNode(gift.name));
-      chip.setAttribute('aria-pressed', 'false');
-      chip.addEventListener('click', () => {
-        grantGift = grantGift === gift.id ? '' : gift.id;
-        grantChips.querySelectorAll('.ad-chip').forEach((one) => one.setAttribute('aria-pressed', String(one === chip && grantGift === gift.id)));
-        haptic('pick');
-      });
-      grantChips.appendChild(chip);
-    });
-
-    const grantStars = stepper(0, [10, 100, 500]);
-    const grantCoupons = stepper(0, [1, 5, 10]);
-    const grantGrid = el('div', 'ad-form');
-    grantGrid.append(field('Подарок (по желанию)', grantChips, true), field('Звёзды', grantStars, true), field('Купоны', grantCoupons, true));
-    grant.appendChild(grantGrid);
-    grant.appendChild(button('Выдать всем', {
-      icon: 'bolt',
-      onClick: async (event) => {
-        const payload = { gift: grantGift, stars: grantStars.read(), coupons: grantCoupons.read() };
-        if (!payload.gift && !payload.stars && !payload.coupons) {
-          toast('Выберите, что выдать', 'bad');
-          return;
-        }
-        if (!(await ask('Выдать всем пользователям? Отменить это будет нельзя.'))) return;
-        await run(event.currentTarget, 'users.grant', payload, (data) => {
-          toast('Выдано: ' + num(data.count) + ' ' + plural(data.count, 'человек', 'человека', 'человек'));
-          go('settings');
-        });
-      }
-    }));
-    cols.appendChild(grant);
 
     // Подключение
     const link = el('section', 'ad-card');
@@ -1777,7 +1880,7 @@
       };
 
       step('db', 'База данных',
-        'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Upstash for Redis</b>, тариф Free → Connect.');
+        'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Neon Postgres</b>, тариф Free → Connect.');
       step('key', 'Подпись Telegram',
         'Vercel → Settings → Environment Variables → <code>BOT_TOKEN</code> = токен бота из @BotFather.');
       step('refresh', 'Передеплой',
@@ -1841,7 +1944,7 @@
       };
 
       step(status.db, 'db', 'База данных',
-        status.db ? 'Подключена.' : 'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Upstash for Redis</b>, тариф Free → Connect.');
+        status.db ? 'Подключена.' : 'Vercel → проект <code>gopsgift</code> → Storage → Create Database → <b>Neon Postgres</b>, тариф Free → Connect.');
       step(Boolean(status.auth), 'key', 'Подпись Telegram',
         status.auth
           ? 'Настроена.'

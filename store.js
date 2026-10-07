@@ -35,7 +35,7 @@
   }
 
   function empty() {
-    return { gifts: [], banners: [], tasks: [], market: {}, defaults: {} };
+    return { gifts: [], banners: [], tasks: [] };
   }
 
   function fromServer() {

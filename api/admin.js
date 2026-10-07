@@ -6,7 +6,7 @@ import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
   readContent, writeContent, cleanGift, cleanBanner, cleanTasks, InputError,
-  listUsers, getUser, saveAccount, grantAll, stats, saveLottie, saveImage, dropFile
+  listUsers, getUser, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile
 } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
@@ -38,14 +38,20 @@ const actions = {
 
   async 'gift.save'(payload) {
     const input = payload.gift || {};
+    const svg = payload.kind === 'svg';
     let art = input.art;
-    if (payload.file) art = await saveLottie(payload.file);
+    let artType = input.artType;
+
+    if (payload.file) {
+      art = svg ? await saveSvg(payload.file) : await saveLottie(payload.file);
+      artType = svg ? 'svg' : 'lottie';
+    }
 
     let stale = null;
     const content = await writeContent((state) => {
       state.gifts = state.gifts || [];
       const at = state.gifts.findIndex((one) => one.id === input.id);
-      const gift = cleanGift(Object.assign({}, input, { art: art }));
+      const gift = cleanGift(Object.assign({}, input, { art: art, artType: artType }));
 
       if (at === -1) {
         // Новый подарок не должен перезаписать чужой с тем же id
@@ -67,9 +73,6 @@ const actions = {
     const content = await writeContent((state) => {
       gone = (state.gifts || []).find((one) => one.id === payload.id) || null;
       state.gifts = (state.gifts || []).filter((one) => one.id !== payload.id);
-      if (state.defaults && Array.isArray(state.defaults.gifts)) {
-        state.defaults.gifts = state.defaults.gifts.filter((one) => one !== payload.id);
-      }
       return state;
     });
 
@@ -132,38 +135,12 @@ const actions = {
     return { content: content };
   },
 
-  // --- Задания, маркет, стартовый набор ---
+  // --- Задания ---
 
   async 'tasks.save'(payload) {
     const tasks = cleanTasks(payload.tasks);
     const content = await writeContent((state) => {
       state.tasks = tasks;
-      return state;
-    });
-    return { content: content };
-  },
-
-  async 'market.save'(payload) {
-    const when = Date.parse(payload.opensAt);
-    if (payload.opensAt && !Number.isFinite(when)) throw new InputError('Дата не читается');
-
-    const content = await writeContent((state) => {
-      state.market = Object.assign({}, state.market, {
-        opensAt: payload.opensAt ? new Date(when).toISOString() : ''
-      });
-      return state;
-    });
-    return { content: content };
-  },
-
-  async 'defaults.save'(payload) {
-    const content = await writeContent((state) => {
-      const known = (state.gifts || []).map((gift) => gift.id);
-      state.defaults = {
-        stars: Math.max(0, Math.round(Number(payload.stars) || 0)),
-        coupons: Math.max(0, Math.round(Number(payload.coupons) || 0)),
-        gifts: (Array.isArray(payload.gifts) ? payload.gifts : []).filter((id) => known.indexOf(id) !== -1)
-      };
       return state;
     });
     return { content: content };
@@ -188,10 +165,6 @@ const actions = {
     const content = await readContent(true);
     await saveAccount(id, payload.account || {}, content);
     return { user: await getUser(id) };
-  },
-
-  async 'users.grant'(payload) {
-    return await grantAll(payload || {}, await readContent(true));
   }
 };
 
