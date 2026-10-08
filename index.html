@@ -174,8 +174,6 @@
               </b>
             </div>
 
-            <i class="stk__line" aria-hidden="true"></i>
-
             <div class="stk__stat">
               <span data-i18n="stake.earned">Заработано</span>
               <b>
@@ -183,6 +181,25 @@
                 <span id="stk-earned">0</span>
               </b>
             </div>
+          </div>
+
+          <!-- Две равные кнопки: главная в разделе одна, и она белая, ниже -->
+          <div class="stk__acts">
+            <button class="stk__act" type="button" id="stk-out">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" fill="none" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span data-i18n="stake.out">Вывод</span>
+            </button>
+
+            <button class="stk__act" type="button" id="stk-again">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 12a8 8 0 1 1-2.3-5.6M20 3.5V9h-5.5" fill="none" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span data-i18n="stake.again">Реинвестировать</span>
+            </button>
           </div>
         </div>
 

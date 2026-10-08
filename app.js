@@ -2088,6 +2088,15 @@
       picksSheet.open();
     });
 
+    // Выводить и вкладывать заново пока нечего — обе кнопки честно об этом
+    // и говорят
+    ['stk-out', 'stk-again'].forEach((id) => {
+      document.getElementById(id).addEventListener('click', () => {
+        haptic('light');
+        toast(t('stake.wait'));
+      });
+    });
+
     document.getElementById('stake-go').addEventListener('click', () => {
       haptic('light');
       toast(t('stake.wait'));

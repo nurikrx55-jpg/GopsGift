@@ -2283,21 +2283,24 @@ body {
   height: 15px;
 }
 
+/* Два счётчика — своими плитками внутри плиты: так они читаются парой, а
+   не продолжением крупной суммы над ними */
 .stk__split {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 18px;
-  padding-top: 15px;
-  border-top: 1px solid var(--line);
 }
 
 .stk__stat {
-  flex: 1 1 0;
   min-width: 0;
   display: grid;
-  gap: 6px;
+  gap: 7px;
+  padding: 11px 13px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: var(--glass-edge);
   font-size: 13px;
   color: var(--hint);
 }
@@ -2306,15 +2309,57 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--color-text);
 }
 
-.stk__line {
-  width: 1px;
-  align-self: stretch;
-  background: var(--line);
+/* Вывод и реинвест — равные между собой и обе тише белой кнопки раздела */
+.stk__acts {
+  position: relative;
+  display: grid;
+  /* Слова разной длины: «Реинвестировать» вдвое длиннее «Вывода», и поровну
+     поделённая строка обрезала бы его многоточием */
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.stk__act {
+  min-width: 0;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: var(--glass-edge);
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+
+.stk__act span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stk__act svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+.stk__act:active {
+  transform: scale(0.97);
+  background-color: rgba(255, 255, 255, 0.13);
 }
 
 .stk__title {
