@@ -40,6 +40,28 @@
     inset 2px 2px 0 -2px rgba(255, 255, 255, 0.09),
     inset -2px -2px 2px -2px rgba(255, 255, 255, 0.09),
     inset -1.8px -3px 0 -2px rgba(255, 255, 255, 0.06);
+
+}
+
+/* Монохромная подложка под подарком: свет сверху, темнее к низу. Тон задаёт
+   сам подарок — app.js достаёт из него господствующий цвет и правит
+   --tint-h/--tint-s. Запасные значения нарочно бесцветные: цвет не достали
+   — карточка останется нейтрально-тёмной, а не покажет чужой оттенок.
+
+   Рецептом живут обе крупные карточки, купленная и та, что на продажу,
+   поэтому он здесь классом, а не переменной: var() внутри переменной
+   разрешилась бы там, где переменная объявлена, и тон у всех был бы один. */
+.tint-face {
+  --tint-h: 240;
+  --tint-s: 7%;
+  /* Светлота вынесена отдельно: на мелкой карточке витрины тот же тон
+     нужен глуше, иначе две сотни карточек спорят друг с другом */
+  --tint-glow: 62%;
+  --tint-top: 36%;
+  --tint-bottom: 20%;
+  background:
+    radial-gradient(120% 85% at 50% -5%, hsla(var(--tint-h), var(--tint-s), var(--tint-glow), 1) 0%, hsla(var(--tint-h), var(--tint-s), var(--tint-glow), 0) 65%),
+    linear-gradient(180deg, hsl(var(--tint-h), var(--tint-s), var(--tint-top)) 0%, hsl(var(--tint-h), var(--tint-s), var(--tint-bottom)) 100%);
 }
 
 *,
@@ -529,9 +551,11 @@ body {
   aspect-ratio: 180 / 200;
   padding: 12px;
   border-radius: var(--gift-radius);
-  background:
-    radial-gradient(86% 62% at 50% 26%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 72%),
-    linear-gradient(161deg, #3b3b42 0%, #232328 44%, #16161a 100%);
+  /* Подложку даёт .tint-face: тон у неё от самого подарка. Здесь только
+     глушим светлоту — рядом стоит соседняя карточка со своим цветом */
+  --tint-glow: 44%;
+  --tint-top: 22%;
+  --tint-bottom: 11%;
   -webkit-backdrop-filter: blur(16px) saturate(1.5);
   backdrop-filter: blur(16px) saturate(1.5);
   box-shadow:
@@ -782,13 +806,32 @@ body {
   position: relative;
   /* Подарок — тоже ручка: тянуть лист удобнее всего прямо за него */
   touch-action: none;
-  aspect-ratio: 16 / 7;
+  aspect-ratio: 16 / 9;
   display: grid;
   place-items: center;
+  /* Вырываемся из боковых отступов прокрутки — подложка идёт от края до края */
+  margin: 0 -16px;
+  border-radius: 24px 24px 0 0;
+  overflow: hidden;
+}
+
+/* Узор поверх подложки — тот же, что на купленном подарке */
+.sheet__stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("gifts/pattern.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 .sheet__art {
-  width: 46%;
+  position: relative;
+  z-index: 1;
+  width: 42%;
   aspect-ratio: 1;
 }
 
@@ -1659,15 +1702,6 @@ body {
   display: grid;
   gap: 14px;
   padding: 20px 16px 16px;
-  /* Подложка монохромная, и её тон задаёт сам подарок: app.js достаёт
-     господствующий цвет из анимации и правит --own-h/--own-s. Запасные
-     значения нарочно бесцветные: если цвет вытащить не удалось, карточка
-     останется нейтрально-тёмной, а не покажет чужой оттенок. */
-  --own-h: 240;
-  --own-s: 7%;
-  background:
-    radial-gradient(120% 85% at 50% -5%, hsla(var(--own-h), var(--own-s), 62%, 1) 0%, hsla(var(--own-h), var(--own-s), 62%, 0) 65%),
-    linear-gradient(180deg, hsl(var(--own-h), var(--own-s), 36%) 0%, hsl(var(--own-h), var(--own-s), 20%) 100%);
   /* Карточка — ручка для перетаскивания листа */
   touch-action: none;
 }
@@ -1812,6 +1846,26 @@ body {
 
 /* Ручка перетаскивания ложится поверх подложки: иначе между верхом листа
    и цветной шапкой оставалась бы тёмная полоса, которой на образце нет */
+/* У карточки товара шапка тоже ложится поверх подложки: та доходит до
+   самого верха листа, и полоска-ручка лежит прямо на ней */
+.sheet--buy .sheet__head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  height: 22px;
+  padding-top: 8px;
+}
+
+.sheet--buy .sheet__grabber {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.sheet--buy .sheet__scroll {
+  padding-top: 0;
+}
+
 .sheet--own .sheet__head {
   position: absolute;
   top: 0;

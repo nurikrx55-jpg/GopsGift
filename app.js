@@ -442,7 +442,16 @@
 
   function buildGift(gift, onPick, withPrice) {
     const card = document.createElement('article');
-    card.className = 'gift';
+    card.className = 'gift tint-face';
+
+    // Подложка карточки — того же цвета, что и сам подарок. Готовый берём
+    // сразу, иначе карточка перекрашивалась бы на глазах
+    applyTint(card, tints.get(gift.art) || null);
+    if (!tints.has(gift.art)) {
+      warmTint(gift, (tint) => {
+        if (tint) applyTint(card, tint);
+      });
+    }
 
     const art = document.createElement('div');
     art.className = 'gift__art';
@@ -741,13 +750,13 @@
 
     if (!tint) {
       // Снимаем цвет прошлого подарка, иначе он остался бы на чужой карточке
-      card.style.removeProperty('--own-h');
-      card.style.removeProperty('--own-s');
+      card.style.removeProperty('--tint-h');
+      card.style.removeProperty('--tint-s');
       return;
     }
 
-    card.style.setProperty('--own-h', String(tint.hue));
-    card.style.setProperty('--own-s', tint.sat + '%');
+    card.style.setProperty('--tint-h', String(tint.hue));
+    card.style.setProperty('--tint-s', tint.sat + '%');
   }
 
   // Картинку просто рисуем в холст в стороне от экрана и считаем по нему
@@ -850,6 +859,16 @@
   }
 
   function fillSheet(gift) {
+    // Подложка берёт цвет у самого подарка. Готовый — сразу, иначе он
+    // досчитается и встанет уже под открытым листом
+    const stage = sheet.querySelector('.sheet__stage');
+    applyTint(stage, tints.get(gift.art) || null);
+    if (!tints.has(gift.art)) {
+      warmTint(gift, (tint) => {
+        if (tint && sheetGift === gift) applyTint(stage, tint);
+      });
+    }
+
     document.getElementById('sheet-title').textContent = gift.name;
     document.getElementById('sheet-note').textContent = gift.note || '';
     document.getElementById('sheet-status').textContent = gift.status || '—';
@@ -1377,6 +1396,9 @@
       return;
     }
 
+    // Цвет досчитываем, пока витрина на экране: открытая карточка возьмёт
+    // готовое значение и не будет перекрашиваться на глазах
+    list.forEach((gift) => warmTint(gift));
     list.forEach((gift) => giftsGrid.appendChild(buildGift(gift, (one) => buySheet.open(one), true)));
   }
 
