@@ -1,0 +1,69 @@
+#!/bin/bash
+# Спрашивает оба значения и ждёт, пока их вставят.
+#
+# Смысл ожидания: команду можно спокойно скопировать и запустить, а нужные
+# значения копировать уже после — буфер обмена к тому времени свободен.
+# Введённое видно на экране, вслепую набирать ничего не нужно.
+set -e
+
+ask() {
+  local name="$1" hint="$2" check="$3" value=""
+
+  # Всё, что видит человек, уходит на экран отдельным потоком: иначе
+  # подсказки попадут в само значение
+  while true; do
+    echo >&2
+    echo "$hint" >&2
+    printf '%s: ' "$name" >&2
+    IFS= read -r value || exit 1
+
+    # Если вставили строку вида ИМЯ=значение, берём правую часть
+    case "$value" in
+      "$name"=*) value="${value#*=}" ;;
+    esac
+
+    # Пробелы и кавычки по краям
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    case "$value" in
+      \"*\") value="${value#\"}"; value="${value%\"}" ;;
+      \'*\') value="${value#\'}"; value="${value%\'}" ;;
+    esac
+
+    if [ -z "$value" ]; then
+      echo "  пусто — попробуйте ещё раз" >&2
+      continue
+    fi
+
+    if ! printf '%s' "$value" | grep -qE "$check"; then
+      echo "  это не похоже на то, что нужно — похоже, вставилось что-то другое" >&2
+      echo "  ждём значение вида: $4" >&2
+      continue
+    fi
+
+    printf '%s' "$value"
+    return 0
+  done
+}
+
+DB=$(ask DATABASE_URL \
+  'Откройте console.neon.tech → ваш проект → Connect → скопируйте строку подключения.' \
+  '^postgres(ql)?://.+@.+' \
+  'postgresql://пользователь:пароль@хост.neon.tech/neondb?sslmode=require')
+
+BT=$(ask BOT_TOKEN \
+  'Откройте @BotFather → /mybots → ваш бот → API Token → скопируйте токен.' \
+  '^[0-9]{5,}:[A-Za-z0-9_-]{20,}$' \
+  '8768717773:AAF...')
+
+printf 'DATABASE_URL=%s\nBOT_TOKEN=%s\n' "$DB" "$BT" > /etc/gapsgift.env
+chmod 600 /etc/gapsgift.env
+
+echo
+echo 'Записано. Перезапускаю службу.'
+systemctl restart gapsgift
+sleep 3
+
+printf 'служба: %s\n' "$(systemctl is-active gapsgift)"
+printf 'связь:  %s\n' "$(curl -s localhost:3000/api/admin -H 'Content-Type: application/json' -d '{"action":"status"}')"
+printf 'заход:  %s\n' "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/boot -H 'Content-Type: application/json' -d '{"initData":""}')"

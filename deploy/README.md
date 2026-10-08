@@ -23,10 +23,11 @@ apt-get install -y nodejs nginx certbot python3-certbot-nginx
 adduser --system --group --home /opt/gapsgift --no-create-home gapsgift
 mkdir -p /opt/gapsgift
 
-# 3. Переменные. Значения берутся из Vercel → Settings → Environment Variables
-install -m 600 /dev/null /etc/gapsgift.env
-#   DATABASE_URL=postgres://…   строка подключения Neon
-#   BOT_TOKEN=…                 токен бота из @BotFather
+# 3. Переменные: строка подключения Neon и токен бота
+install -m 755 deploy/gapsgift-ask /usr/local/bin/gapsgift-ask
+#   дальше с рабочей машины: ssh -t root@сервер gapsgift-ask
+#   команда спрашивает оба значения и ждёт — копировать их можно уже
+#   после запуска, и буфер обмена ничем не перебивается
 
 # 4. Служба
 cp deploy/gapsgift.service /etc/systemd/system/
