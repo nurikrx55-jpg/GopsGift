@@ -80,8 +80,19 @@
     return ready;
   }
 
+  // Покупка меняет и счёт, и витрину: подарок ушёл в профиль, остаток убыл.
+  // Сервер отдаёт обе части разом, и приложение кладёт их сюда, не
+  // перезагружаясь
+  function apply(nextContent, nextMe) {
+    if (nextContent) content = nextContent;
+    // admin сервер в этом ответе не присылает — сохраняем, что знали
+    if (nextMe) me = Object.assign({}, me || {}, nextMe);
+    return content;
+  }
+
   window.Store = {
     load: load,
+    apply: apply,
     state: () => content,
     me: () => me,
     live: () => live

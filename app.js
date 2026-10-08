@@ -1149,6 +1149,106 @@
     });
   }
 
+  // --- Покупка за звёзды ---
+
+  /* Счёт выставляет бот, а не страница: приложение просит у сервера ссылку
+     на счёт и открывает её поверх своего экрана. Цену и остаток считает
+     сервер — из браузера приходит только, что берут и сколько.
+
+     Об оплате Telegram сообщает боту своим ходом, поэтому после «оплачено»
+     мы ещё переспрашиваем сервер, пока подарок не окажется на счёте. */
+
+  const PAY_API = '/api/pay';
+  const PAY_TRIES = 8;
+  const PAY_WAIT = 700;
+
+  let paying = false;
+
+  function payPost(payload) {
+    return fetch(PAY_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ initData: (tg && tg.initData) || '' }, payload))
+    }).then((response) => response.json()
+      .catch(() => ({}))
+      .then((data) => {
+        // Понятный отказ сервера показываем как есть, остальное — одной фразой
+        if (!response.ok) throw new Error(data.message || 'Оплата сейчас недоступна');
+        return data;
+      }));
+  }
+
+  function waitPaid(order, left) {
+    return payPost({ action: 'check', order: order }).then((data) => {
+      if (data.status === 'paid' || left <= 0) return data;
+      return new Promise((done) => setTimeout(done, PAY_WAIT))
+        .then(() => waitPaid(order, left - 1));
+    });
+  }
+
+  function buyBusy(on) {
+    const button = document.getElementById('sheet-buy');
+    if (button) button.disabled = on;
+  }
+
+  function buyGift() {
+    if (paying || !sheetGift) return;
+    haptic('light');
+
+    if (!Store.live()) {
+      toast('Оплата заработает, когда подключена база');
+      return;
+    }
+
+    // openInvoice появился в Bot API 6.1; без него счёт пришлось бы
+    // открывать перепиской с ботом, а это уже не «на этом же экране»
+    if (!tg || !tg.openInvoice) {
+      toast('Обновите Telegram — оплата из приложения ему пока не по силам');
+      return;
+    }
+
+    const want = qty;
+    paying = true;
+    buyBusy(true);
+
+    payPost({ giftId: sheetGift.id, qty: want })
+      .then((data) => new Promise((done) => {
+        tg.openInvoice(data.link, (status) => done({ status: status, order: data.order }));
+      }))
+      .then((result) => {
+        if (result.status === 'cancelled') return null;
+        if (result.status === 'failed') throw new Error('Платёж не прошёл');
+        return waitPaid(result.order, PAY_TRIES);
+      })
+      .then((paid) => {
+        // Отменили — ни сообщать, ни перерисовывать нечего
+        if (!paid) return;
+
+        if (paid.status !== 'paid' || !paid.me) {
+          // Деньги списаны, а до счёта подарок ещё не дошёл — дойдёт сам
+          toast('Оплачено. Подарок вот-вот появится в профиле');
+          return;
+        }
+
+        Store.apply(paid.content, paid.me);
+        fillFromStore();
+        drawGifts();
+        initHeader();
+        paintProfile();
+
+        haptic('success');
+        buySheet.close();
+        toast(want > 1 ? 'Подарки у вас в профиле' : 'Подарок у вас в профиле');
+      })
+      .catch((error) => {
+        toast(error && error.message ? error.message : 'Оплата не вышла');
+      })
+      .then(() => {
+        paying = false;
+        buyBusy(false);
+      });
+  }
+
   let buySheet = null;
   let ownSheet = null;
   let ownPlayer = null;
@@ -1209,13 +1309,7 @@
       setQty(qty + 1);
     });
 
-    document.getElementById('sheet-buy').addEventListener('click', () => {
-      haptic('light');
-      // Оплата появится вместе с серверной частью
-      if (tg && tg.showAlert && sheetGift) {
-        tg.showAlert('Покупка «' + sheetGift.name + '» ' + qty + ' шт. скоро заработает');
-      }
-    });
+    document.getElementById('sheet-buy').addEventListener('click', buyGift);
 
     const share = document.getElementById('sheet-share');
     if (share) {
@@ -1510,6 +1604,9 @@
     return box;
   }
 
+  // Какая вкладка профиля открыта сейчас
+  let prfTab = 'gifts';
+
   function renderOwned(kind) {
     const list = document.getElementById('prf-list');
     const total = document.getElementById('prf-total');
@@ -1646,11 +1743,25 @@
         haptic('select');
         buttons.forEach((other) => other.classList.toggle('is-active', other === button));
         tabs.style.setProperty('--prf-index', String(index));
-        renderOwned(button.dataset.prfTab);
+        prfTab = button.dataset.prfTab;
+        renderOwned(prfTab);
       });
     });
 
-    renderOwned('gifts');
+    renderOwned(prfTab);
+  }
+
+  // Счётчик в шапке профиля и список под вкладкой — после покупки их
+  // приходится перерисовывать, а не собирать профиль заново
+  function paintProfile() {
+    const owned = OWNED.gifts.length + OWNED.nft.length;
+    const count = document.getElementById('prf-count');
+
+    if (count) {
+      count.textContent = formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
+    }
+
+    renderOwned(prfTab);
   }
 
   // Снять заставку. Вызывается, когда содержимое пришло, — а не когда

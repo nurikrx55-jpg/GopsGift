@@ -1048,6 +1048,12 @@ body {
   filter: brightness(0.92);
 }
 
+/* Пока открывается счёт, второй раз нажать нельзя */
+.sheet__buy:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .sheet__buy-star {
   width: 20px;
   height: 20px;

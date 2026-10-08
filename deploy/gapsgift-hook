@@ -1,0 +1,49 @@
+#!/bin/bash
+# Включает оплату звёздами. Запускается на сервере один раз:
+#
+#     deploy/gapsgift-hook            # домен gapsgift.online
+#     deploy/gapsgift-hook мой.домен
+#
+# Делает две вещи. Заводит секрет, которым Telegram подписывает свои
+# приходы на /api/bot, и говорит боту, куда эти приходы слать. Токен бота
+# берётся из /etc/gapsgift.env — набирать и вставлять ничего не нужно.
+set -e
+
+ENV=/etc/gapsgift.env
+DOMAIN="${1:-gapsgift.online}"
+
+[ -r "$ENV" ] || { echo "Нет $ENV — сперва gapsgift-ask" >&2; exit 1; }
+
+# Читаем по одной строке, а не через source: в строке подключения к базе
+# попадаются знаки, на которых оболочка споткнулась бы
+value() { sed -n "s/^$1=//p" "$ENV" | head -n1; }
+
+TOKEN=$(value BOT_TOKEN)
+SECRET=$(value WEBHOOK_SECRET)
+
+[ -n "$TOKEN" ] || { echo "В $ENV нет BOT_TOKEN" >&2; exit 1; }
+
+if [ -z "$SECRET" ]; then
+  SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+  printf 'WEBHOOK_SECRET=%s\n' "$SECRET" >> "$ENV"
+  chmod 600 "$ENV"
+  echo "Секрет для webhook создан и записан в $ENV"
+fi
+
+# Нужны ровно два вида приходов: запрос разрешения на списание и сообщение
+# об оплате. Остальное боту слать незачем
+curl -s "https://api.telegram.org/bot$TOKEN/setWebhook" \
+  -H 'Content-Type: application/json' \
+  -d "{\"url\":\"https://$DOMAIN/api/bot\",\"secret_token\":\"$SECRET\",\"allowed_updates\":[\"message\",\"pre_checkout_query\"],\"drop_pending_updates\":true}" \
+  | grep -q '"ok":true' || { echo "Telegram не принял адрес webhook" >&2; exit 1; }
+
+echo "Webhook поставлен на https://$DOMAIN/api/bot"
+
+# Секрет из env-файла служба читает при запуске
+systemctl restart gapsgift
+sleep 2
+
+printf 'служба: %s\n' "$(systemctl is-active gapsgift)"
+printf 'webhook: %s\n' "$(curl -s "https://api.telegram.org/bot$TOKEN/getWebhookInfo" | sed 's/.*"url":"\([^"]*\)".*/\1/')"
+printf 'приход: %s (403 — значит адрес жив и чужих не пускает)\n' \
+  "$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN/api/bot" -H 'Content-Type: application/json' -d '{}')"

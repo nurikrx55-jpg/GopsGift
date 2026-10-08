@@ -6,6 +6,8 @@
    gg:users:seen      — все, кто открывал приложение, по последнему заходу
    gg:users:joined    — те же люди по дате первого захода
    gg:file:<id>       — загруженные из админки анимации и картинки
+   gg:order:<id>      — заказ: кто, что и за сколько покупает
+   gg:charge:<id>     — отметка, что этот платёж уже засчитан
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -24,7 +26,9 @@ const K = {
   acct: (id) => 'gg:acct:' + id,
   seen: 'gg:users:seen',
   joined: 'gg:users:joined',
-  file: (id) => 'gg:file:' + id
+  file: (id) => 'gg:file:' + id,
+  order: (id) => 'gg:order:' + id,
+  charge: (id) => 'gg:charge:' + id
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -337,6 +341,74 @@ export async function stats(content) {
     gifts: (content.gifts || []).length,
     banners: (content.banners || []).length
   };
+}
+
+// --- Покупка подарков ---
+
+/* Заказ живёт между двумя событиями: приложение попросило счёт, а бот
+   сообщил об оплате. В нём записано, что и по какой цене человек брал, —
+   иначе на оплату пришлось бы верить браузеру, который цену и прислал.
+
+   Записи мелкие и нужны ради одного платежа, но остаются: по ним видно,
+   что с чем происходило, если платёж пришёл дважды или не дошёл. */
+
+export async function createOrder(input) {
+  const order = {
+    id: newId('ord'),
+    userId: String(input.userId),
+    giftId: String(input.giftId),
+    qty: int(input.qty, 1, 100),
+    price: int(input.price, 1, 1000000),
+    amount: int(input.amount, 1, 100000000),
+    status: 'new',
+    createdAt: Date.now()
+  };
+
+  await command('SET', K.order(order.id), JSON.stringify(order));
+  return order;
+}
+
+export async function readOrder(id) {
+  const raw = await command('GET', K.order(slug(id)));
+  return raw ? JSON.parse(raw) : null;
+}
+
+// Платёж дошёл: подарок уходит в профиль, остаток на витрине убывает.
+// Телеграм повторяет событие, пока сервер не ответит «принял», поэтому
+// засчитываем ровно один раз — отметкой по номеру платежа
+export async function settleOrder(id, payment) {
+  const order = await readOrder(id);
+  if (!order) return null;
+
+  const charge = str(payment && payment.telegram_payment_charge_id, 128) || order.id;
+  const first = await command('SET', K.charge(charge), order.id, 'NX');
+  if (!first) return await readOrder(order.id);
+
+  const rawAcct = await command('GET', K.acct(order.userId));
+  const acct = normalAccount(rawAcct);
+  for (let i = 0; i < order.qty; i += 1) acct.gifts.push(order.giftId);
+
+  await writeContent((state) => {
+    const gift = (state.gifts || []).find((one) => one.id === order.giftId);
+    // Остаток мог уйти в ноль, пока человек платил: в минус не уводим
+    if (gift && typeof gift.left === 'number') {
+      gift.left = Math.max(0, gift.left - order.qty);
+    }
+    return state;
+  });
+
+  const done = Object.assign({}, order, {
+    status: 'paid',
+    charge: charge,
+    paidAt: Date.now()
+  });
+
+  await pipeline([
+    ['SET', K.acct(order.userId), JSON.stringify(acct)],
+    ['SET', K.order(order.id), JSON.stringify(done)]
+  ]);
+
+  return done;
 }
 
 // --- Файлы ---
