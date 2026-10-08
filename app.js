@@ -1318,8 +1318,8 @@
     const market = document.createElement('button');
     market.type = 'button';
     market.className = 'prf__market glass';
-    market.innerHTML = '<svg viewBox="0 0 643 617" aria-hidden="true"><use href="#logo"></use></svg>';
-    market.append('Market');
+    market.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#gems"></use></svg>';
+    market.append('GetGems');
     market.addEventListener('click', () => {
       haptic('select');
       selectTab(0);
