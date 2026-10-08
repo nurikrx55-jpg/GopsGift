@@ -502,7 +502,10 @@
     showArt(art, gift, loop);
 
     const badge = el('span', 'gift__badge');
-    badge.innerHTML = '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true"><use href="#ribbon-shape"></use></svg>';
+    badge.innerHTML =
+      '<svg class="gift__ribbon" viewBox="0 0 110 26" aria-hidden="true">' +
+        '<use href="#ribbon-shape"></use>' +
+        '<use class="gift__ribbon-fold" href="#ribbon-fold"></use></svg>';
     const label = el('span', 'gift__label');
     badge.appendChild(label);
     card.appendChild(badge);
