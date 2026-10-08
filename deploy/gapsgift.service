@@ -33,7 +33,8 @@ ProtectControlGroups=true
 RestrictAddressFamilies=AF_INET AF_INET6
 RestrictNamespaces=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# MemoryDenyWriteExecute здесь нельзя: V8 компилирует код на лету, и запрет
+# на исполняемую память роняет Node при первом же прогреве
 
 StandardOutput=journal
 StandardError=journal
