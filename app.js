@@ -1937,54 +1937,37 @@
     });
   }
 
-  // Строка подарка. Одинаковые подарки сводим в одну: семь копий одного и
-  // того же растянулись бы на весь экран
-  function stakeRow(gift, many) {
-    const row = document.createElement('div');
-    row.className = 'stk__gift';
+  // Ставить нечего: из окна выбора уводим на витрину
+  function stakeEmpty(after) {
+    const none = document.createElement('div');
+    none.className = 'stk__none';
 
-    const art = document.createElement('div');
-    art.className = 'stk__art tint-face';
-    applyTint(art, tints.get(gift.art) || null);
-    if (!tints.has(gift.art)) {
-      warmTint(gift, (tint) => {
-        if (tint) applyTint(art, tint);
-      });
-    }
-    if (isStill(gift)) showStill(art, gift.art);
-    else playWhenSeen(art, gift.art);
+    const title = document.createElement('b');
+    title.textContent = t('stake.empty');
 
-    const body = document.createElement('div');
-    body.className = 'stk__body';
+    const note = document.createElement('p');
+    note.textContent = t('stake.emptyNote');
 
-    const name = document.createElement('span');
-    name.className = 'stk__name';
-    name.textContent = many > 1 ? gift.name + ' × ' + many : gift.name;
-
-    const apy = document.createElement('span');
-    apy.className = 'stk__apy';
-    apy.textContent = t('stake.apy', { n: tierOf(gift).rate });
-
-    body.append(name, apy);
-
-    const put = document.createElement('button');
-    put.className = 'stk__put';
-    put.type = 'button';
-    put.textContent = t('stake.put');
-    put.addEventListener('click', () => {
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.textContent = t('stake.toShelf');
+    go.addEventListener('click', () => {
       haptic('light');
-      stakeSheet.open(gift);
+      if (after) after();
+      const at = tabs.findIndex((tab) => tab.dataset.section === 'home');
+      if (at !== -1) selectTab(at);
     });
 
-    row.append(art, body, put);
-    return row;
+    none.append(title, note, go);
+    return none;
   }
 
-  function renderStake() {
-    const list = document.getElementById('stk-gifts');
+  // Витрина выбора: что лежит у человека. Одинаковые подарки сводим в одну
+  // карточку с уголком «× N» — семь копий подряд ничего не говорят
+  function fillPicks() {
+    const list = document.getElementById('picks-list');
     if (!list) return;
 
-    stakeRates();
     releaseArt(list);
     list.textContent = '';
 
@@ -1992,35 +1975,38 @@
     OWNED.gifts.forEach((gift) => counts.set(gift, (counts.get(gift) || 0) + 1));
 
     if (!counts.size) {
-      const none = document.createElement('div');
-      none.className = 'stk__none';
-
-      const title = document.createElement('b');
-      title.textContent = t('stake.empty');
-
-      const note = document.createElement('p');
-      note.textContent = t('stake.emptyNote');
-
-      const go = document.createElement('button');
-      go.type = 'button';
-      go.textContent = t('stake.toShelf');
-      go.addEventListener('click', () => {
-        haptic('light');
-        const at = tabs.findIndex((tab) => tab.dataset.section === 'home');
-        if (at !== -1) selectTab(at);
-      });
-
-      none.append(title, note, go);
-      list.appendChild(none);
+      list.appendChild(stakeEmpty(() => picksSheet.close()));
       return;
     }
 
-    counts.forEach((many, gift) => list.appendChild(stakeRow(gift, many)));
+    counts.forEach((many, gift) => {
+      const card = buildGift(gift, (one) => {
+        picksSheet.close();
+        // Лист стейкинга поднимаем, когда выбор уже уехал вниз
+        setTimeout(() => stakeSheet.open(one), 260);
+      });
+
+      if (many > 1) {
+        const badge = document.createElement('span');
+        badge.className = 'picks__many';
+        badge.textContent = '\u00D7 ' + many;
+        card.appendChild(badge);
+      }
+
+      list.appendChild(card);
+    });
+  }
+
+  // Сам раздел рисует только ставки: подарок выбирают в окне
+  function renderStake() {
+    stakeRates();
   }
 
   // --- Лист стейкинга ---
 
   let stakeSheet = null;
+  let infoSheet = null;
+  let picksSheet = null;
   let stakePlayer = null;
   let stakeGift = null;
   let stakeTerm = STAKE_TERMS[1];
@@ -2087,6 +2073,19 @@
         stakePlayer = null;
         stakeGift = null;
       }
+    });
+
+    infoSheet = createSheet(document.getElementById('info'));
+    picksSheet = createSheet(document.getElementById('picks'), { fill: fillPicks });
+
+    document.getElementById('stk-info').addEventListener('click', () => {
+      haptic('light');
+      infoSheet.open();
+    });
+
+    document.getElementById('stk-add').addEventListener('click', () => {
+      haptic('light');
+      picksSheet.open();
     });
 
     document.getElementById('stake-go').addEventListener('click', () => {

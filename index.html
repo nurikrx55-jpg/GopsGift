@@ -102,7 +102,12 @@
 
   <main class="stage">
     <header class="hdr">
-      <span class="hdr__section" id="hdr-section">Главная</span>
+      <span class="hdr__name">
+        <span class="hdr__section" id="hdr-section">Главная</span>
+        <!-- Видна только в стейкинге: про остальные разделы рассказывать нечего -->
+        <button class="hdr__info" type="button" id="stk-info"
+                aria-label="О стейкинге" data-i18n-aria="stake.info">!</button>
+      </span>
 
       <span class="hdr__balances">
         <span class="hdr__balance">
@@ -185,15 +190,10 @@
         <!-- Ставки и список подарков собирает app.js -->
         <div class="stk__rates" id="stk-rates"></div>
 
-        <h3 class="stk__title" data-i18n="stake.mine">Ваши подарки</h3>
-        <div class="stk__gifts" id="stk-gifts"></div>
-
-        <h3 class="stk__title" data-i18n="stake.how">Как это работает</h3>
-        <ol class="stk__how">
-          <li><i aria-hidden="true">1</i><span data-i18n="stake.how1"></span></li>
-          <li><i aria-hidden="true">2</i><span data-i18n="stake.how2"></span></li>
-          <li><i aria-hidden="true">3</i><span data-i18n="stake.how3"></span></li>
-        </ol>
+        <button class="stk__add" type="button" id="stk-add">
+          <svg viewBox="0 0 14 16" aria-hidden="true"><use href="#task-gift"></use></svg>
+          <span data-i18n="stake.add">Добавить подарок</span>
+        </button>
       </div>
     </section>
 
@@ -443,6 +443,71 @@
       <div class="sheet__foot">
         <button class="pick__btn pick__btn--off glass" type="button" data-sheet-close data-i18n="pick.cancel">Отмена</button>
         <button class="pick__btn pick__btn--on" type="button" id="pick-apply" data-i18n="pick.apply">Применить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Как работает стейкинг: открывается кнопкой «!» у названия раздела -->
+  <div class="sheet sheet--pick" id="info" hidden>
+    <div class="sheet__backdrop" data-sheet-close></div>
+
+    <div class="sheet__panel glass" role="dialog" aria-modal="true" aria-labelledby="info-title">
+      <div class="sheet__head">
+        <span class="sheet__grabber" aria-hidden="true"></span>
+      </div>
+
+      <div class="pick__top">
+        <h2 class="pick__title" id="info-title">
+          <span data-i18n="stake.how">Как это работает</span>
+        </h2>
+
+        <button class="pick__close glass" type="button" data-sheet-close
+                aria-label="Закрыть" data-i18n-aria="gift.close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet__scroll pick__scroll">
+        <ol class="stk__how">
+          <li><i aria-hidden="true">1</i><span data-i18n="stake.how1"></span></li>
+          <li><i aria-hidden="true">2</i><span data-i18n="stake.how2"></span></li>
+          <li><i aria-hidden="true">3</i><span data-i18n="stake.how3"></span></li>
+        </ol>
+      </div>
+
+      <div class="sheet__foot">
+        <button class="pick__btn pick__btn--on" type="button" data-sheet-close
+                data-i18n="stake.ok">Понятно</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Выбор подарка для стейкинга: витрина того, что лежит у человека -->
+  <div class="sheet sheet--pick sheet--picks" id="picks" hidden>
+    <div class="sheet__backdrop" data-sheet-close></div>
+
+    <div class="sheet__panel glass" role="dialog" aria-modal="true" aria-labelledby="picks-title">
+      <div class="sheet__head">
+        <span class="sheet__grabber" aria-hidden="true"></span>
+      </div>
+
+      <div class="pick__top">
+        <h2 class="pick__title" id="picks-title">
+          <span data-i18n="stake.choose">Выберите подарок</span>
+        </h2>
+
+        <button class="pick__close glass" type="button" data-sheet-close
+                aria-label="Закрыть" data-i18n-aria="gift.close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet__scroll pick__scroll">
+        <div class="picks" id="picks-list"></div>
       </div>
     </div>
   </div>
