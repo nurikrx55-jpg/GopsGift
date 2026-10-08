@@ -1221,10 +1221,71 @@
     initOwnedTools();
   }
 
+  // Что показывать и в каком порядке. Обе кнопки перебирают свои значения
+  // по кругу — вариантов по три, и меню ради них было бы лишним
+  const SCOPES = [
+    { label: 'Все подарки', keep: null },
+    { label: 'В наличии', keep: (gift) => typeof gift.left !== 'number' || gift.left > 0 },
+    { label: 'Распроданы', keep: (gift) => gift.left === 0 }
+  ];
+
+  const SORTS = [
+    // «Новые» — порядок, в котором подарки стоят на витрине в админке
+    { label: 'Новые', order: null },
+    { label: 'Сначала дешёвые', order: (a, b) => a.price - b.price },
+    { label: 'Сначала дорогие', order: (a, b) => b.price - a.price }
+  ];
+
+  let scopeAt = 0;
+  let sortAt = 0;
+
+  function drawGifts() {
+    if (!giftsGrid) return;
+
+    const keep = SCOPES[scopeAt].keep;
+    const order = SORTS[sortAt].order;
+    const list = keep ? GIFTS.filter(keep) : GIFTS.slice();
+    if (order) list.sort(order);
+
+    releaseArt(giftsGrid);
+    giftsGrid.textContent = '';
+
+    if (!list.length) {
+      const none = document.createElement('p');
+      none.className = 'gifts__none';
+      none.textContent = 'Под этот отбор ничего нет';
+      giftsGrid.appendChild(none);
+      return;
+    }
+
+    list.forEach((gift) => giftsGrid.appendChild(buildGift(gift, (one) => buySheet.open(one), true)));
+  }
+
   function initGifts() {
     if (!giftsGrid) return;
 
-    GIFTS.forEach((gift) => giftsGrid.appendChild(buildGift(gift, (one) => buySheet.open(one), true)));
+    const scope = document.getElementById('filter-scope');
+    const sort = document.getElementById('filter-sort');
+    const scopeText = document.getElementById('filter-scope-text');
+    const sortText = document.getElementById('filter-sort-text');
+
+    const paint = () => {
+      if (scopeText) scopeText.textContent = SCOPES[scopeAt].label;
+      if (sortText) sortText.textContent = SORTS[sortAt].label;
+    };
+
+    const step = (next) => {
+      next();
+      haptic('select');
+      paint();
+      drawGifts();
+    };
+
+    if (scope) scope.addEventListener('click', () => step(() => { scopeAt = (scopeAt + 1) % SCOPES.length; }));
+    if (sort) sort.addEventListener('click', () => step(() => { sortAt = (sortAt + 1) % SORTS.length; }));
+
+    paint();
+    drawGifts();
   }
 
   // --- Задания ---

@@ -28,6 +28,18 @@
   --header-h: 44px;
   --tabs: 4;
   --ease: cubic-bezier(0.34, 1.2, 0.5, 1);
+
+  /* Жидкое стекло.
+     Кромка стеклянной поверхности: четыре внутренние тени, которые не
+     рисуют ободок по краю, а собирают свет в толще — сильнее сверху,
+     слабее снизу. Этим держатся все стеклянные элементы приложения, и
+     менять их стоит только здесь, разом. Сам материал бывает двух видов:
+     прозрачный (класс .glass) и плотный, когда фон под ним не нужен. */
+  --glass-edge:
+    inset 1.8px 3px 0 -2px rgba(255, 255, 255, 0.06),
+    inset 2px 2px 0 -2px rgba(255, 255, 255, 0.09),
+    inset -2px -2px 2px -2px rgba(255, 255, 255, 0.09),
+    inset -1.8px -3px 0 -2px rgba(255, 255, 255, 0.06);
 }
 
 *,
@@ -171,13 +183,11 @@ body {
   gap: 8px;
 }
 
-/* Контейнер — из присланного кода, ширина пересчитана под 4 вкладки */
+/* Контейнер — из присланного кода, ширина пересчитана под 4 вкладки.
+   Материал тот же, что у кнопки рядом: обе на жидком стекле из .glass */
 ._footer_1mfct_7 {
-  -webkit-backdrop-filter: blur(15px);
-  backdrop-filter: blur(15px);
   -webkit-user-select: none;
   user-select: none;
-  background: rgba(51, 51, 61, 0.3);
   border-radius: 30px;
   /* Позицию задаёт обёртка; капсула занимает всё, что осталось от кнопки */
   position: relative;
@@ -190,27 +200,50 @@ body {
   touch-action: none;
 }
 
-/* Кнопка справа: тот же материал, что у капсулы, только круг */
+/* Подложка под стеклом — та же, что у кнопки справа */
+._footer_1mfct_7::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0.33;
+  background: linear-gradient(180deg, #1e1e1e, #191919);
+  pointer-events: none;
+}
+
+/* Кнопка справа. Само стекло приходит из .glass — того же, которым сделаны
+   плашки и кнопка GetGems. Здесь только форма, размер и подложка под ним */
 .navbar__side {
+  position: relative;
   flex: none;
   width: 60px;
   height: 60px;
   border: 0;
   border-radius: 50%;
-  background: rgba(51, 51, 61, 0.3);
-  -webkit-backdrop-filter: blur(15px);
-  backdrop-filter: blur(15px);
   display: grid;
   place-items: center;
   color: #fff;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s var(--ease), background-color 0.2s ease;
+  transition: transform 0.2s ease;
+}
+
+/* Подложка под стеклом: без неё на светлом фоне кружок выцветает, а с ней
+   держит глубину. Лежит ниже стекла, поэтому z-index отрицательный */
+.navbar__side::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0.33;
+  background: linear-gradient(180deg, #1e1e1e, #191919);
+  pointer-events: none;
 }
 
 .navbar__side:active {
-  transform: scale(0.92);
-  background: rgba(51, 51, 61, 0.5);
+  transform: scale(0.95);
 }
 
 .navbar__icon {
@@ -218,6 +251,8 @@ body {
   height: 24px;
   display: block;
   fill: currentColor;
+  /* Значок не в полную силу: так он не спорит с иконками в капсуле */
+  opacity: 0.85;
   pointer-events: none;
 }
 
@@ -389,13 +424,84 @@ body {
   pointer-events: none;
 }
 
+/* Отбор и порядок витрины — две кнопки под каруселью */
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 0 16px;
+}
+
+.filter {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 99em;
+  /* Жидкое стекло, плотный вариант: подложка не просвечивает, а кромку
+     держат те же четыре внутренние тени, что и у остальных стеклянных
+     поверхностей */
+  background: linear-gradient(180deg, #1e1e1e, #191919);
+  -webkit-backdrop-filter: blur(28px) saturate(0.6);
+  backdrop-filter: blur(28px) saturate(0.6);
+  box-shadow: var(--glass-edge);
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.18s ease;
+}
+
+.filter:active {
+  transform: scale(0.96);
+}
+
+/* Волосок между подписью и значком */
+.filter__line {
+  flex: none;
+  width: 1px;
+  height: 19px;
+  margin: 0 5px;
+  background: #363639;
+}
+
+/* Размеры у значков разные — каждый в своих пропорциях */
+.filter__icon {
+  flex: none;
+  display: block;
+}
+
+.filter__icon--gift {
+  width: 14px;
+  height: 16px;
+}
+
+.filter__icon--sort {
+  width: 18px;
+  height: 11px;
+}
+
 .gifts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 0 16px;
-  /* Отбивка от точек карусели */
-  margin-top: 20px;
+  /* Отбивка от строки отбора */
+  margin-top: 14px;
+}
+
+/* Когда отбор ничего не оставил */
+.gifts__none {
+  grid-column: 1 / -1;
+  padding: 28px 0;
+  text-align: center;
+  color: var(--hint);
+  font-size: 15px;
 }
 
 /* Карточка — стекло, а не серая плита. Три слоя дают весь объём:
@@ -970,11 +1076,7 @@ body {
   background-color: color-mix(in srgb, #1e1e1e 50%, transparent);
   -webkit-backdrop-filter: blur(13px) saturate(1.4);
   backdrop-filter: blur(13px) saturate(1.4);
-  box-shadow:
-    inset 1.8px 3px 0 -2px rgba(255, 255, 255, 0.06),
-    inset 2px 2px 0 -2px rgba(255, 255, 255, 0.09),
-    inset -2px -2px 2px -2px rgba(255, 255, 255, 0.09),
-    inset -1.8px -3px 0 -2px rgba(255, 255, 255, 0.06);
+  box-shadow: var(--glass-edge);
 }
 
 /* Профиль */

@@ -44,6 +44,11 @@
         <path d="M6.5 3.18751C6.5 2.2095 5.70717 1.41667 4.72917 1.41667H4.21665C3.5217 1.41667 2.95833 1.98004 2.95833 2.67498C2.95833 3.36993 3.5217 3.9333 4.21665 3.9333H6.5V3.18751Z" fill="none" stroke="currentColor" stroke-width="1.0625"></path>
         <path d="M5.93311 13.9994H3.6665C2.10185 13.9992 0.833496 12.7311 0.833496 11.1664V8.02282H5.93408L5.93311 13.9994ZM12.1665 11.1664C12.1665 12.7312 10.8983 13.9994 9.3335 13.9994H6.99561V8.02282H12.1665V11.1664Z" fill="currentColor"></path>
       </symbol>
+      <symbol id="sort-lines" viewBox="0 0 18 11">
+        <path d="M15.6006 1.1L1.99918 1.1" fill="none" stroke="currentColor" stroke-width="1.375" stroke-linecap="round"></path>
+        <path d="M13.1997 5.49999L4.39971 5.49999" fill="none" stroke="currentColor" stroke-width="1.375" stroke-linecap="round"></path>
+        <path d="M11 9.89999H6.6" fill="none" stroke="currentColor" stroke-width="1.375" stroke-linecap="round"></path>
+      </symbol>
       <symbol id="share-arrow" viewBox="0 0 32 32">
         <path d="M26.3917 12.5257L19.3515 6.07215C18.0687 4.89625 16.0001 5.80624 16.0001 7.54645V11C3.00007 11 5.00012 27 5.00012 27C5.00012 27 9.00012 17 16.0001 17V20.4535C16.0001 22.1937 18.0687 23.1037 19.3515 21.9278L26.3917 15.4743C27.2565 14.6816 27.2565 13.3183 26.3917 12.5257Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
       </symbol>
@@ -118,6 +123,21 @@
         <div class="slider__dots" id="slider-dots" role="tablist" aria-label="Баннеры"></div>
       </div>
 
+      <!-- Отбор и порядок. Обе кнопки перебирают свои значения по кругу:
+           вариантов по три, и выпадающее меню ради них было бы лишним -->
+      <div class="filters">
+        <button class="filter" type="button" id="filter-scope">
+          <span id="filter-scope-text">Все подарки</span>
+          <i class="filter__line" aria-hidden="true"></i>
+          <svg class="filter__icon filter__icon--gift" viewBox="0 0 14 16" aria-hidden="true"><use href="#task-gift"></use></svg>
+        </button>
+        <button class="filter" type="button" id="filter-sort">
+          <span id="filter-sort-text">Новые</span>
+          <i class="filter__line" aria-hidden="true"></i>
+          <svg class="filter__icon filter__icon--sort" viewBox="0 0 18 11" aria-hidden="true"><use href="#sort-lines"></use></svg>
+        </button>
+      </div>
+
       <div class="gifts" id="gifts"></div>
     </section>
 
@@ -173,7 +193,7 @@
   <!-- Навбар и кнопка рядом: кнопка намеренно снаружи <nav>, иначе она
        стала бы пятой вкладкой и сбила бы ход подложки -->
   <div class="navbar">
-    <nav class="_footer_1mfct_7" aria-label="Навигация" style="--active-index: 0;">
+    <nav class="_footer_1mfct_7 glass" aria-label="Навигация" style="--active-index: 0;">
     <span class="_indicator_1mfct_25" aria-hidden="true" data-hidden="false"></span>
     <a aria-label="Главная" draggable="false" class="_tab_1mfct_40 active" href="#home" data-section="home" data-title="Главная" aria-current="page">
         <img class="_icon_1mfct_146" alt="" data-hidden="true" draggable="false" src="data:image/svg+xml,%3Csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3E%3Cpath%20d='M2.45801%2010.7549C2.45801%209.55124%203.00918%208.41386%203.95391%207.66803L9.36164%203.39877C10.7905%202.27072%2012.8068%202.27072%2014.2356%203.39877L19.6434%207.66803C20.5881%208.41386%2021.1392%209.55124%2021.1392%2010.7549V17.2064C21.1392%2019.3785%2019.3784%2021.1393%2017.2064%2021.1393H15.7315C15.1885%2021.1393%2014.7483%2020.6991%2014.7483%2020.1561V17.2064C14.7483%2016.1204%2013.8679%2015.2399%2012.7819%2015.2399H10.8154C9.72937%2015.2399%208.84896%2016.1204%208.84896%2017.2064V20.1561C8.84896%2020.6991%208.40875%2021.1393%207.86574%2021.1393H6.3909C4.21883%2021.1393%202.45801%2019.3785%202.45801%2017.2064L2.45801%2010.7549Z'%20fill='none'%20stroke='white'%20stroke-opacity='0.3'%20stroke-width='1.47484'/%3E%3C/svg%3E">
@@ -193,7 +213,7 @@
     </a>
     </nav>
 
-    <button class="navbar__side" id="nav-gems" type="button" aria-label="GetGems">
+    <button class="navbar__side glass" id="nav-gems" type="button" aria-label="GetGems">
       <svg class="navbar__icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#gems"></use></svg>
     </button>
   </div>
