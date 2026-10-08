@@ -1168,6 +1168,97 @@
     });
   }
 
+  // --- Экран после покупки ---
+
+  /* Полноэкранное поздравление: купленный подарок, подпись и путь в профиль.
+     Закрывается кнопкой, системной «назад» и Esc — для этого он стоит в том
+     же списке, что и листы. */
+
+  const CONFETTI = 'gifts/confetti.json';
+
+  let wonPlayer = null;
+  let wonConfetti = null;
+
+  function wonOpen(gift, many) {
+    const root = document.getElementById('won');
+    if (!root || !root.hidden) return;
+
+    // Взяли несколько — и заголовок, и подпись во множественном числе
+    document.getElementById('won-title').textContent = many ? 'Подарки куплены' : 'Подарок куплен';
+    document.getElementById('won-note').textContent = many
+      ? 'Отправьте свои подарки!'
+      : 'Отправьте свой подарок!';
+
+    root.hidden = false;
+    // Пересчёт стилей форсируем чтением размера — иначе перехода не будет
+    void root.offsetHeight;
+    root.classList.add('is-on');
+
+    if (tg && tg.BackButton) tg.BackButton.show();
+    if (stage) stage.style.overflow = 'hidden';
+
+    wonPlayer = openArt(document.getElementById('won-art'), gift);
+
+    // Конфетти рисуем с запасом по краям: квадратная композиция, растянутая
+    // по высоте экрана, иначе встала бы узкой полосой посередине
+    const box = document.getElementById('won-confetti');
+    if (box && window.lottie && !prefersStill()) {
+      wonConfetti = window.lottie.loadAnimation({
+        container: box,
+        renderer: 'canvas',
+        loop: false,
+        autoplay: true,
+        path: CONFETTI,
+        rendererSettings: {
+          dpr: Math.min(window.devicePixelRatio || 1, 2),
+          preserveAspectRatio: 'xMidYMid slice'
+        }
+      });
+    }
+  }
+
+  function wonClose() {
+    const root = document.getElementById('won');
+    // Закрытие уже идёт — второй раз не начинаем
+    if (!root || root.hidden || !root.classList.contains('is-on')) return;
+
+    root.classList.remove('is-on');
+    if (tg && tg.BackButton) tg.BackButton.hide();
+
+    closeArt(document.getElementById('won-art'), wonPlayer);
+    wonPlayer = null;
+
+    if (wonConfetti) wonConfetti.destroy();
+    wonConfetti = null;
+    const box = document.getElementById('won-confetti');
+    if (box) box.textContent = '';
+
+    setTimeout(() => {
+      root.hidden = true;
+      if (stage) stage.style.overflow = '';
+    }, 320);
+  }
+
+  function initWon() {
+    const root = document.getElementById('won');
+    if (!root) return;
+
+    // В общем списке с листами: системная «назад» и Esc закрывают и его
+    sheets.push({
+      open: wonOpen,
+      close: wonClose,
+      isOpen: () => !root.hidden
+    });
+
+    document.getElementById('won-go').addEventListener('click', () => {
+      haptic('light');
+      wonClose();
+
+      const at = tabs.findIndex((tab) => tab.dataset.section === 'profile');
+      if (at !== -1) selectTab(at);
+    });
+  }
+
   // --- Покупка за звёзды ---
 
   /* Счёт выставляет бот, а не страница: приложение просит у сервера ссылку
@@ -1226,11 +1317,12 @@
       return;
     }
 
+    const gift = sheetGift;
     const want = qty;
     paying = true;
     buyBusy(true);
 
-    payPost({ giftId: sheetGift.id, qty: want })
+    payPost({ giftId: gift.id, qty: want })
       .then((data) => new Promise((done) => {
         tg.openInvoice(data.link, (status) => done({ status: status, order: data.order }));
       }))
@@ -1256,8 +1348,10 @@
         paintProfile();
 
         haptic('success');
-        buySheet.close();
-        toast(want > 1 ? 'Подарки у вас в профиле' : 'Подарок у вас в профиле');
+        wonOpen(gift, want > 1);
+        // Лист убираем уже под непрозрачным экраном: иначе он уезжал бы вниз
+        // прямо сквозь проявляющееся поздравление
+        setTimeout(() => buySheet.close(), 360);
       })
       .catch((error) => {
         toast(error && error.message ? error.message : 'Оплата не вышла');
@@ -1339,6 +1433,7 @@
     }
 
     initOwnedTools();
+    initWon();
   }
 
   // Что показывать и в каком порядке. Обе кнопки открывают один и тот же

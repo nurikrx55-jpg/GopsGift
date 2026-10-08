@@ -1570,6 +1570,129 @@ body {
   fill: currentColor;
 }
 
+/* Экран после покупки.
+
+   Занимает весь экран: подарок с поздравлением посередине, кнопка в профиль
+   внизу. Поверх всего один раз пролетает конфетти. */
+
+.won[hidden] {
+  display: none;
+}
+
+.won {
+  position: fixed;
+  inset: 0;
+  /* Выше листов, ниже уведомления */
+  z-index: 250;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  background: #0d0d10;
+  padding:
+    calc(var(--safe-area-top) + var(--content-top) + 24px) 16px
+    calc(max(20px, var(--safe-area-bottom)) + 20px);
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 0.32s ease, transform 0.32s ease;
+}
+
+.won.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+/* Конфетти летит поверх всего экрана и ничего не перехватывает */
+.won__confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.won__confetti canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.won__body {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+/* Подарок ровно того же размера, что и собачка в образце */
+.won__art {
+  width: 112px;
+  aspect-ratio: 1;
+}
+
+.won__art canvas,
+.won__art svg,
+.won__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.won__title {
+  margin-top: 26px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.won__note {
+  margin-top: 8px;
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--hint);
+}
+
+/* Кнопка — то же жидкое стекло, что у остальных: материал из .glass,
+   здесь только форма и подложка под ним */
+.won__go {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 99em;
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.14s ease, background-color 0.2s ease;
+}
+
+/* Без подложки кнопка выцветает на тёмном: стекло ниже, отсюда и z-index */
+.won__go::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0.33;
+  background: linear-gradient(180deg, #1e1e1e, #191919);
+  pointer-events: none;
+}
+
+.won__go:active {
+  transform: scale(0.98);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .won {
+    transition-duration: 0.01ms;
+  }
+}
+
 /* Всплывающее уведомление */
 
 .toast[hidden] {
