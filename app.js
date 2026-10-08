@@ -9,6 +9,9 @@
   const DRAG_THRESHOLD = 6;
   // Сколько экран загрузки держится минимум — чтобы не мигнуть и исчезнуть
   const SPLASH_MIN_MS = 1100;
+  // Дольше этого заставку не держим даже без ответа: лучше показать пустое
+  // приложение с объяснением, чем логотип без конца
+  const SPLASH_MAX_MS = 12000;
   // Сколько висит всплывающее уведомление
   const TOAST_MS = 1900;
   // Сколько баннер стоит, прежде чем смениться сам
@@ -1253,7 +1256,8 @@
     if (!list.length) {
       const none = document.createElement('p');
       none.className = 'gifts__none';
-      none.textContent = 'Под этот отбор ничего нет';
+      // Пустая витрина и пустой отбор — разные вещи, и сказать надо разное
+      none.textContent = GIFTS.length ? 'Под этот отбор ничего нет' : 'Витрина пока пустая';
       giftsGrid.appendChild(none);
       return;
     }
@@ -1537,23 +1541,48 @@
     renderOwned('gifts');
   }
 
+  // Снять заставку. Вызывается, когда содержимое пришло, — а не когда
+  // догрузились картинки страницы: иначе при медленной базе человек видит
+  // пустое приложение и решает, что оно сломалось
+  let hideSplash = () => {};
+
   function initSplash() {
     if (!splash) return;
 
     const started = performance.now();
+    let done = false;
 
-    const hide = () => {
+    hideSplash = () => {
+      if (done) return;
+      done = true;
       const wait = Math.max(0, SPLASH_MIN_MS - (performance.now() - started));
       setTimeout(() => splash.classList.add('is-done'), wait);
     };
 
-    if (document.readyState === 'complete') {
-      hide();
-    } else {
-      window.addEventListener('load', hide, { once: true });
-      // Если какой-то ресурс завис, всё равно показываем приложение
-      setTimeout(hide, 4000);
-    }
+    setTimeout(hideSplash, SPLASH_MAX_MS);
+  }
+
+  // Содержимое не пришло вовсе. Молча оставлять пустой экран нельзя —
+  // человеку нечего нажать и непонятно, что случилось
+  function showLoadFailure() {
+    if (!giftsGrid) return;
+
+    giftsGrid.textContent = '';
+
+    const box = document.createElement('p');
+    box.className = 'gifts__none';
+    box.textContent = 'Витрина не загрузилась';
+
+    const again = document.createElement('button');
+    again.type = 'button';
+    again.className = 'filter';
+    again.style.marginTop = '14px';
+    again.textContent = 'Повторить';
+    again.addEventListener('click', () => location.reload());
+
+    box.appendChild(document.createElement('br'));
+    box.appendChild(again);
+    giftsGrid.appendChild(box);
   }
 
   // Пока содержимое не пришло, рисовать нечего: на экране заставка
@@ -1596,5 +1625,11 @@
 
       initSlider(buildBanners());
     })
-    .catch((error) => console.warn('Содержимое не загрузилось:', error));
+    .catch((error) => {
+      console.warn('Содержимое не загрузилось:', error);
+      showLoadFailure();
+    })
+    // Заставка уходит в обоих случаях: и когда витрина готова, и когда
+    // стало ясно, что её не будет
+    .then(hideSplash, hideSplash);
 })();

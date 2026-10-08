@@ -15,6 +15,10 @@ EnvironmentFile=/etc/gapsgift.env
 Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 Environment=PORT=3000
+# У машины нет IPv6, а имя базы резолвится и в IPv6 тоже. Без этой строки
+# Node время от времени выбирает недоступный адрес и висит до таймаута —
+# приложение в такие минуты остаётся без базы
+Environment=NODE_OPTIONS=--dns-result-order=ipv4first
 
 ExecStart=/usr/bin/node server.mjs
 Restart=always
