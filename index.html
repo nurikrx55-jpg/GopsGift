@@ -352,6 +352,40 @@
     </div>
   </div>
 
+  <!-- Выбор отбора и порядка. Один лист на обе кнопки: список и подпись
+       под него собирает app.js, выбор применяется кнопкой «Применить» -->
+  <div class="sheet sheet--pick" id="pick" hidden>
+    <div class="sheet__backdrop" data-sheet-close></div>
+
+    <div class="sheet__panel glass" role="dialog" aria-modal="true" aria-labelledby="pick-title">
+      <div class="sheet__head">
+        <span class="sheet__grabber" aria-hidden="true"></span>
+      </div>
+
+      <div class="pick__top">
+        <h2 class="pick__title" id="pick-title">
+          <svg class="pick__icon" viewBox="0 0 14 16" aria-hidden="true" id="pick-icon"><use href="#task-gift"></use></svg>
+          <span id="pick-title-text"></span>
+        </h2>
+
+        <button class="pick__close glass" type="button" data-sheet-close aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet__scroll pick__scroll">
+        <div class="pick__list" id="pick-list" role="radiogroup" aria-labelledby="pick-title"></div>
+      </div>
+
+      <div class="sheet__foot">
+        <button class="pick__btn pick__btn--off glass" type="button" data-sheet-close>Отмена</button>
+        <button class="pick__btn pick__btn--on" type="button" id="pick-apply">Применить</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast glass" id="toast" role="status" aria-live="polite" hidden>
     <svg class="toast__icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M5 12.5 10 17.5 19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>

@@ -1001,7 +1001,7 @@
       // Шапка и подложка с подарком — ручки: у них touch-action: none, браузер
       // в жест не вмешивается. Остальное отдано прокрутке, и тянуть оттуда
       // можно, только когда прокручивать нечего или мы в самом верху.
-      const handle = event.target.closest('.sheet__head, .sheet__stage, .own-card');
+      const handle = event.target.closest('.sheet__head, .sheet__stage, .own-card, .pick__top');
       if (!handle && scroll.scrollTop > 0) return;
 
       pointerId = event.pointerId;
@@ -1228,30 +1228,71 @@
     initOwnedTools();
   }
 
-  // Что показывать и в каком порядке. Отбор перебирает значения по кругу —
-  // их три, и меню ради них было бы лишним. Порядок пока только показывает
-  // надпись: переключать его будет отдельное окно выбора
+  // Что показывать и в каком порядке. Обе кнопки открывают один и тот же
+  // лист выбора: список, переключатель, «Отмена» и «Применить».
+  // Значение храним по имени, а не по месту в списке: редкости приходят с
+  // витрины, и от их числа выбор зависеть не должен.
   const SCOPES = [
-    { label: 'Все подарки', keep: null },
-    { label: 'В наличии', keep: (gift) => typeof gift.left !== 'number' || gift.left > 0 },
-    { label: 'Распроданы', keep: (gift) => gift.left === 0 }
+    { id: 'all', label: 'Все подарки', keep: null },
+    { id: 'left', label: 'В наличии', keep: (gift) => typeof gift.left !== 'number' || gift.left > 0 },
+    { id: 'out', label: 'Распроданы', keep: (gift) => gift.left === 0 }
   ];
+
+  // Сколько осталось: неизвестное считаем бесконечностью, иначе подарки без
+  // счётчика встали бы первыми в «Скоро закончатся»
+  function restOf(gift) {
+    return typeof gift.left === 'number' ? gift.left : Infinity;
+  }
 
   const SORTS = [
     // «Новые» — порядок, в котором подарки стоят на витрине в админке
-    { label: 'Новые', order: null },
-    { label: 'Сначала дешёвые', order: (a, b) => a.price - b.price },
-    { label: 'Сначала дорогие', order: (a, b) => b.price - a.price }
+    { id: 'new', label: 'Новые', order: null },
+    { id: 'cheap', label: 'Сначала дешёвые', order: (a, b) => a.price - b.price },
+    { id: 'dear', label: 'Сначала дорогие', order: (a, b) => b.price - a.price },
+    { id: 'rest', label: 'Скоро закончатся', order: (a, b) => restOf(a) - restOf(b) }
   ];
 
-  let scopeAt = 0;
-  let sortAt = 0;
+  let scopeId = 'all';
+  let sortId = 'new';
+
+  // Редкости берём с самих карточек: в списке стоят те ярлыки, что есть на
+  // витрине, и ни одного лишнего
+  function badgeScopes() {
+    const seen = new Map();
+
+    GIFTS.forEach((gift) => {
+      if (gift.badge && !seen.has(gift.badge)) seen.set(gift.badge, gift.kind || 'default');
+    });
+
+    return Array.from(seen, (pair) => ({
+      id: 'badge:' + pair[0],
+      label: pair[0],
+      kind: pair[1],
+      keep: (gift) => gift.badge === pair[0]
+    }));
+  }
+
+  function scopeGroups() {
+    const rare = badgeScopes();
+    const groups = [{ title: null, items: SCOPES }];
+    if (rare.length) groups.push({ title: 'Редкость', items: rare });
+    return groups;
+  }
+
+  function pickedScope() {
+    const all = SCOPES.concat(badgeScopes());
+    return all.find((one) => one.id === scopeId) || SCOPES[0];
+  }
+
+  function pickedSort() {
+    return SORTS.find((one) => one.id === sortId) || SORTS[0];
+  }
 
   function drawGifts() {
     if (!giftsGrid) return;
 
-    const keep = SCOPES[scopeAt].keep;
-    const order = SORTS[sortAt].order;
+    const keep = pickedScope().keep;
+    const order = pickedSort().order;
     const list = keep ? GIFTS.filter(keep) : GIFTS.slice();
     if (order) list.sort(order);
 
@@ -1270,29 +1311,143 @@
     list.forEach((gift) => giftsGrid.appendChild(buildGift(gift, (one) => buySheet.open(one), true)));
   }
 
-  function initGifts() {
-    if (!giftsGrid) return;
+  // --- Лист выбора ---
 
-    const scope = document.getElementById('filter-scope');
+  // Чем лист заполнен сейчас: откуда он открыт, что в нём выбрано и что
+  // сделать по «Применить»
+  let pickSheet = null;
+  let pickNow = null;
+
+  function pickRow(option, group) {
+    const row = document.createElement('button');
+    row.className = 'pick__row';
+    row.type = 'button';
+    row.setAttribute('role', 'radio');
+
+    const label = document.createElement('span');
+    label.className = 'pick__label';
+    label.textContent = option.label;
+
+    // У редкости рядом с названием её же цвет — тот, которым на карточке
+    // нарисована лента
+    if (option.kind) {
+      const dot = document.createElement('i');
+      dot.className = 'pick__dot';
+      dot.dataset.kind = option.kind;
+      row.appendChild(dot);
+    }
+
+    const mark = document.createElement('span');
+    mark.className = 'pick__mark';
+    mark.setAttribute('aria-hidden', 'true');
+
+    row.append(label, mark);
+
+    row.addEventListener('click', () => {
+      if (pickNow.chosen === option.id) return;
+      pickNow.chosen = option.id;
+      haptic('select');
+      paintPick();
+    });
+
+    group.appendChild(row);
+    return row;
+  }
+
+  function paintPick() {
+    const list = document.getElementById('pick-list');
+
+    list.querySelectorAll('.pick__row').forEach((row) => {
+      const on = row.dataset.id === pickNow.chosen;
+      row.classList.toggle('is-on', on);
+      row.setAttribute('aria-checked', String(on));
+    });
+  }
+
+  function fillPick(what) {
+    const sort = what === 'sort';
+    pickNow = {
+      sort: sort,
+      chosen: sort ? sortId : scopeId
+    };
+
+    const icon = document.getElementById('pick-icon');
+    icon.setAttribute('viewBox', sort ? '0 0 18 11' : '0 0 14 16');
+    icon.querySelector('use').setAttribute('href', sort ? '#sort-lines' : '#task-gift');
+    icon.classList.toggle('pick__icon--sort', sort);
+
+    document.getElementById('pick-title-text').textContent = sort ? 'Порядок' : 'Показывать';
+
+    const list = document.getElementById('pick-list');
+    list.textContent = '';
+
+    const groups = sort ? [{ title: null, items: SORTS }] : scopeGroups();
+
+    groups.forEach((group) => {
+      if (group.title) {
+        const title = document.createElement('p');
+        title.className = 'pick__group';
+        title.textContent = group.title;
+        list.appendChild(title);
+      }
+
+      const card = document.createElement('div');
+      card.className = 'pick__card';
+      group.items.forEach((option) => {
+        pickRow(option, card).dataset.id = option.id;
+      });
+      list.appendChild(card);
+    });
+
+    paintPick();
+  }
+
+  function applyPick() {
+    haptic('light');
+
+    if (pickNow.sort) sortId = pickNow.chosen;
+    else scopeId = pickNow.chosen;
+
+    paintFilters();
+    drawGifts();
+    pickSheet.close();
+  }
+
+  function paintFilters() {
     const scopeText = document.getElementById('filter-scope-text');
     const sortText = document.getElementById('filter-sort-text');
 
-    const paint = () => {
-      if (scopeText) scopeText.textContent = SCOPES[scopeAt].label;
-      if (sortText) sortText.textContent = SORTS[sortAt].label;
+    if (scopeText) scopeText.textContent = pickedScope().label;
+    if (sortText) sortText.textContent = pickedSort().label;
+  }
+
+  function initGifts() {
+    if (!giftsGrid) return;
+
+    pickSheet = createSheet(document.getElementById('pick'), {
+      fill: fillPick,
+      // Список длиннее листа — открываем его на выбранной строке, иначе
+      // пришлось бы искать её прокруткой
+      opened: () => {
+        const on = document.querySelector('.pick__row.is-on');
+        if (on) on.scrollIntoView({ block: 'nearest' });
+      }
+    });
+
+    const open = (what) => () => {
+      haptic('light');
+      pickSheet.open(what);
     };
 
-    const step = (next) => {
-      next();
-      haptic('select');
-      paint();
-      drawGifts();
-    };
+    const scope = document.getElementById('filter-scope');
+    const sort = document.getElementById('filter-sort');
+    if (scope) scope.addEventListener('click', open('scope'));
+    if (sort) sort.addEventListener('click', open('sort'));
 
-    if (scope) scope.addEventListener('click', () => step(() => { scopeAt = (scopeAt + 1) % SCOPES.length; }));
-    // Порядок пока не переключается: на кнопку встанет отдельное окно выбора
+    const apply = document.getElementById('pick-apply');
+    if (apply) apply.addEventListener('click', applyPick);
 
-    paint();
+    paintFilters();
     drawGifts();
   }
 
