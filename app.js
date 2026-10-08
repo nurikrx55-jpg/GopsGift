@@ -450,9 +450,8 @@
       badge.dataset.kind = gift.kind || 'default';
       // Контур ленты лежит в спрайте, здесь только ссылка на него
       badge.innerHTML =
-        '<svg class="gift__ribbon" viewBox="0 0 110 26" aria-hidden="true">' +
-        '<use href="#ribbon-shape"></use>' +
-        '<use class="gift__ribbon-fold" href="#ribbon-fold"></use></svg>';
+        '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true">' +
+        '<use href="#ribbon-shape"></use></svg>';
 
       const label = document.createElement('span');
       label.className = 'gift__label';
