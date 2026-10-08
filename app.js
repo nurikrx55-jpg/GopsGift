@@ -20,7 +20,11 @@
   // Единый каталог подарков. Витрина и профиль ссылаются на одни и те же
   // записи, поэтому плашка редкости не может разойтись: купленный подарок
   // показывает ровно ту же, что была на витрине.
-  const NFT_NOTE = 'Подарок скоро можно будет улучшить, продать и выпустить как NFT';
+
+  // Все надписи — из словаря i18n.js. t() берёт строку по ключу, count()
+  // ставит слово в нужную форму при числе
+  const t = (key, vars) => window.I18N.t(key, vars);
+  const countOf = (value, key) => window.I18N.count(value, key);
 
   // Содержимое — подарки, баннеры, задания, люди — приходит из хранилища
   // (data/content.json плюс правки из админки). Здесь только то, что
@@ -139,14 +143,20 @@
     paint(index);
 
     // Заголовок меняется ровно вместе со страницей — на входе в раздел
-    const title = document.getElementById('hdr-section');
-    const named = tabs[index].dataset.title;
-    if (title && named) title.textContent = named;
+    paintSection();
 
     nav.style.setProperty('--active-index', String(index));
     stage.dataset.section = tabs[index].dataset.section;
     // Шапка едет вместе со страницей, поэтому новый раздел открываем сверху
     stage.scrollTop = 0;
+  }
+
+  // Название открытого раздела в шапке. Отдельно от selectTab: его же
+  // приходится переписывать при смене языка
+  function paintSection() {
+    const title = document.getElementById('hdr-section');
+    const named = tabs[current] && tabs[current].dataset.title;
+    if (title && named) title.textContent = t(named);
   }
 
   function slotWidth() {
@@ -306,7 +316,7 @@
       const slide = document.createElement('a');
       slide.className = 'slider__slide';
       slide.href = banner.href || '#';
-      slide.setAttribute('aria-label', banner.label || 'Баннер');
+      slide.setAttribute('aria-label', banner.label || t('slider.one'));
       slide.style.backgroundImage = 'url("' + banner.image + '")';
       slide.draggable = false;
 
@@ -436,8 +446,11 @@
   }
 
   // 2000 -> «2 000». Пробел неразрывный, иначе число рвётся на две строки
+  // Тысячи разделяем так, как принято в выбранном языке: по-русски —
+  // неразрывным пробелом, по-английски — запятой
   function formatPrice(value) {
-    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
+    const mark = window.I18N.lang() === 'ru' ? '\u00A0' : ',';
+    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, mark);
   }
 
   function buildGift(gift, onPick, withPrice) {
@@ -501,7 +514,7 @@
       const star = document.createElement('img');
       star.className = 'gift__star';
       star.src = 'gifts/star.png';
-      star.alt = 'звёзд';
+      star.alt = t('hdr.stars');
       star.draggable = false;
 
       const amount = document.createElement('span');
@@ -880,7 +893,7 @@
     const gauge = document.getElementById('sheet-gauge');
 
     left.textContent = known
-      ? formatPrice(gift.total - gift.left) + '/' + formatPrice(gift.total) + ' выпущено'
+      ? t('gift.issued', { done: formatPrice(gift.total - gift.left), total: formatPrice(gift.total) })
       : '—';
     rest.hidden = !known;
     gauge.hidden = !known;
@@ -892,9 +905,8 @@
 
       gauge.dataset.scarce = scarce;
       rest.dataset.scarce = scarce;
-      rest.textContent = 'осталось ' + formatPrice(gift.left);
-      gauge.setAttribute('aria-label',
-        'Осталось ' + gift.left + ' из ' + gift.total);
+      rest.textContent = t('gift.left', { n: formatPrice(gift.left) });
+      gauge.setAttribute('aria-label', t('gift.left.aria', { n: gift.left, total: gift.total }));
 
       const fill = document.getElementById('sheet-gauge-fill');
       fill.dataset.empty = String(gift.left <= 0);
@@ -1133,20 +1145,20 @@
 
     const known = typeof gift.left === 'number' && typeof gift.total === 'number';
     document.getElementById('owned-left').textContent = known
-      ? formatPrice(gift.total - gift.left) + ' of ' + formatPrice(gift.total)
+      ? t('gift.of', { done: formatPrice(gift.total - gift.left), total: formatPrice(gift.total) })
       : '—';
   }
 
   function initOwnedTools() {
     if (!owned) return;
 
-    const soon = (what) => () => {
+    const soon = (key) => () => {
       haptic('light');
-      toast(what + ' скоро заработает');
+      toast(t(key));
     };
 
-    document.getElementById('owned-send').addEventListener('click', soon('Отправка'));
-    document.getElementById('owned-share').addEventListener('click', soon('Поделиться'));
+    document.getElementById('owned-send').addEventListener('click', soon('soon.send'));
+    document.getElementById('owned-share').addEventListener('click', soon('soon.share'));
 
     document.getElementById('owned-copy').addEventListener('click', () => {
       if (!ownGift) return;
@@ -1154,7 +1166,7 @@
       const link = location.origin + '/?gift=' + encodeURIComponent(ownGift.id);
       const done = () => {
         haptic('success');
-        toast('Ссылка скопирована');
+        toast(t('profile.linkCopied'));
       };
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1184,10 +1196,8 @@
     if (!root || !root.hidden) return;
 
     // Взяли несколько — и заголовок, и подпись во множественном числе
-    document.getElementById('won-title').textContent = many ? 'Подарки куплены' : 'Подарок куплен';
-    document.getElementById('won-note').textContent = many
-      ? 'Отправьте свои подарки!'
-      : 'Отправьте свой подарок!';
+    document.getElementById('won-title').textContent = t(many ? 'won.many' : 'won.one');
+    document.getElementById('won-note').textContent = t(many ? 'won.noteMany' : 'won.noteOne');
 
     root.hidden = false;
     // Пересчёт стилей форсируем чтением размера — иначе перехода не будет
@@ -1282,8 +1292,11 @@
     }).then((response) => response.json()
       .catch(() => ({}))
       .then((data) => {
-        // Понятный отказ сервера показываем как есть, остальное — одной фразой
-        if (!response.ok) throw new Error(data.message || 'Оплата сейчас недоступна');
+        // Понятный отказ сервер называет кодом, словами его зовём сами:
+        // язык выбирает тот, кто смотрит на экран
+        if (!response.ok) {
+          throw new Error(data.code ? t(data.code, data.vars) : (data.message || t('pay.off')));
+        }
         return data;
       }));
   }
@@ -1306,14 +1319,14 @@
     haptic('light');
 
     if (!Store.live()) {
-      toast('Оплата заработает, когда подключена база');
+      toast(t('pay.noDb'));
       return;
     }
 
     // openInvoice появился в Bot API 6.1; без него счёт пришлось бы
     // открывать перепиской с ботом, а это уже не «на этом же экране»
     if (!tg || !tg.openInvoice) {
-      toast('Обновите Telegram — оплата из приложения ему пока не по силам');
+      toast(t('pay.oldApp'));
       return;
     }
 
@@ -1328,7 +1341,7 @@
       }))
       .then((result) => {
         if (result.status === 'cancelled') return null;
-        if (result.status === 'failed') throw new Error('Платёж не прошёл');
+        if (result.status === 'failed') throw new Error(t('pay.failed'));
         return waitPaid(result.order, PAY_TRIES);
       })
       .then((paid) => {
@@ -1337,7 +1350,7 @@
 
         if (paid.status !== 'paid' || !paid.me) {
           // Деньги списаны, а до счёта подарок ещё не дошёл — дойдёт сам
-          toast('Оплачено. Подарок вот-вот появится в профиле');
+          toast(t('pay.slow'));
           return;
         }
 
@@ -1354,7 +1367,7 @@
         setTimeout(() => buySheet.close(), 360);
       })
       .catch((error) => {
-        toast(error && error.message ? error.message : 'Оплата не вышла');
+        toast(error && error.message ? error.message : t('pay.sorry'));
       })
       .then(() => {
         paying = false;
@@ -1428,7 +1441,7 @@
     if (share) {
       share.addEventListener('click', () => {
         haptic('light');
-        toast('Поделиться скоро заработает');
+        toast(t('soon.share'));
       });
     }
 
@@ -1441,9 +1454,9 @@
   // Значение храним по имени, а не по месту в списке: так перестановка
   // пунктов не сбивает выбор.
   const SCOPES = [
-    { id: 'all', label: 'Все подарки', keep: null },
-    { id: 'left', label: 'В наличии', keep: (gift) => typeof gift.left !== 'number' || gift.left > 0 },
-    { id: 'out', label: 'Распроданы', keep: (gift) => gift.left === 0 }
+    { id: 'all', key: 'scope.all', keep: null },
+    { id: 'left', key: 'scope.left', keep: (gift) => typeof gift.left !== 'number' || gift.left > 0 },
+    { id: 'out', key: 'scope.out', keep: (gift) => gift.left === 0 }
   ];
 
   // Сколько осталось: неизвестное считаем бесконечностью, иначе подарки без
@@ -1454,10 +1467,10 @@
 
   const SORTS = [
     // «Новые» — порядок, в котором подарки стоят на витрине в админке
-    { id: 'new', label: 'Новые', order: null },
-    { id: 'cheap', label: 'Сначала дешёвые', order: (a, b) => a.price - b.price },
-    { id: 'dear', label: 'Сначала дорогие', order: (a, b) => b.price - a.price },
-    { id: 'rest', label: 'Скоро закончатся', order: (a, b) => restOf(a) - restOf(b) }
+    { id: 'new', key: 'sort.new', order: null },
+    { id: 'cheap', key: 'sort.cheap', order: (a, b) => a.price - b.price },
+    { id: 'dear', key: 'sort.dear', order: (a, b) => b.price - a.price },
+    { id: 'rest', key: 'sort.rest', order: (a, b) => restOf(a) - restOf(b) }
   ];
 
   let scopeId = 'all';
@@ -1486,7 +1499,7 @@
       const none = document.createElement('p');
       none.className = 'gifts__none';
       // Пустая витрина и пустой отбор — разные вещи, и сказать надо разное
-      none.textContent = GIFTS.length ? 'Под этот отбор ничего нет' : 'Витрина пока пустая';
+      none.textContent = t(GIFTS.length ? 'gifts.none' : 'gifts.empty');
       giftsGrid.appendChild(none);
       return;
     }
@@ -1513,7 +1526,7 @@
 
     const label = document.createElement('span');
     label.className = 'pick__label';
-    label.textContent = option.label;
+    label.textContent = t(option.key);
 
     const mark = document.createElement('span');
     mark.className = 'pick__mark';
@@ -1553,7 +1566,7 @@
     icon.querySelector('use').setAttribute('href', sort ? '#sort-lines' : '#task-gift');
     icon.classList.toggle('pick__icon--sort', sort);
 
-    document.getElementById('pick-title-text').textContent = sort ? 'Порядок' : 'Показывать';
+    document.getElementById('pick-title-text').textContent = t(sort ? 'pick.sort' : 'pick.scope');
 
     const list = document.getElementById('pick-list');
     list.textContent = '';
@@ -1581,8 +1594,8 @@
     const scopeText = document.getElementById('filter-scope-text');
     const sortText = document.getElementById('filter-sort-text');
 
-    if (scopeText) scopeText.textContent = pickedScope().label;
-    if (sortText) sortText.textContent = pickedSort().label;
+    if (scopeText) scopeText.textContent = t(pickedScope().key);
+    if (sortText) sortText.textContent = t(pickedSort().key);
   }
 
   function initGifts() {
@@ -1639,7 +1652,7 @@
     const amount = document.createElement('span');
     amount.textContent = formatPrice(task.reward);
     reward.appendChild(amount);
-    reward.setAttribute('aria-label', 'Награда: ' + task.reward + ' купонов');
+    reward.setAttribute('aria-label', t('task.reward.aria', { n: task.reward }));
 
     info.append(name, reward);
 
@@ -1684,9 +1697,9 @@
 
   // Имя — ровно то, что отдаёт Telegram: никаких подменных ников
   function userTitle(user) {
-    if (!user) return 'Гость';
+    if (!user) return t('profile.guest');
     if (user.username) return '@' + user.username;
-    return [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Без имени';
+    return [user.first_name, user.last_name].filter(Boolean).join(' ') || t('profile.noname');
   }
 
 
@@ -1698,10 +1711,10 @@
     art.className = 'prf__empty-art';
 
     const title = document.createElement('b');
-    title.textContent = 'Нет подарков(';
+    title.textContent = t('profile.empty');
 
     const line = document.createElement('p');
-    line.append('Подарки можно покупать в');
+    line.append(t('profile.emptyNote'));
 
     const market = document.createElement('button');
     market.type = 'button';
@@ -1731,7 +1744,7 @@
 
     releaseArt(list);
     list.textContent = '';
-    total.textContent = formatPrice(items.length) + ' ' + plural(items.length, 'подарок', 'подарка', 'подарков');
+    total.textContent = formatPrice(items.length) + ' ' + countOf(items.length, 'gift.count');
 
     if (!items.length) {
       list.appendChild(emptyState());
@@ -1747,16 +1760,6 @@
     // Из профиля открывается карточка уже купленного подарка, а не покупка
     items.forEach((gift) => grid.appendChild(buildGift(gift, (one) => ownSheet.open(one))));
     list.appendChild(grid);
-  }
-
-  // 1 подарок, 2 подарка, 5 подарков
-  function plural(n, one, few, many) {
-    const mod100 = n % 100;
-    const mod10 = n % 10;
-    if (mod100 >= 11 && mod100 <= 14) return many;
-    if (mod10 === 1) return one;
-    if (mod10 >= 2 && mod10 <= 4) return few;
-    return many;
   }
 
   // Запасной путь: Clipboard API есть не везде и падает вне защищённого контекста
@@ -1799,7 +1802,7 @@
     name.textContent = userTitle(user);
 
     document.getElementById('prf-count').textContent =
-      formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
+      formatPrice(owned) + ' ' + countOf(owned, 'gift.count');
 
     const avatar = document.getElementById('prf-avatar');
     if (user && user.photo_url) {
@@ -1836,7 +1839,7 @@
 
       const done = () => {
         haptic('success');
-        toast('ID скопирован');
+        toast(t('profile.idCopied'));
       };
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1875,10 +1878,127 @@
     const count = document.getElementById('prf-count');
 
     if (count) {
-      count.textContent = formatPrice(owned) + ' ' + plural(owned, 'подарок', 'подарка', 'подарков');
+      count.textContent = formatPrice(owned) + ' ' + countOf(owned, 'gift.count');
     }
 
     renderOwned(prfTab);
+  }
+
+  // --- Выбор языка ---
+
+  /* Кружок с флагом в углу профиля и список под ним. Список собирается из
+     словаря: появится там язык — появится и строка здесь.
+
+     Смена языка не перезагружает приложение. Надписи в разметке переписывает
+     сам словарь по меткам data-i18n, а то, что рисует код, перерисовываем
+     отсюда. Задания не трогаем: их названия приходят из админки и переводу
+     не подлежат. */
+
+  const TICK = '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="m5 12.6 4.6 4.6L19 7.6" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  function initLang() {
+    const root = document.getElementById('lang');
+    if (!root) return;
+
+    const button = document.getElementById('lang-btn');
+    const menu = document.getElementById('lang-menu');
+    const flag = document.getElementById('lang-flag');
+    let shown = false;
+    let hiding = null;
+
+    function paintFlag() {
+      flag.textContent = window.I18N.one().flag;
+    }
+
+    function build() {
+      menu.textContent = '';
+
+      window.I18N.langs().forEach((item) => {
+        const row = document.createElement('button');
+        row.className = 'lang__row';
+        row.type = 'button';
+        row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', String(item.code === window.I18N.lang()));
+
+        const mark = document.createElement('span');
+        mark.className = 'lang__flag';
+        mark.textContent = item.flag;
+
+        const name = document.createElement('span');
+        name.className = 'lang__name';
+        // Язык назван на себе самом: английский — English, и так везде
+        name.textContent = item.name;
+
+        const tick = document.createElement('span');
+        tick.className = 'lang__tick';
+        tick.innerHTML = TICK;
+
+        row.append(mark, name, tick);
+        row.addEventListener('click', () => choose(item.code));
+        menu.appendChild(row);
+      });
+    }
+
+    function open() {
+      if (shown) return;
+      shown = true;
+      clearTimeout(hiding);
+
+      build();
+      menu.hidden = false;
+      // Пересчёт стилей форсируем чтением размера — иначе перехода не будет
+      void menu.offsetHeight;
+      menu.classList.add('is-on');
+      button.setAttribute('aria-expanded', 'true');
+    }
+
+    function close() {
+      if (!shown) return;
+      shown = false;
+
+      menu.classList.remove('is-on');
+      button.setAttribute('aria-expanded', 'false');
+      hiding = setTimeout(() => {
+        menu.hidden = true;
+      }, 240);
+    }
+
+    function choose(code) {
+      haptic('select');
+      close();
+      // Язык тот же — перерисовывать нечего, список просто закроется
+      window.I18N.set(code);
+    }
+
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      haptic('light');
+      if (shown) close();
+      else open();
+    });
+
+    // Мимо списка — закрываем. Нажатие по самому списку сюда не доходит
+    menu.addEventListener('click', (event) => event.stopPropagation());
+    document.addEventListener('click', close);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') close();
+    });
+
+    paintFlag();
+
+    window.I18N.onChange(() => {
+      paintFlag();
+
+      // Подпись под подарком живёт в самих записях — пересобираем каталог
+      fillFromStore();
+      paintSection();
+      paintFilters();
+      drawGifts();
+      initHeader();
+      paintProfile();
+    });
   }
 
   // Снять заставку. Вызывается, когда содержимое пришло, — а не когда
@@ -1911,13 +2031,13 @@
 
     const box = document.createElement('p');
     box.className = 'gifts__none';
-    box.textContent = 'Витрина не загрузилась';
+    box.textContent = t('gifts.failed');
 
     const again = document.createElement('button');
     again.type = 'button';
     again.className = 'filter';
     again.style.marginTop = '14px';
-    again.textContent = 'Повторить';
+    again.textContent = t('gifts.retry');
     again.addEventListener('click', () => location.reload());
 
     box.appendChild(document.createElement('br'));
@@ -1934,7 +2054,7 @@
     // витрина и профиль не выглядели сломанными
     ME = Store.me() || { stars: 0, coupons: 0, gifts: [], admin: false };
 
-    GIFTS = (state.gifts || []).map((gift) => Object.assign({ note: NFT_NOTE, owner: '—' }, gift));
+    GIFTS = (state.gifts || []).map((gift) => Object.assign({ note: t('gift.note'), owner: '—' }, gift));
 
     // В профиле лежат те же записи, что на витрине: иначе плашка редкости
     // у купленного подарка разошлась бы с витринной
@@ -1962,6 +2082,7 @@
       initSheet();
       initHeader();
       initProfile();
+      initLang();
 
       initSlider(buildBanners());
     })

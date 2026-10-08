@@ -119,6 +119,8 @@ body {
 /* Раздел виден только когда выбрана его вкладка */
 .pane {
   display: none;
+  /* Угловые накладки раздела (кружок языка в профиле) считают углы от него */
+  position: relative;
 }
 
 .stage[data-section="home"] .pane[data-pane="home"] {
@@ -1348,6 +1350,138 @@ body {
 
 .stage[data-section="profile"] .pane[data-pane="profile"] {
   display: block;
+}
+
+/* Выбор языка.
+
+   Кружок с флагом стоит в углу поверх профиля, а не в потоке: иначе он
+   сдвинул бы вниз аватар и всё под ним. Список выезжает из-под него. */
+.lang {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  left: 16px;
+}
+
+.lang__btn {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.14s ease;
+}
+
+/* Подложка под стеклом: без неё кружок выцветает. Ниже стекла, отсюда
+   отрицательный z-index — тем же приёмом сделаны кнопки у навигации */
+.lang__btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0.33;
+  background: linear-gradient(180deg, #1e1e1e, #191919);
+  pointer-events: none;
+}
+
+.lang__btn:active {
+  transform: scale(0.92);
+}
+
+.lang__flag {
+  font-size: 23px;
+  line-height: 1;
+  /* Эмодзи-флаг рисуется шрифтом системы, а не нашим */
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+
+.lang__menu[hidden] {
+  display: none;
+}
+
+.lang__menu {
+  position: absolute;
+  top: 54px;
+  left: 0;
+  min-width: 208px;
+  padding: 6px;
+  border-radius: 22px;
+  display: grid;
+  /* Жидкое стекло, плотный вариант — тот же, что у кнопок отбора: сквозь
+     прозрачное просвечивал бы аватар, и список читался бы хуже */
+  background: linear-gradient(180deg, #1e1e1e, #191919);
+  -webkit-backdrop-filter: blur(28px) saturate(0.6);
+  backdrop-filter: blur(28px) saturate(0.6);
+  box-shadow: var(--glass-edge), 0 18px 40px -16px rgba(0, 0, 0, 0.8);
+  /* Раскрывается из того угла, под которым стоит кнопка */
+  transform-origin: 12px -12px;
+  opacity: 0;
+  transform: scale(0.9) translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.26s var(--ease);
+}
+
+.lang__menu.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+.lang__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 16px;
+  background: none;
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.lang__row:active {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.lang__row .lang__flag {
+  font-size: 21px;
+}
+
+.lang__name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Галочка у выбранного языка */
+.lang__tick {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--accent);
+  opacity: 0;
+}
+
+.lang__tick svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lang__row[aria-selected="true"] .lang__tick {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lang__menu {
+    transition-duration: 0.01ms;
+  }
 }
 
 .prf__card {

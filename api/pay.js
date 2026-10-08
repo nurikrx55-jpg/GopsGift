@@ -24,20 +24,32 @@ const MAX_QTY = 99;
 // Потолок одного счёта в звёздах — столько же разрешает сам Telegram
 const MAX_STARS = 1000000;
 
+/* Отказ, который увидит человек. Словами он назван в приложении, а не
+   здесь: язык выбирает тот, кто смотрит на экран. Сюда кладём код и числа
+   к нему, а русский текст остаётся запасным — для логов и старых клиентов. */
+function refuse(code, text, vars) {
+  const error = new InputError(text);
+  error.code = code;
+  error.vars = vars || null;
+  return error;
+}
+
 async function start(input, user) {
   const content = await readContent(true);
   const gift = (content.gifts || []).find((one) => one.id === String(input.giftId || ''));
 
-  if (!gift) throw new InputError('Такого подарка больше нет');
-  if (!gift.price) throw new InputError('Этот подарок не продаётся');
+  if (!gift) throw refuse('pay.gone', 'Такого подарка больше нет');
+  if (!gift.price) throw refuse('pay.free', 'Этот подарок не продаётся');
 
   const qty = Math.min(Math.max(Math.round(Number(input.qty)) || 1, 1), MAX_QTY);
   if (typeof gift.left === 'number' && gift.left < qty) {
-    throw new InputError(gift.left ? 'Осталось всего ' + gift.left : 'Подарок распродан');
+    throw gift.left
+      ? refuse('pay.left', 'Осталось всего ' + gift.left, { n: gift.left })
+      : refuse('pay.soldout', 'Подарок распродан');
   }
 
   const amount = gift.price * qty;
-  if (amount > MAX_STARS) throw new InputError('Столько звёзд за один раз Telegram не примет');
+  if (amount > MAX_STARS) throw refuse('pay.toomuch', 'Столько звёзд за один раз Telegram не примет');
 
   const order = await createOrder({
     userId: user.id,
@@ -64,7 +76,7 @@ async function start(input, user) {
 // и витрину: остаток подарка после покупки тоже другой
 async function check(input, user) {
   const order = await readOrder(input.order);
-  if (!order || order.userId !== String(user.id)) throw new InputError('Заказ не найден');
+  if (!order || order.userId !== String(user.id)) throw refuse('pay.noorder', 'Заказ не найден');
 
   const out = { status: order.status };
 
@@ -86,7 +98,7 @@ export default {
     // pre_checkout_query было бы некому, и он отменил бы списание сам.
     // Лучше сказать об этом до счёта, чем после
     if (!process.env.WEBHOOK_SECRET) {
-      return json({ error: 'no-hook', message: 'Оплата на сервере ещё не включена' }, 503);
+      return json({ error: 'no-hook', code: 'pay.nohook', message: 'Оплата на сервере ещё не включена' }, 503);
     }
 
     const input = await body(request);
@@ -100,7 +112,7 @@ export default {
       // Понятные человеку отказы — отдельно от поломок: их приложение
       // показывает как есть
       if (error instanceof InputError || error instanceof BotError) {
-        return json({ error: 'input', message: error.message }, 400);
+        return json({ error: 'input', code: error.code, vars: error.vars, message: error.message }, 400);
       }
       console.error('pay:', error);
       return json({ error: 'server' }, 502);
