@@ -1359,6 +1359,7 @@
         drawGifts();
         initHeader();
         paintProfile();
+        renderStake();
 
         haptic('success');
         wonOpen(gift, want > 1);
@@ -1884,6 +1885,218 @@
     renderOwned(prfTab);
   }
 
+  // --- Стейкинг ---
+
+  /* Раздел пока макет: ничего не ставится и не начисляется, кнопки честно
+     отвечают «скоро», а в итоге сверху нули и пометка. Ставки и прикидка
+     дохода при этом считаются по-настоящему — от цены подарка и его
+     редкости: так видно, как раздел будет выглядеть, когда заработает. */
+
+  const STAKE_TIERS = [
+    { kind: 'legend', key: 'stake.tier.legend', rate: 35 },
+    { kind: 'epic', key: 'stake.tier.epic', rate: 22 },
+    { kind: 'rare', key: 'stake.tier.rare', rate: 14 },
+    { kind: 'plain', key: 'stake.tier.plain', rate: 8 }
+  ];
+
+  // Лент на карточках семь видов, ставок — четыре: остальные идут по общей
+  const TIER_OF = { legend: 'legend', blood: 'legend', epic: 'epic', rare: 'rare' };
+  const STAKE_TERMS = [7, 30, 90];
+  const YEAR = 365;
+
+  function tierOf(gift) {
+    const name = TIER_OF[gift && gift.kind] || 'plain';
+    return STAKE_TIERS.find((one) => one.kind === name) || STAKE_TIERS[STAKE_TIERS.length - 1];
+  }
+
+  function stakeIncome(gift, days) {
+    return Math.round((gift.price || 0) * tierOf(gift).rate / 100 * days / YEAR);
+  }
+
+  function stakeRates() {
+    const row = document.getElementById('stk-rates');
+    if (!row) return;
+
+    row.textContent = '';
+
+    STAKE_TIERS.forEach((tier) => {
+      const box = document.createElement('div');
+      box.className = 'stk__rate';
+
+      const value = document.createElement('b');
+      value.textContent = tier.rate + '%';
+
+      const name = document.createElement('span');
+      const dot = document.createElement('i');
+      dot.className = 'stk__dot';
+      if (tier.kind !== 'plain') dot.dataset.kind = tier.kind;
+      name.append(dot, document.createTextNode(t(tier.key)));
+
+      box.append(value, name);
+      row.appendChild(box);
+    });
+  }
+
+  // Строка подарка. Одинаковые подарки сводим в одну: семь копий одного и
+  // того же растянулись бы на весь экран
+  function stakeRow(gift, many) {
+    const row = document.createElement('div');
+    row.className = 'stk__gift';
+
+    const art = document.createElement('div');
+    art.className = 'stk__art tint-face';
+    applyTint(art, tints.get(gift.art) || null);
+    if (!tints.has(gift.art)) {
+      warmTint(gift, (tint) => {
+        if (tint) applyTint(art, tint);
+      });
+    }
+    if (isStill(gift)) showStill(art, gift.art);
+    else playWhenSeen(art, gift.art);
+
+    const body = document.createElement('div');
+    body.className = 'stk__body';
+
+    const name = document.createElement('span');
+    name.className = 'stk__name';
+    name.textContent = many > 1 ? gift.name + ' × ' + many : gift.name;
+
+    const apy = document.createElement('span');
+    apy.className = 'stk__apy';
+    apy.textContent = t('stake.apy', { n: tierOf(gift).rate });
+
+    body.append(name, apy);
+
+    const put = document.createElement('button');
+    put.className = 'stk__put';
+    put.type = 'button';
+    put.textContent = t('stake.put');
+    put.addEventListener('click', () => {
+      haptic('light');
+      stakeSheet.open(gift);
+    });
+
+    row.append(art, body, put);
+    return row;
+  }
+
+  function renderStake() {
+    const list = document.getElementById('stk-gifts');
+    if (!list) return;
+
+    stakeRates();
+    releaseArt(list);
+    list.textContent = '';
+
+    const counts = new Map();
+    OWNED.gifts.forEach((gift) => counts.set(gift, (counts.get(gift) || 0) + 1));
+
+    if (!counts.size) {
+      const none = document.createElement('div');
+      none.className = 'stk__none';
+
+      const title = document.createElement('b');
+      title.textContent = t('stake.empty');
+
+      const note = document.createElement('p');
+      note.textContent = t('stake.emptyNote');
+
+      const go = document.createElement('button');
+      go.type = 'button';
+      go.textContent = t('stake.toShelf');
+      go.addEventListener('click', () => {
+        haptic('light');
+        const at = tabs.findIndex((tab) => tab.dataset.section === 'home');
+        if (at !== -1) selectTab(at);
+      });
+
+      none.append(title, note, go);
+      list.appendChild(none);
+      return;
+    }
+
+    counts.forEach((many, gift) => list.appendChild(stakeRow(gift, many)));
+  }
+
+  // --- Лист стейкинга ---
+
+  let stakeSheet = null;
+  let stakePlayer = null;
+  let stakeGift = null;
+  let stakeTerm = STAKE_TERMS[1];
+
+  function paintStake() {
+    if (!stakeGift) return;
+
+    document.getElementById('stake-rate').textContent = t('stake.apy', { n: tierOf(stakeGift).rate });
+    document.getElementById('stake-income').textContent = formatPrice(stakeIncome(stakeGift, stakeTerm));
+
+    Array.from(document.querySelectorAll('.stk__term')).forEach((node) => {
+      node.classList.toggle('is-on', Number(node.dataset.days) === stakeTerm);
+    });
+  }
+
+  function fillStake(gift) {
+    stakeGift = gift;
+    // Средний срок выбран заранее: с него чаще всего и начинают
+    stakeTerm = STAKE_TERMS[1];
+
+    const stage = document.getElementById('stake-stage');
+    applyTint(stage, tints.get(gift.art) || null);
+    if (!tints.has(gift.art)) {
+      warmTint(gift, (tint) => {
+        if (tint && stakeGift === gift) applyTint(stage, tint);
+      });
+    }
+
+    document.getElementById('stake-title').textContent = gift.name;
+    document.getElementById('stake-note').textContent = gift.badge || '';
+
+    const terms = document.getElementById('stake-terms');
+    terms.textContent = '';
+
+    STAKE_TERMS.forEach((days) => {
+      const button = document.createElement('button');
+      button.className = 'stk__term';
+      button.type = 'button';
+      button.dataset.days = String(days);
+      button.textContent = days + ' ' + countOf(days, 'stake.days');
+      button.addEventListener('click', () => {
+        if (stakeTerm === days) return;
+        stakeTerm = days;
+        haptic('select');
+        paintStake();
+      });
+      terms.appendChild(button);
+    });
+
+    paintStake();
+  }
+
+  function initStaking() {
+    const root = document.getElementById('stake');
+    if (!root) return;
+
+    stakeSheet = createSheet(root, {
+      fill: fillStake,
+      opened: (gift) => {
+        stakePlayer = openArt(document.getElementById('stake-art'), gift);
+      },
+      closed: () => {
+        closeArt(document.getElementById('stake-art'), stakePlayer);
+        stakePlayer = null;
+        stakeGift = null;
+      }
+    });
+
+    document.getElementById('stake-go').addEventListener('click', () => {
+      haptic('light');
+      toast(t('stake.wait'));
+    });
+
+    renderStake();
+  }
+
   // --- Выбор языка ---
 
   /* Кружок с флагом в углу профиля и список под ним. Список собирается из
@@ -1998,6 +2211,7 @@
       drawGifts();
       initHeader();
       paintProfile();
+      renderStake();
     });
   }
 
@@ -2082,6 +2296,7 @@
       initSheet();
       initHeader();
       initProfile();
+      initStaking();
       initLang();
 
       initSlider(buildBanners());

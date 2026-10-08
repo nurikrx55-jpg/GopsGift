@@ -2103,9 +2103,11 @@ body {
 
 /* Ручка перетаскивания ложится поверх подложки: иначе между верхом листа
    и цветной шапкой оставалась бы тёмная полоса, которой на образце нет */
-/* У карточки товара шапка тоже ложится поверх подложки: та доходит до
-   самого верха листа, и полоска-ручка лежит прямо на ней */
-.sheet--buy .sheet__head {
+/* У карточки товара и у листа стейкинга шапка тоже ложится поверх
+   подложки: та доходит до самого верха листа, и полоска-ручка лежит
+   прямо на ней */
+.sheet--buy .sheet__head,
+.sheet--stake .sheet__head {
   position: absolute;
   top: 0;
   left: 0;
@@ -2115,11 +2117,13 @@ body {
   padding-top: 8px;
 }
 
-.sheet--buy .sheet__grabber {
+.sheet--buy .sheet__grabber,
+.sheet--stake .sheet__grabber {
   background: rgba(255, 255, 255, 0.4);
 }
 
-.sheet--buy .sheet__scroll {
+.sheet--buy .sheet__scroll,
+.sheet--stake .sheet__scroll {
   padding-top: 0;
 }
 
@@ -2162,10 +2166,354 @@ body {
   background: rgba(255, 255, 255, 0.12);
 }
 
-/* Стейкинг — пока пустой раздел */
+/* Стейкинг.
+
+   Раздел пока макет: ничего не ставится и не считается, поэтому в итоге
+   нули, а сверху стоит пометка «Скоро». */
 
 .stage[data-section="staking"] .pane[data-pane="staking"] {
   display: block;
+}
+
+.stk {
+  padding: 0 16px;
+}
+
+/* Итог: тёмная плита с подсветкой сверху — от неё раздел начинается */
+.stk__hero {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 20px 16px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, #1c1c21 0%, #141417 100%);
+  box-shadow: var(--glass-edge);
+}
+
+/* Свет из-за верхнего края: плита кажется подсвеченной изнутри */
+.stk__glow {
+  position: absolute;
+  top: -70%;
+  left: 50%;
+  width: 150%;
+  height: 150%;
+  translate: -50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(62, 136, 247, 0.26) 0%, rgba(62, 136, 247, 0) 70%);
+  pointer-events: none;
+}
+
+.stk__badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: var(--glass-edge);
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.stk__cap {
+  position: relative;
+  font-size: 14px;
+  color: var(--hint);
+}
+
+.stk__sum {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 6px;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.stk__star {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+.stk__star--small {
+  width: 15px;
+  height: 15px;
+}
+
+.stk__split {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.stk__stat {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--hint);
+}
+
+.stk__stat b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.stk__line {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+}
+
+.stk__title {
+  margin: 24px 0 12px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* Ставки по редкостям: полоса, которую можно пролистать вбок */
+.stk__rates {
+  display: flex;
+  gap: 8px;
+  margin: 0 -16px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.stk__rates::-webkit-scrollbar {
+  display: none;
+}
+
+.stk__rate {
+  flex: none;
+  display: grid;
+  gap: 5px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: var(--glass-edge);
+}
+
+.stk__rate b {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stk__rate span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--hint);
+  white-space: nowrap;
+}
+
+/* Точка редкости — тем же градиентом, что и лента на карточке */
+.stk__dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 3px;
+  background-image: linear-gradient(135deg, #364b5c, #172d42);
+}
+
+.stk__dot[data-kind="rare"]   { background-image: linear-gradient(135deg, #3fae6a, #1b5c37); }
+.stk__dot[data-kind="epic"]   { background-image: linear-gradient(135deg, #a97bf0, #5a3bb0); }
+.stk__dot[data-kind="legend"] { background-image: linear-gradient(135deg, #f9c81f, #c8820a); }
+
+/* Строка подарка: превью, название, ставка и кнопка */
+.stk__gifts {
+  display: grid;
+  gap: 8px;
+}
+
+.stk__gift {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: var(--glass-edge);
+}
+
+/* Превью берёт цвет у самого подарка — как и большие карточки */
+.stk__art {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.stk__art canvas,
+.stk__art svg,
+.stk__art img {
+  display: block;
+  width: 76%;
+  height: 76%;
+  object-fit: contain;
+}
+
+.stk__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.stk__name {
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stk__apy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #a3e04c;
+}
+
+.stk__put {
+  flex: none;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.2s ease;
+}
+
+.stk__put:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+}
+
+/* Ставить нечего */
+.stk__none {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 26px 20px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: var(--glass-edge);
+  text-align: center;
+}
+
+.stk__none b {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.stk__none p {
+  max-width: 260px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--hint);
+}
+
+.stk__none button {
+  margin-top: 6px;
+  min-height: 42px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Три шага: номер в кружке и строка рядом */
+.stk__how {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.stk__how li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--hint);
+}
+
+.stk__how i {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(62, 136, 247, 0.16);
+  color: var(--accent);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* Срок в листе: три отрезка, один выбран */
+.stk__label {
+  margin: 20px 0 10px;
+  font-size: 14px;
+  color: var(--hint);
+}
+
+.stk__terms {
+  display: flex;
+  gap: 8px;
+}
+
+.stk__term {
+  flex: 1 1 0;
+  min-height: 46px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: var(--glass-edge);
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.stk__term.is-on {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
 }
 
 /* Задания */

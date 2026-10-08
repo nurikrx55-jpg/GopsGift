@@ -146,7 +146,56 @@
       <div class="tasks" id="tasks"></div>
     </section>
 
-    <section class="pane" data-pane="staking"></section>
+    <section class="pane" data-pane="staking">
+      <div class="stk">
+        <!-- Итог сверху. Пока раздел ничего не считает, поэтому в нём нули
+             и пометка «Скоро»: обещать работающий доход нельзя -->
+        <div class="stk__hero">
+          <span class="stk__glow" aria-hidden="true"></span>
+          <span class="stk__badge" data-i18n="stake.soon">Скоро</span>
+
+          <p class="stk__cap" data-i18n="stake.total">В стейкинге</p>
+          <p class="stk__sum">
+            <img class="stk__star" src="gifts/star-white.png" alt="" draggable="false">
+            <span id="stk-sum">0</span>
+          </p>
+
+          <div class="stk__split">
+            <div class="stk__stat">
+              <span data-i18n="stake.day">Доход за день</span>
+              <b>
+                <img class="stk__star stk__star--small" src="gifts/star-white.png" alt="" draggable="false">
+                <span id="stk-day">0</span>
+              </b>
+            </div>
+
+            <i class="stk__line" aria-hidden="true"></i>
+
+            <div class="stk__stat">
+              <span data-i18n="stake.earned">Заработано</span>
+              <b>
+                <img class="stk__star stk__star--small" src="gifts/star-white.png" alt="" draggable="false">
+                <span id="stk-earned">0</span>
+              </b>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="stk__title" data-i18n="stake.rates">Ставка зависит от редкости</h3>
+        <!-- Ставки и список подарков собирает app.js -->
+        <div class="stk__rates" id="stk-rates"></div>
+
+        <h3 class="stk__title" data-i18n="stake.mine">Ваши подарки</h3>
+        <div class="stk__gifts" id="stk-gifts"></div>
+
+        <h3 class="stk__title" data-i18n="stake.how">Как это работает</h3>
+        <ol class="stk__how">
+          <li><i aria-hidden="true">1</i><span data-i18n="stake.how1"></span></li>
+          <li><i aria-hidden="true">2</i><span data-i18n="stake.how2"></span></li>
+          <li><i aria-hidden="true">3</i><span data-i18n="stake.how3"></span></li>
+        </ol>
+      </div>
+    </section>
 
     <section class="pane" data-pane="profile">
       <!-- Выбор языка: кружок с флагом, под ним список. Список собирает
@@ -394,6 +443,46 @@
       <div class="sheet__foot">
         <button class="pick__btn pick__btn--off glass" type="button" data-sheet-close data-i18n="pick.cancel">Отмена</button>
         <button class="pick__btn pick__btn--on" type="button" id="pick-apply" data-i18n="pick.apply">Применить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Лист стейкинга: подарок, срок и прикидка дохода -->
+  <div class="sheet sheet--stake" id="stake" hidden>
+    <div class="sheet__backdrop" data-sheet-close></div>
+
+    <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="stake-title">
+      <div class="sheet__head">
+        <span class="sheet__grabber" aria-hidden="true"></span>
+      </div>
+
+      <div class="sheet__scroll">
+        <div class="sheet__stage tint-face" id="stake-stage">
+          <div class="sheet__art" id="stake-art"></div>
+        </div>
+
+        <h2 class="sheet__title" id="stake-title"></h2>
+        <p class="sheet__note" id="stake-note"></p>
+
+        <p class="stk__label" data-i18n="stake.term">Срок</p>
+        <div class="stk__terms" id="stake-terms"></div>
+
+        <dl class="sheet__specs">
+          <dt data-i18n="stake.rate">Ставка</dt>
+          <dd><span class="sheet__value" id="stake-rate"></span></dd>
+
+          <dt data-i18n="stake.income">Доход за срок</dt>
+          <dd>
+            <span class="sheet__value sheet__price">
+              <img class="gift__star" src="gifts/star-white.png" alt="звёзд" data-i18n-alt="hdr.stars" draggable="false">
+              <span class="sheet__amount" id="stake-income"></span>
+            </span>
+          </dd>
+        </dl>
+      </div>
+
+      <div class="sheet__foot">
+        <button class="sheet__buy" type="button" id="stake-go" data-i18n="stake.go">Поставить в стейкинг</button>
       </div>
     </div>
   </div>
