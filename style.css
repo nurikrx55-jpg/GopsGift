@@ -1059,8 +1059,19 @@ body {
    самом листе, кромка из --glass-edge на карточках со строками и на
    кнопке отказа. Ничего своего здесь не заведено. */
 
+/* Лист выбора стоит карточкой с отбивкой от краёв: он короткий, и во всю
+   ширину экрана смотрелся бы тяжелее, чем выбор из трёх строк */
+.sheet--pick {
+  --pick-gap: max(12px, var(--safe-area-bottom));
+}
+
 .sheet--pick .sheet__panel {
-  border-radius: 28px 28px 0 0;
+  width: min(520px, calc(100% - 24px));
+  margin-bottom: var(--pick-gap);
+  padding-bottom: 14px;
+  border-radius: 28px;
+  /* Закрыт — уведён вниз целиком, вместе с этой отбивкой */
+  transform: translateY(calc(100% + var(--pick-gap)));
 }
 
 .pick__top {
@@ -1127,19 +1138,7 @@ body {
   padding-bottom: 4px;
 }
 
-.pick__list {
-  display: grid;
-  gap: 8px;
-}
-
-/* Подпись над группой — как на экранах настроек: мелкая, в стороне */
-.pick__group {
-  padding: 10px 6px 0;
-  font-size: 13px;
-  color: var(--hint);
-}
-
-/* Строки одной группы лежат в общей стеклянной карточке */
+/* Строки лежат в общей стеклянной карточке */
 .pick__card {
   display: grid;
   border-radius: 18px;
@@ -1176,16 +1175,6 @@ body {
   background: rgba(255, 255, 255, 0.07);
 }
 
-.pick__row.is-on {
-  background-color: rgba(62, 136, 247, 0.12);
-}
-
-/* У выбранной строки разделители гасим: иначе линия режет подсветку */
-.pick__row.is-on::before,
-.pick__row.is-on + .pick__row::before {
-  opacity: 0;
-}
-
 .pick__row:active {
   background-color: rgba(255, 255, 255, 0.07);
 }
@@ -1197,23 +1186,6 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* Метка редкости: тот же наклонный градиент, что и у ленты на карточке */
-.pick__dot {
-  width: 10px;
-  height: 10px;
-  flex: none;
-  border-radius: 4px;
-  background-image: linear-gradient(135deg, #364b5c, #172d42);
-}
-
-.pick__dot[data-kind="premium"] { background-image: linear-gradient(135deg, #f6b329, #f18902); }
-.pick__dot[data-kind="sold"]    { background-image: linear-gradient(135deg, #5f3a3e, #471f20); }
-.pick__dot[data-kind="time"]    { background-image: linear-gradient(135deg, #b292f5, #6e62e0); }
-.pick__dot[data-kind="rare"]    { background-image: linear-gradient(135deg, #3fae6a, #1b5c37); }
-.pick__dot[data-kind="epic"]    { background-image: linear-gradient(135deg, #a97bf0, #5a3bb0); }
-.pick__dot[data-kind="legend"]  { background-image: linear-gradient(135deg, #f9c81f, #c8820a); }
-.pick__dot[data-kind="blood"]   { background-image: linear-gradient(135deg, #ff5a52, #b01b16); }
 
 /* Переключатель — кольцо, которое заполняется точкой */
 .pick__mark {

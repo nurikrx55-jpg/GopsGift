@@ -1230,8 +1230,8 @@
 
   // Что показывать и в каком порядке. Обе кнопки открывают один и тот же
   // лист выбора: список, переключатель, «Отмена» и «Применить».
-  // Значение храним по имени, а не по месту в списке: редкости приходят с
-  // витрины, и от их числа выбор зависеть не должен.
+  // Значение храним по имени, а не по месту в списке: так перестановка
+  // пунктов не сбивает выбор.
   const SCOPES = [
     { id: 'all', label: 'Все подарки', keep: null },
     { id: 'left', label: 'В наличии', keep: (gift) => typeof gift.left !== 'number' || gift.left > 0 },
@@ -1255,33 +1255,8 @@
   let scopeId = 'all';
   let sortId = 'new';
 
-  // Редкости берём с самих карточек: в списке стоят те ярлыки, что есть на
-  // витрине, и ни одного лишнего
-  function badgeScopes() {
-    const seen = new Map();
-
-    GIFTS.forEach((gift) => {
-      if (gift.badge && !seen.has(gift.badge)) seen.set(gift.badge, gift.kind || 'default');
-    });
-
-    return Array.from(seen, (pair) => ({
-      id: 'badge:' + pair[0],
-      label: pair[0],
-      kind: pair[1],
-      keep: (gift) => gift.badge === pair[0]
-    }));
-  }
-
-  function scopeGroups() {
-    const rare = badgeScopes();
-    const groups = [{ title: null, items: SCOPES }];
-    if (rare.length) groups.push({ title: 'Редкость', items: rare });
-    return groups;
-  }
-
   function pickedScope() {
-    const all = SCOPES.concat(badgeScopes());
-    return all.find((one) => one.id === scopeId) || SCOPES[0];
+    return SCOPES.find((one) => one.id === scopeId) || SCOPES[0];
   }
 
   function pickedSort() {
@@ -1318,24 +1293,16 @@
   let pickSheet = null;
   let pickNow = null;
 
-  function pickRow(option, group) {
+  function pickRow(option, card) {
     const row = document.createElement('button');
     row.className = 'pick__row';
     row.type = 'button';
+    row.dataset.id = option.id;
     row.setAttribute('role', 'radio');
 
     const label = document.createElement('span');
     label.className = 'pick__label';
     label.textContent = option.label;
-
-    // У редкости рядом с названием её же цвет — тот, которым на карточке
-    // нарисована лента
-    if (option.kind) {
-      const dot = document.createElement('i');
-      dot.className = 'pick__dot';
-      dot.dataset.kind = option.kind;
-      row.appendChild(dot);
-    }
 
     const mark = document.createElement('span');
     mark.className = 'pick__mark';
@@ -1350,8 +1317,7 @@
       paintPick();
     });
 
-    group.appendChild(row);
-    return row;
+    card.appendChild(row);
   }
 
   function paintPick() {
@@ -1381,23 +1347,10 @@
     const list = document.getElementById('pick-list');
     list.textContent = '';
 
-    const groups = sort ? [{ title: null, items: SORTS }] : scopeGroups();
-
-    groups.forEach((group) => {
-      if (group.title) {
-        const title = document.createElement('p');
-        title.className = 'pick__group';
-        title.textContent = group.title;
-        list.appendChild(title);
-      }
-
-      const card = document.createElement('div');
-      card.className = 'pick__card';
-      group.items.forEach((option) => {
-        pickRow(option, card).dataset.id = option.id;
-      });
-      list.appendChild(card);
-    });
+    const card = document.createElement('div');
+    card.className = 'pick__card';
+    (sort ? SORTS : SCOPES).forEach((option) => pickRow(option, card));
+    list.appendChild(card);
 
     paintPick();
   }
