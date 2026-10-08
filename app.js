@@ -145,6 +145,8 @@
 
     nav.style.setProperty('--active-index', String(index));
     stage.dataset.section = tabs[index].dataset.section;
+    // Шапка едет вместе со страницей, поэтому новый раздел открываем сверху
+    stage.scrollTop = 0;
   }
 
   function slotWidth() {
@@ -177,11 +179,6 @@
       // Если палец лёг мимо капсулы — берём её за середину
       grab = event.clientX - origin - offset;
       if (grab < 0 || grab > slot) grab = slot / 2;
-
-      // Захват не критичен: без него жест просто оборвётся за пределами панели
-      try {
-        nav.setPointerCapture(pointerId);
-      } catch (_) {}
     });
 
     nav.addEventListener('pointermove', (event) => {
@@ -191,6 +188,13 @@
         if (Math.abs(event.clientX - startX) < DRAG_THRESHOLD) return;
         dragging = true;
         indicator.style.transition = 'none';
+
+        // Захват берём только когда жест начался: взятый на нажатии, он
+        // переадресовал бы на капсулу и клик мышью, и вкладка не нажималась.
+        // Без захвата жест просто оборвётся за пределами панели
+        try {
+          nav.setPointerCapture(pointerId);
+        } catch (_) {}
       }
 
       const max = (tabs.length - 1) * slot;
@@ -1224,8 +1228,9 @@
     initOwnedTools();
   }
 
-  // Что показывать и в каком порядке. Обе кнопки перебирают свои значения
-  // по кругу — вариантов по три, и меню ради них было бы лишним
+  // Что показывать и в каком порядке. Отбор перебирает значения по кругу —
+  // их три, и меню ради них было бы лишним. Порядок пока только показывает
+  // надпись: переключать его будет отдельное окно выбора
   const SCOPES = [
     { label: 'Все подарки', keep: null },
     { label: 'В наличии', keep: (gift) => typeof gift.left !== 'number' || gift.left > 0 },
@@ -1269,7 +1274,6 @@
     if (!giftsGrid) return;
 
     const scope = document.getElementById('filter-scope');
-    const sort = document.getElementById('filter-sort');
     const scopeText = document.getElementById('filter-scope-text');
     const sortText = document.getElementById('filter-sort-text');
 
@@ -1286,7 +1290,7 @@
     };
 
     if (scope) scope.addEventListener('click', () => step(() => { scopeAt = (scopeAt + 1) % SCOPES.length; }));
-    if (sort) sort.addEventListener('click', () => step(() => { sortAt = (sortAt + 1) % SORTS.length; }));
+    // Порядок пока не переключается: на кнопку встанет отдельное окно выбора
 
     paint();
     drawGifts();

@@ -79,8 +79,19 @@ body {
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  padding-top: calc(var(--safe-area-top) + var(--content-top) + var(--header-h) + 14px);
+  padding-top: calc(var(--safe-area-top) + var(--content-top));
   padding-bottom: calc(var(--safe-area-bottom) + 108px);
+  /* Полосу прокрутки не показываем: на телефоне она рисовалась чертой у края */
+  scrollbar-width: none;
+}
+
+.stage::-webkit-scrollbar {
+  display: none;
+}
+
+/* Содержимое начинается на том же расстоянии от шапки, что и раньше */
+.stage > .pane {
+  padding-top: 14px;
 }
 
 /* Раздел виден только когда выбрана его вкладка */
@@ -284,6 +295,7 @@ body {
   flex: 1;
   display: grid;
   place-items: center;
+  cursor: pointer;
   -webkit-user-drag: none;
 }
 
@@ -1352,11 +1364,7 @@ body {
 /* Шапка с балансами */
 
 .hdr {
-  position: fixed;
-  top: calc(var(--safe-area-top) + var(--content-top));
-  left: 0;
-  right: 0;
-  z-index: 60;
+  /* Шапка едет вместе со страницей: она часть содержимого, а не накладка */
   height: var(--header-h);
   display: flex;
   align-items: center;
