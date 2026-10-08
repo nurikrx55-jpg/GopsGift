@@ -44,7 +44,7 @@ const STABLE = ['gifts/', 'home/', 'fonts/'];
 
 // Наружу уходит только то, что нужно странице. Исходники сервера, зависимости
 // и настройки под раздачу не попадают, даже если кто-то угадает имя
-const HIDDEN = ['api/', 'node_modules/', 'data/', '.git/', '.claude/'];
+const HIDDEN = ['api/', 'node_modules/', 'data/', 'deploy/', '.git/', '.claude/'];
 const PRIVATE = ['server.mjs', 'package.json', 'package-lock.json', 'vercel.json', 'README.md'];
 
 // Запасное содержимое приложению всё-таки нужно: по нему витрина
