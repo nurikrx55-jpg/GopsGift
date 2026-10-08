@@ -2226,19 +2226,26 @@ body {
   overflow: hidden;
   padding: 18px 20px 16px;
   border-radius: 26px;
-  background: linear-gradient(180deg, #1c1c21 0%, #141417 100%);
+  background: linear-gradient(180deg, #1a1a20 0%, #121216 100%);
   box-shadow: var(--glass-edge);
 }
 
-/* Свет из-за верхнего края: плита кажется подсвеченной изнутри */
+/* Свет из-за верхнего края: плита кажется подсвеченной изнутри.
+   Два пятна вместо одного — синее и сиреневое, смещённые друг от друга:
+   одно ровное пятно читалось как пятно, два дают глубину. Размытие сверх
+   того сглаживает границу, за которой свет сходит на нет. */
 .stk__glow {
   position: absolute;
-  top: -70%;
+  top: -62%;
   left: 50%;
-  width: 150%;
-  height: 150%;
+  width: 128%;
+  height: 132%;
   translate: -50%;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(62, 136, 247, 0.26) 0%, rgba(62, 136, 247, 0) 70%);
+  background:
+    radial-gradient(40% 40% at 28% 60%, rgba(62, 136, 247, 0.46) 0%, rgba(62, 136, 247, 0) 72%),
+    radial-gradient(36% 36% at 72% 52%, rgba(146, 96, 246, 0.34) 0%, rgba(146, 96, 246, 0) 72%),
+    radial-gradient(54% 32% at 50% 70%, rgba(80, 190, 255, 0.14) 0%, rgba(80, 190, 255, 0) 76%);
+  filter: blur(14px);
   pointer-events: none;
 }
 
@@ -2386,8 +2393,9 @@ body {
   flex: none;
   display: grid;
   gap: 5px;
-  padding: 12px 16px;
-  border-radius: 18px;
+  /* Скругление в полный рост: плашка-капсула, как кнопки отбора */
+  padding: 11px 20px;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
   box-shadow: var(--glass-edge);
 }
