@@ -1633,9 +1633,9 @@ body {
   background: rgba(255, 255, 255, 0.12);
 }
 
-/* Маркет — пока пустой раздел */
+/* Стейкинг — пока пустой раздел */
 
-.stage[data-section="market"] .pane[data-pane="market"] {
+.stage[data-section="staking"] .pane[data-pane="staking"] {
   display: block;
 }
 
