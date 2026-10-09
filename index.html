@@ -74,6 +74,10 @@
         <stop stop-color="#ff5a52"></stop>
         <stop offset="1" stop-color="#b01b16"></stop>
       </linearGradient>
+      <linearGradient id="ribbon-stake" x1="5.35041" y1="-8.16291" x2="79.8505" y2="66.3372" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#7fc4ff"></stop>
+        <stop offset="1" stop-color="#2f6fe0"></stop>
+      </linearGradient>
       <linearGradient id="ribbon-legend" x1="5.35041" y1="-8.16291" x2="79.8505" y2="66.3372" gradientUnits="userSpaceOnUse">
         <stop stop-color="#f9c81f"></stop>
         <stop offset="1" stop-color="#c8820a"></stop>
@@ -157,12 +161,12 @@
              и пометка «Скоро»: обещать работающий доход нельзя -->
         <div class="stk__hero">
           <span class="stk__glow" aria-hidden="true"></span>
-          <span class="stk__badge" data-i18n="stake.soon">Скоро</span>
 
           <p class="stk__cap" data-i18n="stake.total">В стейкинге</p>
           <p class="stk__sum">
-            <img class="stk__star" src="gifts/star-white.png" alt="" draggable="false">
+            <svg class="stk__gifticon" viewBox="0 0 14 16" aria-hidden="true"><use href="#task-gift"></use></svg>
             <span id="stk-sum">0</span>
+            <small id="stk-sum-word"></small>
           </p>
 
           <div class="stk__split">
@@ -203,14 +207,16 @@
           </div>
         </div>
 
-        <h3 class="stk__title" data-i18n="stake.rates">Ставка зависит от редкости</h3>
-        <!-- Ставки и список подарков собирает app.js -->
-        <div class="stk__rates" id="stk-rates"></div>
-
         <button class="stk__add" type="button" id="stk-add">
           <svg viewBox="0 0 14 16" aria-hidden="true"><use href="#task-gift"></use></svg>
           <span data-i18n="stake.add">Добавить подарок</span>
         </button>
+
+        <!-- Поставленные подарки. Пусто — блока нет вовсе -->
+        <div class="stk__done" id="stk-done" hidden>
+          <h3 class="stk__title" data-i18n="stake.list">Ваши ставки</h3>
+          <div class="stk__list" id="stk-list"></div>
+        </div>
       </div>
     </section>
 
@@ -523,8 +529,54 @@
         </button>
       </div>
 
+      <p class="picks__rule" id="picks-rule"></p>
+
       <div class="sheet__scroll pick__scroll">
         <div class="picks" id="picks-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Поставленный подарок: сколько осталось и что накопилось -->
+  <div class="sheet sheet--buy sheet--spot" id="spot" hidden>
+    <div class="sheet__backdrop" data-sheet-close></div>
+
+    <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="spot-title">
+      <div class="sheet__head">
+        <span class="sheet__grabber" aria-hidden="true"></span>
+      </div>
+
+      <div class="sheet__scroll">
+        <div class="sheet__stage tint-face" id="spot-stage">
+          <div class="sheet__art" id="spot-art"></div>
+          <span class="stk__frost" aria-hidden="true"></span>
+        </div>
+
+        <h2 class="sheet__title" id="spot-title"></h2>
+        <p class="sheet__note" id="spot-note"></p>
+
+        <div class="stk__bar"><span class="stk__bar-fill" id="spot-bar"></span></div>
+
+        <dl class="sheet__specs">
+          <dt data-i18n="stake.term">Срок</dt>
+          <dd><span class="sheet__value" id="spot-term"></span></dd>
+
+          <dt data-i18n="stake.rate">Ставка</dt>
+          <dd><span class="sheet__value" id="spot-rate"></span></dd>
+
+          <dt data-i18n="stake.now">Накоплено</dt>
+          <dd>
+            <span class="sheet__value sheet__price">
+              <img class="gift__star" src="gifts/star-white.png" alt="звёзд" data-i18n-alt="hdr.stars" draggable="false">
+              <span class="sheet__amount" id="spot-earned"></span>
+            </span>
+          </dd>
+        </dl>
+      </div>
+
+      <div class="sheet__foot">
+        <button class="pick__btn pick__btn--off glass" type="button" id="spot-out"
+                data-i18n="stake.unstake">Снять со стейкинга</button>
       </div>
     </div>
   </div>

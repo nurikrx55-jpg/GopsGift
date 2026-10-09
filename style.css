@@ -659,6 +659,9 @@ body {
 .gift__badge[data-kind="legend"] { --ribbon-fill: url(#ribbon-legend); }
 .gift__badge[data-kind="blood"]  { --ribbon-fill: url(#ribbon-blood); }
 
+/* Лента поставленного подарка — холодная, под стать льду на карточке */
+.gift__badge[data-kind="stake"]  { --ribbon-fill: url(#ribbon-stake); }
+
 .gift__ribbon {
   grid-area: 1 / 1;
   width: 100%;
@@ -2245,18 +2248,6 @@ body {
   pointer-events: none;
 }
 
-.stk__badge {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: var(--glass-edge);
-  font-size: 12px;
-  color: var(--hint);
-}
-
 .stk__cap {
   position: relative;
   font-size: 14px;
@@ -2279,6 +2270,22 @@ body {
   width: 28px;
   height: 28px;
   display: block;
+}
+
+/* В крупной строке считаем подарки, а не звёзды: в стейкинг кладут их */
+.stk__gifticon {
+  width: 25px;
+  height: 29px;
+  flex: none;
+  fill: currentColor;
+}
+
+.stk__sum small {
+  align-self: flex-end;
+  padding-bottom: 3px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--hint);
 }
 
 .stk__star--small {
@@ -2370,59 +2377,6 @@ body {
   font-size: 17px;
   font-weight: 600;
 }
-
-/* Ставки по редкостям: полоса, которую можно пролистать вбок */
-.stk__rates {
-  display: flex;
-  gap: 8px;
-  margin: 0 -16px;
-  padding: 0 16px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.stk__rates::-webkit-scrollbar {
-  display: none;
-}
-
-.stk__rate {
-  flex: none;
-  display: grid;
-  gap: 5px;
-  /* Скругление в полный рост: плашка-капсула, как кнопки отбора */
-  padding: 11px 20px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: var(--glass-edge);
-}
-
-.stk__rate b {
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.stk__rate span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--hint);
-  white-space: nowrap;
-}
-
-/* Точка редкости — тем же градиентом, что и лента на карточке */
-.stk__dot {
-  width: 9px;
-  height: 9px;
-  flex: none;
-  border-radius: 3px;
-  background-image: linear-gradient(135deg, #364b5c, #172d42);
-}
-
-.stk__dot[data-kind="rare"]   { background-image: linear-gradient(135deg, #3fae6a, #1b5c37); }
-.stk__dot[data-kind="epic"]   { background-image: linear-gradient(135deg, #a97bf0, #5a3bb0); }
-.stk__dot[data-kind="legend"] { background-image: linear-gradient(135deg, #f9c81f, #c8820a); }
 
 /* Главное действие раздела — белая кнопка: на тёмном она читается как
    единственное, что здесь нажимают */
@@ -2527,6 +2481,96 @@ body {
   font-weight: 700;
 }
 
+/* Поставленные подарки: та же витрина, что в профиле */
+.stk__done {
+  margin-top: 4px;
+}
+
+.stk__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.stk__list .gift {
+  --ribbon-scale: 0.66;
+  --gift-radius: 14px;
+  padding: 8px;
+}
+
+.stk__list .gift__art {
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* Подарок подо льдом — цвет приглушён, будто за стеклом */
+  filter: saturate(0.7) brightness(0.92);
+  transform-origin: center;
+  width: 74%;
+}
+
+/* Лёд: холодная плёнка поверх карточки и матовый край */
+.stk__frost {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  background:
+    linear-gradient(150deg, rgba(168, 216, 255, 0.22) 0%, rgba(120, 180, 255, 0.06) 45%, rgba(40, 90, 170, 0.18) 100%);
+  box-shadow: inset 0 0 0 1px rgba(168, 216, 255, 0.22);
+  pointer-events: none;
+}
+
+/* Сколько осталось — внизу карточки */
+.stk__timer {
+  position: absolute;
+  z-index: 3;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  padding: 4px 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: var(--glass-edge);
+  font-size: 11px;
+  text-align: center;
+  color: #cfe7ff;
+}
+
+/* Полоса срока в листе */
+.stk__bar {
+  height: 6px;
+  margin: 18px 0 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.stk__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7fc4ff, #3e88f7);
+  transition: width 0.5s ease;
+}
+
+/* У поставленного подарка лист тоже во льду */
+.sheet--spot .sheet__stage {
+  position: relative;
+}
+
+/* Правило цены над витриной выбора */
+.picks__rule {
+  flex: none;
+  margin: -2px 16px 10px;
+  font-size: 13px;
+  color: var(--hint);
+}
+
+/* Подарок дешевле порога ставить нельзя — он приглушён */
+.picks .gift.is-off {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* Выбор подарка: та же витрина, что в профиле, — три в ряд */
 .picks {
   display: grid;
@@ -2546,20 +2590,6 @@ body {
   top: 50%;
   transform: translate(-50%, -50%);
   width: 74%;
-}
-
-/* Сколько штук лежит у человека — уголком на карточке */
-.picks__many {
-  position: absolute;
-  z-index: 3;
-  left: 7px;
-  bottom: 7px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.5);
-  box-shadow: var(--glass-edge);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 /* Окну выбора нужен потолок: подарков бывает много. Мало — окно само

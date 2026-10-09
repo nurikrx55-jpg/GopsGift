@@ -1887,10 +1887,14 @@
 
   // --- Стейкинг ---
 
-  /* Раздел пока макет: ничего не ставится и не начисляется, кнопки честно
-     отвечают «скоро», а в итоге сверху нули и пометка. Ставки и прикидка
-     дохода при этом считаются по-настоящему — от цены подарка и его
-     редкости: так видно, как раздел будет выглядеть, когда заработает. */
+  /* Раздел пока макет: ставки никуда не уходят, они живут в самом браузере
+     и пропадут вместе с его памятью. Зато всё остальное настоящее — ставка
+     от редкости, срок, накопленное считаются по-честному, и видно, как
+     раздел будет работать.
+
+     Подарок, отданный в стейкинг, замораживается на выбранный срок: на
+     карточке появляется лента Staking, лёд поверх и счётчик дней. В окне
+     выбора его уже нет — ставить дважды одну и ту же штуку нельзя. */
 
   const STAKE_TIERS = [
     { kind: 'legend', key: 'stake.tier.legend', rate: 35 },
@@ -1903,41 +1907,170 @@
   const TIER_OF = { legend: 'legend', blood: 'legend', epic: 'epic', rare: 'rare' };
   const STAKE_TERMS = [7, 30, 90];
   const YEAR = 365;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  // Дешёвый подарок в стейкинг не берут: с него и за год набежит ерунда
+  const STAKE_MIN = 300;
+  const STAKE_KEY = 'gg:stake';
+
+  let staked = [];
+
+  function readStaked() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STAKE_KEY) || '[]');
+      staked = Array.isArray(saved) ? saved.filter((one) => one && one.id && one.days) : [];
+    } catch (_) {
+      staked = [];
+    }
+  }
+
+  function writeStaked() {
+    try {
+      localStorage.setItem(STAKE_KEY, JSON.stringify(staked));
+    } catch (_) {}
+  }
 
   function tierOf(gift) {
     const name = TIER_OF[gift && gift.kind] || 'plain';
     return STAKE_TIERS.find((one) => one.kind === name) || STAKE_TIERS[STAKE_TIERS.length - 1];
   }
 
+  function canStake(gift) {
+    return Boolean(gift) && (gift.price || 0) >= STAKE_MIN;
+  }
+
   function stakeIncome(gift, days) {
     return Math.round((gift.price || 0) * tierOf(gift).rate / 100 * days / YEAR);
   }
 
-  function stakeRates() {
-    const row = document.getElementById('stk-rates');
-    if (!row) return;
+  // Доли звезды на экране всё-таки нужны: за день с одного подарка набегает
+  // меньше единицы, и ноль вместо этого выглядел бы поломкой
+  function stars(value) {
+    const sum = Number(value) || 0;
+    if (!sum || sum >= 10) return formatPrice(Math.round(sum));
+    const short = String(Math.round(sum * 10) / 10);
+    return window.I18N.lang() === 'ru' ? short.replace('.', ',') : short;
+  }
 
-    row.textContent = '';
+  // Сколько прошло и сколько набежало на одной ставке
+  function spotOf(entry) {
+    const gift = giftById(entry.id);
+    const full = entry.days * DAY_MS;
+    const gone = Math.min(Math.max(Date.now() - entry.at, 0), full);
+    const perDay = gift ? (gift.price || 0) * tierOf(gift).rate / 100 / YEAR : 0;
 
-    STAKE_TIERS.forEach((tier) => {
-      const box = document.createElement('div');
-      box.className = 'stk__rate';
+    return {
+      gift: gift,
+      perDay: perDay,
+      share: full ? gone / full : 1,
+      left: Math.max(0, Math.ceil((full - gone) / DAY_MS)),
+      earned: perDay * (gone / DAY_MS),
+      until: entry.at + full
+    };
+  }
 
-      const value = document.createElement('b');
-      value.textContent = tier.rate + '%';
+  function dayName(stamp) {
+    const when = new Date(stamp);
+    try {
+      return when.toLocaleDateString(window.I18N.lang(), { day: 'numeric', month: 'short' });
+    } catch (_) {
+      return when.toLocaleDateString();
+    }
+  }
 
-      const name = document.createElement('span');
-      const dot = document.createElement('i');
-      dot.className = 'stk__dot';
-      if (tier.kind !== 'plain') dot.dataset.kind = tier.kind;
-      name.append(dot, document.createTextNode(t(tier.key)));
+  // Что ещё не поставлено. Одинаковые подарки считаем поштучно: отдали одну
+  // копию — остальные по-прежнему свободны
+  function freeGifts() {
+    const taken = new Map();
+    staked.forEach((one) => taken.set(one.id, (taken.get(one.id) || 0) + 1));
 
-      box.append(value, name);
-      row.appendChild(box);
+    const out = [];
+    OWNED.gifts.forEach((gift) => {
+      const held = taken.get(gift.id) || 0;
+      if (held) {
+        taken.set(gift.id, held - 1);
+        return;
+      }
+      out.push(gift);
+    });
+
+    return out;
+  }
+
+  // --- Что видно в разделе ---
+
+  function paintStakeSum() {
+    const sum = document.getElementById('stk-sum');
+    const word = document.getElementById('stk-sum-word');
+    if (!sum) return;
+
+    let perDay = 0;
+    let earned = 0;
+    staked.forEach((entry) => {
+      const spot = spotOf(entry);
+      perDay += spot.perDay;
+      earned += spot.earned;
+    });
+
+    sum.textContent = formatPrice(staked.length);
+    if (word) word.textContent = countOf(staked.length, 'gift.count');
+    document.getElementById('stk-day').textContent = stars(perDay);
+    document.getElementById('stk-earned').textContent = stars(earned);
+  }
+
+  // Карточка поставленного подарка: лента Staking вместо редкости, лёд
+  // поверх и счётчик дней внизу
+  function stakeCard(entry) {
+    const spot = spotOf(entry);
+    if (!spot.gift) return null;
+
+    const card = buildGift(spot.gift, () => spotSheet.open(entry));
+
+    const old = card.querySelector('.gift__badge');
+    if (old) old.remove();
+
+    const badge = document.createElement('span');
+    badge.className = 'gift__badge';
+    badge.dataset.kind = 'stake';
+    badge.innerHTML =
+      '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true">' +
+      '<use href="#ribbon-shape"></use></svg>';
+
+    const label = document.createElement('span');
+    label.className = 'gift__label';
+    label.textContent = t('stake.ribbon');
+    badge.appendChild(label);
+
+    const frost = document.createElement('span');
+    frost.className = 'stk__frost';
+    frost.setAttribute('aria-hidden', 'true');
+
+    const timer = document.createElement('span');
+    timer.className = 'stk__timer';
+    timer.textContent = spot.left ? countOf(spot.left, 'stake.daysLeft').replace('{n}', spot.left) : t('stake.over');
+
+    card.append(badge, frost, timer);
+    return card;
+  }
+
+  function renderStake() {
+    const box = document.getElementById('stk-done');
+    const list = document.getElementById('stk-list');
+    if (!box || !list) return;
+
+    paintStakeSum();
+
+    releaseArt(list);
+    list.textContent = '';
+    box.hidden = !staked.length;
+
+    staked.forEach((entry) => {
+      const card = stakeCard(entry);
+      if (card) list.appendChild(card);
     });
   }
 
-  // Ставить нечего: из окна выбора уводим на витрину
+  // --- Окно выбора ---
+
   function stakeEmpty(after) {
     const none = document.createElement('div');
     none.className = 'stk__none';
@@ -1962,53 +2095,52 @@
     return none;
   }
 
-  // Витрина выбора: что лежит у человека. Одинаковые подарки сводим в одну
-  // карточку с уголком «× N» — семь копий подряд ничего не говорят
+  /* Витрина выбора: каждая копия стоит сама по себе. Свести их в одну
+     карточку со счётчиком было бы короче, но выбирают здесь не вид
+     подарка, а конкретную штуку — и после ставки одна из них уходит. */
   function fillPicks() {
     const list = document.getElementById('picks-list');
+    const rule = document.getElementById('picks-rule');
     if (!list) return;
+
+    if (rule) rule.textContent = t('stake.min', { n: formatPrice(STAKE_MIN) });
 
     releaseArt(list);
     list.textContent = '';
 
-    const counts = new Map();
-    OWNED.gifts.forEach((gift) => counts.set(gift, (counts.get(gift) || 0) + 1));
-
-    if (!counts.size) {
+    const free = freeGifts();
+    if (!free.length) {
       list.appendChild(stakeEmpty(() => picksSheet.close()));
       return;
     }
 
-    counts.forEach((many, gift) => {
+    free.forEach((gift) => {
+      const ready = canStake(gift);
       const card = buildGift(gift, (one) => {
+        if (!ready) {
+          toast(t('stake.cheap'));
+          return;
+        }
         picksSheet.close();
         // Лист стейкинга поднимаем, когда выбор уже уехал вниз
         setTimeout(() => stakeSheet.open(one), 260);
       });
 
-      if (many > 1) {
-        const badge = document.createElement('span');
-        badge.className = 'picks__many';
-        badge.textContent = '\u00D7 ' + many;
-        card.appendChild(badge);
-      }
-
+      if (!ready) card.classList.add('is-off');
       list.appendChild(card);
     });
-  }
-
-  // Сам раздел рисует только ставки: подарок выбирают в окне
-  function renderStake() {
-    stakeRates();
   }
 
   // --- Лист стейкинга ---
 
   let stakeSheet = null;
+  let spotSheet = null;
   let infoSheet = null;
   let picksSheet = null;
   let stakePlayer = null;
+  let spotPlayer = null;
   let stakeGift = null;
+  let spotEntry = null;
   let stakeTerm = STAKE_TERMS[1];
 
   function paintStake() {
@@ -2059,9 +2191,32 @@
     paintStake();
   }
 
+  // --- Лист поставленного подарка ---
+
+  function fillSpot(entry) {
+    spotEntry = entry;
+    const spot = spotOf(entry);
+    if (!spot.gift) return;
+
+    const stage = document.getElementById('spot-stage');
+    applyTint(stage, tints.get(spot.gift.art) || null);
+
+    document.getElementById('spot-title').textContent = spot.gift.name;
+    document.getElementById('spot-note').textContent = spot.left
+      ? t('stake.frozen', { date: dayName(spot.until) })
+      : t('stake.over');
+
+    document.getElementById('spot-bar').style.width = (spot.share * 100).toFixed(1) + '%';
+    document.getElementById('spot-term').textContent = entry.days + ' ' + countOf(entry.days, 'stake.days');
+    document.getElementById('spot-rate').textContent = t('stake.apy', { n: tierOf(spot.gift).rate });
+    document.getElementById('spot-earned').textContent = stars(spot.earned);
+  }
+
   function initStaking() {
     const root = document.getElementById('stake');
     if (!root) return;
+
+    readStaked();
 
     stakeSheet = createSheet(root, {
       fill: fillStake,
@@ -2072,6 +2227,19 @@
         closeArt(document.getElementById('stake-art'), stakePlayer);
         stakePlayer = null;
         stakeGift = null;
+      }
+    });
+
+    spotSheet = createSheet(document.getElementById('spot'), {
+      fill: fillSpot,
+      opened: (entry) => {
+        const gift = giftById(entry.id);
+        if (gift) spotPlayer = openArt(document.getElementById('spot-art'), gift);
+      },
+      closed: () => {
+        closeArt(document.getElementById('spot-art'), spotPlayer);
+        spotPlayer = null;
+        spotEntry = null;
       }
     });
 
@@ -2098,8 +2266,28 @@
     });
 
     document.getElementById('stake-go').addEventListener('click', () => {
+      if (!stakeGift) return;
+
+      staked.push({ id: stakeGift.id, days: stakeTerm, at: Date.now() });
+      writeStaked();
+
+      haptic('success');
+      stakeSheet.close();
+      renderStake();
+      toast(t('stake.saved'));
+    });
+
+    document.getElementById('spot-out').addEventListener('click', () => {
+      if (!spotEntry) return;
+
+      const at = staked.indexOf(spotEntry);
+      if (at !== -1) staked.splice(at, 1);
+      writeStaked();
+
       haptic('light');
-      toast(t('stake.wait'));
+      spotSheet.close();
+      renderStake();
+      toast(t('stake.back'));
     });
 
     renderStake();
