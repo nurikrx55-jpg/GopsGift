@@ -400,6 +400,8 @@ export async function createOrder(input) {
     qty: int(input.qty, 1, 100),
     price: int(input.price, 1, 1000000),
     amount: int(input.amount, 1, 100000000),
+    // Сколько купонов уходит в скидку: списываем их вместе с оплатой
+    coupons: int(input.coupons, 0, 100000000),
     status: 'new',
     createdAt: Date.now()
   };
@@ -427,6 +429,9 @@ export async function settleOrder(id, payment) {
   const rawAcct = await command('GET', K.acct(order.userId));
   const acct = normalAccount(rawAcct);
   for (let i = 0; i < order.qty; i += 1) acct.gifts.push(order.giftId);
+
+  // Купоны, ушедшие в скидку, списываются ровно сейчас — вместе с деньгами
+  acct.coupons = Math.max(0, acct.coupons - (order.coupons || 0));
 
   await writeContent((state) => {
     const gift = (state.gifts || []).find((one) => one.id === order.giftId);

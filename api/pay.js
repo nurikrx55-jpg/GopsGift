@@ -48,27 +48,39 @@ async function start(input, user) {
       : refuse('pay.soldout', 'Подарок распродан');
   }
 
-  const amount = gift.price * qty;
-  if (amount > MAX_STARS) throw refuse('pay.toomuch', 'Столько звёзд за один раз Telegram не примет');
+  const full = gift.price * qty;
+  if (full > MAX_STARS) throw refuse('pay.toomuch', 'Столько звёзд за один раз Telegram не примет');
+
+  /* Купоны идут в скидку: один купон — одна звезда. Сколько их на счету,
+     знает только сервер, поэтому число из браузера здесь лишь потолок.
+     Совсем до нуля цену они не сводят: счёт меньше звезды Telegram не
+     примет, и одну звезду всегда оставляем. */
+  const me = await getUser(user.id);
+  const want = Math.max(0, Math.round(Number(input.coupons) || 0));
+  const coupons = Math.min(want, me ? me.coupons || 0 : 0, full - 1);
+  const amount = full - coupons;
 
   const order = await createOrder({
     userId: user.id,
     giftId: gift.id,
     qty: qty,
     price: gift.price,
-    amount: amount
+    amount: amount,
+    coupons: coupons
   });
 
   // По payload бот узнает заказ, когда Telegram сообщит об оплате
   const link = await call('createInvoiceLink', {
     title: gift.name.slice(0, 32),
-    description: (qty > 1 ? gift.name + ' — ' + qty + ' шт.' : gift.name) + '. Подарок уйдёт в ваш профиль сразу после оплаты.',
+    description: (qty > 1 ? gift.name + ' — ' + qty + ' шт.' : gift.name) +
+      (coupons ? '. Купонами списано ' + coupons : '') +
+      '. Подарок уйдёт в ваш профиль сразу после оплаты.',
     payload: order.id,
     currency: 'XTR',
     prices: [{ label: gift.name.slice(0, 32), amount: amount }]
   });
 
-  return { order: order.id, link: link, amount: amount };
+  return { order: order.id, link: link, amount: amount, coupons: coupons };
 }
 
 // Оплату засчитывает webhook, и приходит он своим ходом. Приложение

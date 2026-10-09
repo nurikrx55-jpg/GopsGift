@@ -343,6 +343,24 @@
           <dt data-i18n="gift.status">Статус</dt>
           <dd><span class="sheet__value" id="sheet-status"></span></dd>
         </dl>
+
+        <!-- Скидка купонами. Видна, только если купоны есть и есть что скинуть -->
+        <label class="cpn" id="cpn" hidden>
+          <!-- Флажок стоит первым: по нему красится всё, что идёт следом -->
+          <input class="cpn__box" type="checkbox" id="cpn-use" checked>
+
+          <span class="cpn__mark">
+            <svg viewBox="0 0 18 18" aria-hidden="true"><use href="#coupon"></use></svg>
+          </span>
+
+          <span class="cpn__text">
+            <b data-i18n="gift.coupons">Списать купоны</b>
+            <small id="cpn-have"></small>
+          </span>
+
+          <span class="cpn__cut" id="cpn-cut"></span>
+          <span class="cpn__switch" aria-hidden="true"></span>
+        </label>
       </div>
 
       <div class="sheet__foot">

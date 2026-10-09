@@ -82,6 +82,8 @@
       'gift.send': 'Отправить',
       'gift.copy': 'Скопировать ссылку',
       'gift.count': { one: 'подарок', few: 'подарка', many: 'подарков' },
+      'gift.coupons': 'Списать купоны',
+      'gift.couponsHave': 'у вас {n}',
 
       'task.reward.aria': 'Награда: {n} купонов',
 
@@ -91,7 +93,10 @@
       'profile.noname': 'Без имени',
       'profile.copyId': 'Скопировать id',
       'profile.empty': 'Нет подарков(',
-      'profile.emptyNote': 'Подарки можно покупать в',
+      'profile.emptyNft': 'Нет NFT(',
+      'profile.emptyNote': 'Подарки можно купить в',
+      'profile.nftNote': 'NFT живут в',
+      'profile.market': 'Маркет',
       'profile.idCopied': 'ID скопирован',
       'profile.linkCopied': 'Ссылка скопирована',
 
@@ -141,6 +146,7 @@
 
       'soon.send': 'Отправка скоро заработает',
       'soon.share': 'Поделиться скоро заработает',
+      'soon.gems': 'Очень скоро..',
 
       'won.one': 'Подарок куплен',
       'won.many': 'Подарки куплены',
@@ -215,6 +221,8 @@
       'gift.send': 'Send',
       'gift.copy': 'Copy link',
       'gift.count': { one: 'gift', many: 'gifts' },
+      'gift.coupons': 'Spend coupons',
+      'gift.couponsHave': 'you have {n}',
 
       'task.reward.aria': 'Reward: {n} coupons',
 
@@ -224,7 +232,10 @@
       'profile.noname': 'No name',
       'profile.copyId': 'Copy id',
       'profile.empty': 'No gifts(',
-      'profile.emptyNote': 'Gifts can be bought on',
+      'profile.emptyNft': 'No NFTs(',
+      'profile.emptyNote': 'Gifts can be bought on the',
+      'profile.nftNote': 'NFTs live on',
+      'profile.market': 'Market',
       'profile.idCopied': 'ID copied',
       'profile.linkCopied': 'Link copied',
 
@@ -274,6 +285,7 @@
 
       'soon.send': 'Sending is coming soon',
       'soon.share': 'Sharing is coming soon',
+      'soon.gems': 'Very soon..',
 
       'won.one': 'Gift bought',
       'won.many': 'Gifts bought',

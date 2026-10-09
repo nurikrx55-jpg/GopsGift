@@ -753,7 +753,8 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--secondary-bg);
-  border-radius: 24px 24px 0 0;
+  /* Скругление крупное: лист читается отдельным окном, а не краем экрана */
+  border-radius: 30px 30px 0 0;
   padding-bottom: max(16px, var(--safe-area-bottom));
   /* Закрыта — уведена за нижний край; выезд и возврат идут одной кривой */
   transform: translateY(100%);
@@ -818,7 +819,7 @@ body {
   place-items: center;
   /* Вырываемся из боковых отступов прокрутки — подложка идёт от края до края */
   margin: 0 -16px;
-  border-radius: 24px 24px 0 0;
+  border-radius: 30px 30px 0 0;
   overflow: hidden;
 }
 
@@ -1115,22 +1116,6 @@ body {
    самом листе, кромка из --glass-edge на карточках со строками и на
    кнопке отказа. Ничего своего здесь не заведено. */
 
-/* Лист выбора стоит карточкой с отбивкой от краёв: он короткий, и во всю
-   ширину экрана смотрелся бы тяжелее, чем выбор из трёх строк. Листам с
-   подарком ширина нужна вся: подарок в них показан крупно */
-.sheet--pick {
-  --pick-gap: max(12px, var(--safe-area-bottom));
-}
-
-.sheet--pick .sheet__panel {
-  width: min(520px, calc(100% - 24px));
-  margin-bottom: var(--pick-gap);
-  padding-bottom: 14px;
-  border-radius: 28px;
-  /* Закрыт — уведён вниз целиком, вместе с этой отбивкой */
-  transform: translateY(calc(100% + var(--pick-gap)));
-}
-
 
 .pick__top {
   flex: none;
@@ -1312,6 +1297,119 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .pick__mark,
   .pick__mark::after {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* Скидка купонами в листе покупки. Строка-переключатель: нажимается вся,
+   потому что это <label> вокруг скрытого флажка */
+.cpn[hidden] {
+  display: none;
+}
+
+.cpn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: var(--glass-edge);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.cpn__mark {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.cpn__mark svg {
+  width: 19px;
+  height: 19px;
+  fill: #fff;
+}
+
+.cpn__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.cpn__text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cpn__text small {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+/* Сколько снимется — тем же зелёным, что награда за задание */
+.cpn__cut {
+  flex: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: #a3e04c;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.cpn__box:checked ~ .cpn__cut {
+  opacity: 1;
+}
+
+/* Сам флажок не показываем: его работу делает ползунок рядом */
+.cpn__box {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cpn__switch {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  flex: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: var(--glass-edge);
+  transition: background-color 0.24s ease;
+}
+
+.cpn__switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  transition: translate 0.24s var(--ease);
+}
+
+.cpn__box:checked ~ .cpn__switch {
+  background-color: var(--accent);
+}
+
+.cpn__box:checked ~ .cpn__switch::after {
+  translate: 18px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cpn__switch,
+  .cpn__switch::after {
     transition-duration: 0.01ms;
   }
 }
@@ -2000,7 +2098,7 @@ body {
   position: relative;
   /* Вырываемся из боковых отступов прокрутки — подложка идёт от края до края */
   margin: 0 -16px;
-  border-radius: 24px 24px 0 0;
+  border-radius: 30px 30px 0 0;
   overflow: hidden;
   /* Высоту задаёт содержимое, а не aspect-ratio: от выведенной им высоты
      проценты у детей разрешаются ненадёжно — подарок то не влезал, то
@@ -2156,7 +2254,8 @@ body {
    подложки: та доходит до самого верха листа, и полоска-ручка лежит
    прямо на ней */
 .sheet--buy .sheet__head,
-.sheet--stake .sheet__head {
+.sheet--stake .sheet__head,
+.sheet--spot .sheet__head {
   position: absolute;
   top: 0;
   left: 0;
@@ -2167,12 +2266,14 @@ body {
 }
 
 .sheet--buy .sheet__grabber,
-.sheet--stake .sheet__grabber {
+.sheet--stake .sheet__grabber,
+.sheet--spot .sheet__grabber {
   background: rgba(255, 255, 255, 0.4);
 }
 
 .sheet--buy .sheet__scroll,
-.sheet--stake .sheet__scroll {
+.sheet--stake .sheet__scroll,
+.sheet--spot .sheet__scroll {
   padding-top: 0;
 }
 

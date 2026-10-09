@@ -264,6 +264,15 @@
       });
     });
 
+    // Круглая кнопка рядом с капсулой: GetGems ещё не подключён
+    const gems = document.getElementById('nav-gems');
+    if (gems) {
+      gems.addEventListener('click', () => {
+        haptic('light');
+        toast(t('soon.gems'));
+      });
+    }
+
     const initial = tabs.findIndex((tab) => tab.classList.contains('active'));
     selectTab(initial === -1 ? 0 : initial);
     initDrag();
@@ -568,30 +577,30 @@
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
-  // Один прогон и остановка на последнем кадре — так ведут себя все анимации
-  // в приложении, кроме той, что в раскрытой карточке. Анимация всегда
-  // приходит адресом: файл из репозитория или загрузка из админки.
+  /* Неподвижный подарок: рисуем последний кадр и на том стоим. Так ведут
+     себя все подарки вне листов — на витрине их бывает много разом, и
+     десяток анимаций сразу превращает прокрутку в кашу. Двигаются они
+     только в раскрытой карточке.
+
+     Анимация всегда приходит адресом: файл из репозитория или загрузка из
+     админки. */
   function playOnce(container, path) {
     if (!window.lottie || !path) return null;
 
-    const still = prefersStill();
     const player = window.lottie.loadAnimation({
       container: container,
       renderer: 'canvas',
       loop: false,
-      autoplay: !still,
+      autoplay: false,
       path: path,
       // Ретина: рисуем в большем разрешении, выше 2x смысла нет
       rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) }
     });
 
-    // У некоторых композиций нулевой кадр пустой: просто не запускать нельзя,
-    // иначе на месте анимации останется пустое место
-    if (still) {
-      player.addEventListener('DOMLoaded', () => {
-        player.goToAndStop(player.totalFrames - 1, true);
-      });
-    }
+    // У некоторых композиций нулевой кадр пустой, поэтому берём последний
+    player.addEventListener('DOMLoaded', () => {
+      player.goToAndStop(player.totalFrames - 1, true);
+    });
 
     return player;
   }
@@ -859,6 +868,34 @@
     return Math.max(1, Math.min(left, QTY_MAX));
   }
 
+  /* Купоны идут в скидку: один купон — одна звезда. Совсем до нуля цену
+     они не сводят — счёт меньше звезды Telegram не примет, поэтому одну
+     всегда оставляем. Сколько списать, решает сервер: здесь только показ. */
+  function couponCut() {
+    if (!sheetGift) return 0;
+
+    const have = ME ? (ME.coupons || 0) : 0;
+    return Math.max(0, Math.min(have, sheetGift.price * qty - 1));
+  }
+
+  function useCoupons() {
+    const box = document.getElementById('cpn-use');
+    return Boolean(box && box.checked);
+  }
+
+  function paintCoupons() {
+    const row = document.getElementById('cpn');
+    if (!row || !sheetGift) return;
+
+    const cut = couponCut();
+    row.hidden = cut <= 0;
+    if (cut <= 0) return;
+
+    document.getElementById('cpn-have').textContent =
+      t('gift.couponsHave', { n: formatPrice(ME ? ME.coupons || 0 : 0) });
+    document.getElementById('cpn-cut').textContent = '−' + formatPrice(cut);
+  }
+
   function setQty(value) {
     if (!sheetGift) return;
 
@@ -868,7 +905,12 @@
     document.getElementById('qty-value').textContent = String(qty);
     document.getElementById('qty-less').disabled = qty <= 1;
     document.getElementById('qty-more').disabled = qty >= limit;
-    document.getElementById('sheet-buy-price').textContent = formatPrice(sheetGift.price * qty);
+
+    paintCoupons();
+
+    const full = sheetGift.price * qty;
+    const cut = useCoupons() ? couponCut() : 0;
+    document.getElementById('sheet-buy-price').textContent = formatPrice(full - cut);
   }
 
   function fillSheet(gift) {
@@ -1335,7 +1377,7 @@
     paying = true;
     buyBusy(true);
 
-    payPost({ giftId: gift.id, qty: want })
+    payPost({ giftId: gift.id, qty: want, coupons: useCoupons() ? couponCut() : 0 })
       .then((data) => new Promise((done) => {
         tg.openInvoice(data.link, (status) => done({ status: status, order: data.order }));
       }))
@@ -1435,6 +1477,14 @@
       haptic('select');
       setQty(qty + 1);
     });
+
+    const coupons = document.getElementById('cpn-use');
+    if (coupons) {
+      coupons.addEventListener('change', () => {
+        haptic('select');
+        setQty(qty);
+      });
+    }
 
     document.getElementById('sheet-buy').addEventListener('click', buyGift);
 
@@ -1704,7 +1754,12 @@
   }
 
 
-  function emptyState() {
+  /* Пусто в подарках — зовём на свою витрину, пусто в NFT — в GetGems.
+     Мешать одно с другим нельзя: подарки у нас и продаются, а NFT живут не
+     у нас, и звать за ними к себе было бы обманом. */
+  function emptyState(kind) {
+    const nft = kind === 'nft';
+
     const box = document.createElement('div');
     box.className = 'prf__empty';
 
@@ -1712,19 +1767,24 @@
     art.className = 'prf__empty-art';
 
     const title = document.createElement('b');
-    title.textContent = t('profile.empty');
+    title.textContent = t(nft ? 'profile.emptyNft' : 'profile.empty');
 
     const line = document.createElement('p');
-    line.append(t('profile.emptyNote'));
+    line.append(t(nft ? 'profile.nftNote' : 'profile.emptyNote'));
 
     const market = document.createElement('button');
     market.type = 'button';
     market.className = 'prf__market glass';
-    market.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#gems"></use></svg>';
-    market.append('GetGems');
+    market.innerHTML = nft
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#gems"></use></svg>'
+      : '<svg viewBox="0 0 643 617" aria-hidden="true"><use href="#logo"></use></svg>';
+    market.append(nft ? 'GetGems' : t('profile.market'));
+
     market.addEventListener('click', () => {
       haptic('select');
-      selectTab(0);
+      // GetGems ещё не подключён, а на свою витрину уводим сразу
+      if (nft) toast(t('soon.gems'));
+      else selectTab(0);
     });
 
     line.appendChild(market);
@@ -1745,10 +1805,12 @@
 
     releaseArt(list);
     list.textContent = '';
-    total.textContent = formatPrice(items.length) + ' ' + countOf(items.length, 'gift.count');
+    // В NFT слово не склоняется: «0 NFT», а не «0 подарков»
+    total.textContent = formatPrice(items.length) + ' ' +
+      (kind === 'nft' ? 'NFT' : countOf(items.length, 'gift.count'));
 
     if (!items.length) {
-      list.appendChild(emptyState());
+      list.appendChild(emptyState(kind));
       return;
     }
 
