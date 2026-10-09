@@ -64,6 +64,7 @@
       'gifts.empty': 'Витрина пока пустая',
       'gifts.failed': 'Витрина не загрузилась',
       'gifts.retry': 'Повторить',
+      'gifts.more': 'Показать ещё',
 
       'gift.note': 'Подарок скоро можно будет улучшить, продать и выпустить как NFT',
       'gift.supply': 'Наличие',
@@ -205,6 +206,7 @@
       'gifts.empty': 'The shelf is empty for now',
       'gifts.failed': 'The shelf did not load',
       'gifts.retry': 'Try again',
+      'gifts.more': 'Show more',
 
       'gift.note': 'This gift will soon be upgradable, sellable and mintable as an NFT',
       'gift.supply': 'Supply',

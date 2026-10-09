@@ -479,8 +479,7 @@
     art.className = 'gift__art';
     if (gift.name) art.setAttribute('aria-label', gift.name);
     card.appendChild(art);
-    if (isStill(gift)) showStill(art, gift.art);
-    else playWhenSeen(art, gift.art);
+    showShot(art, gift);
 
     if (gift.badge) {
       const badge = document.createElement('span');
@@ -781,77 +780,124 @@
     card.style.setProperty('--tint-s', tint.sat + '%');
   }
 
-  // Картинку просто рисуем в холст в стороне от экрана и считаем по нему
-  // господствующий оттенок
-  function stillTint(path, done) {
-    const img = new Image();
+  /* Снимок подарка.
 
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.min(img.naturalWidth || 256, 256);
-      canvas.height = Math.min(img.naturalHeight || 256, 256);
-      canvas.getContext('2d', { willReadFrequently: true })
-        .drawImage(img, 0, 0, canvas.width, canvas.height);
+     На карточке подарок стоит картинкой, а не проигрывателем. Двести
+     карточек — это двести разборов анимации и двести холстов, от которых
+     приложение встаёт колом: именно так оно и вело себя у человека с
+     двумя сотнями подарков. Поэтому каждый подарок рисуется в стороне от
+     экрана ровно один раз, и дальше все его карточки показывают один и
+     тот же снимок. Оттуда же берётся и цвет для подложки — второй прогон
+     ради него не нужен.
 
-      const tint = artTint(canvas);
-      if (tint) tints.set(path, tint);
-      if (done) done(tint);
-    };
+     Двигается подарок только в раскрытой карточке: там он один. */
 
-    img.onerror = () => { if (done) done(null); };
-    img.src = path;
+  const SHOT = 256;
+  const shots = new Map();
+
+  function shotFromImage(path) {
+    return new Promise((done) => {
+      const img = new Image();
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.min(img.naturalWidth || SHOT, SHOT);
+        canvas.height = Math.min(img.naturalHeight || SHOT, SHOT);
+        canvas.getContext('2d', { willReadFrequently: true })
+          .drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Картинку показываем по её же адресу: пересобирать нечего
+        done({ still: path, tint: artTint(canvas) });
+      };
+
+      img.onerror = () => done({ still: path, tint: null });
+      img.src = path;
+    });
   }
 
-  // У анимации пробный прогон идёт в стороне от экрана, и кадр берём из
-  // середины: первый у многих композиций пустой, и цвет по нему не вытащить
-  function warmTint(gift, done) {
+  function shotFromLottie(path) {
+    return new Promise((done) => {
+      whenLottieReady(() => {
+        if (!window.lottie) {
+          done({ still: '', tint: null });
+          return;
+        }
+
+        const box = document.createElement('div');
+        box.className = 'tint-probe';
+        box.style.width = SHOT + 'px';
+        box.style.height = SHOT + 'px';
+        document.body.appendChild(box);
+
+        const probe = window.lottie.loadAnimation({
+          container: box,
+          renderer: 'canvas',
+          loop: false,
+          autoplay: false,
+          path: path,
+          rendererSettings: { dpr: 1 }
+        });
+
+        let over = false;
+        const finish = (shot) => {
+          if (over) return;
+          over = true;
+          probe.destroy();
+          box.remove();
+          done(shot);
+        };
+
+        probe.addEventListener('DOMLoaded', () => {
+          // Последний кадр: у многих композиций первый пустой
+          probe.goToAndStop(probe.totalFrames - 1, true);
+
+          const canvas = box.querySelector('canvas');
+          let still = '';
+          try {
+            still = canvas ? canvas.toDataURL('image/png') : '';
+          } catch (_) {}
+
+          finish({ still: still, tint: canvas ? artTint(canvas) : null });
+        });
+
+        probe.addEventListener('data_failed', () => finish({ still: '', tint: null }));
+      });
+    });
+  }
+
+  function shotOf(gift) {
     const path = gift && gift.art;
-    if (!path) {
-      if (done) done(null);
-      return;
-    }
+    if (!path) return Promise.resolve({ still: '', tint: null });
+    if (shots.has(path)) return shots.get(path);
 
-    if (tints.has(path)) {
-      if (done) done(tints.get(path));
-      return;
-    }
-
-    if (isStill(gift)) {
-      stillTint(path, done);
-      return;
-    }
-
-    whenLottieReady(() => {
-      if (tints.has(path)) {
-        if (done) done(tints.get(path));
-        return;
-      }
-
-      const box = document.createElement('div');
-      box.className = 'tint-probe';
-      document.body.appendChild(box);
-
-      const probe = window.lottie.loadAnimation({
-        container: box,
-        renderer: 'canvas',
-        loop: false,
-        autoplay: false,
-        path: path,
-        // Цвет от разрешения не зависит, а мелкий кадр считается мгновенно
-        rendererSettings: { dpr: 1 }
+    const job = (isStill(gift) ? shotFromImage(path) : shotFromLottie(path))
+      .then((shot) => {
+        // Цвет запоминаем отдельно: его спрашивают сразу, не дожидаясь
+        if (shot.tint) tints.set(path, shot.tint);
+        return shot;
       });
 
-      probe.addEventListener('DOMLoaded', () => {
-        probe.goToAndStop(Math.floor(probe.totalFrames / 2), true);
+    shots.set(path, job);
+    return job;
+  }
 
-        const tint = artTint(box.querySelector('canvas'));
-        if (tint) tints.set(path, tint);
+  // Снимок на место подарка. Пока он считается, место под него пустое
+  function showShot(container, gift) {
+    container.textContent = '';
 
-        probe.destroy();
-        box.remove();
+    const img = document.createElement('img');
+    img.alt = '';
+    img.draggable = false;
+    container.appendChild(img);
 
-        if (done) done(tint);
-      });
+    shotOf(gift).then((shot) => {
+      if (shot.still) img.src = shot.still;
+    });
+  }
+
+  function warmTint(gift, done) {
+    shotOf(gift).then((shot) => {
+      if (done) done(shot.tint);
     });
   }
 
@@ -1660,6 +1706,7 @@
 
     if (pickNow.kind === 'own') {
       ownSortId = pickNow.chosen;
+      ownShown = PAGE;
       renderOwned(prfTab);
     } else {
       if (pickNow.kind === 'sort') sortId = pickNow.chosen;
@@ -1858,6 +1905,27 @@
     return list;
   }
 
+  /* Длинные списки показываем частями. Человек с двумя сотнями подарков
+     получал разом две сотни карточек, и приложение на них вставало. */
+  const PAGE = 60;
+
+  // Кнопка «Показать ещё» с остатком на ней
+  function moreButton(left, onMore) {
+    const more = document.createElement('button');
+    more.className = 'more glass';
+    more.type = 'button';
+    more.textContent = t('gifts.more') + ' · ' + formatPrice(left);
+
+    more.addEventListener('click', () => {
+      haptic('light');
+      onMore();
+    });
+
+    return more;
+  }
+
+  let ownShown = PAGE;
+
   function renderOwned(kind) {
     const list = document.getElementById('prf-list');
     const total = document.getElementById('prf-total');
@@ -1881,15 +1949,20 @@
       return;
     }
 
-    // Пока список на экране, досчитываем цвета: открытая карточка возьмёт
-    // готовое значение и не будет перекрашиваться на глазах
-    items.forEach((gift) => warmTint(gift));
+    const page = items.slice(0, ownShown);
 
     const grid = document.createElement('div');
     grid.className = 'gifts';
     // Из профиля открывается карточка уже купленного подарка, а не покупка
-    items.forEach((gift) => grid.appendChild(buildGift(gift, (one) => ownSheet.open(one))));
+    page.forEach((gift) => grid.appendChild(buildGift(gift, (one) => ownSheet.open(one))));
     list.appendChild(grid);
+
+    if (items.length > page.length) {
+      list.appendChild(moreButton(items.length - page.length, () => {
+        ownShown += PAGE;
+        renderOwned(kind);
+      }));
+    }
   }
 
   // Запасной путь: Clipboard API есть не везде и падает вне защищённого контекста
@@ -1994,6 +2067,7 @@
         buttons.forEach((other) => other.classList.toggle('is-active', other === button));
         tabs.style.setProperty('--prf-index', String(index));
         prfTab = button.dataset.prfTab;
+        ownShown = PAGE;
         renderOwned(prfTab);
       });
     });
@@ -2199,6 +2273,8 @@
   /* Витрина выбора: каждая копия стоит сама по себе. Свести их в одну
      карточку со счётчиком было бы короче, но выбирают здесь не вид
      подарка, а конкретную штуку — и после ставки одна из них уходит. */
+  let picksShown = PAGE;
+
   function fillPicks() {
     const list = document.getElementById('picks-list');
     const rule = document.getElementById('picks-rule');
@@ -2211,12 +2287,13 @@
 
     // Поставленные подарки сервер уже снял со счёта, поэтому здесь всё,
     // что у человека осталось
-    const free = OWNED.gifts;
-    if (!free.length) {
+    const all = OWNED.gifts;
+    if (!all.length) {
       list.appendChild(stakeEmpty(() => picksSheet.close()));
       return;
     }
 
+    const free = all.slice(0, picksShown);
     free.forEach((gift) => {
       const ready = canStake(gift);
       const card = buildGift(gift, (one) => {
@@ -2232,6 +2309,13 @@
       if (!ready) card.classList.add('is-off');
       list.appendChild(card);
     });
+
+    if (all.length > free.length) {
+      list.appendChild(moreButton(all.length - free.length, () => {
+        picksShown += PAGE;
+        fillPicks();
+      }));
+    }
   }
 
   // --- Лист стейкинга ---
@@ -2404,6 +2488,7 @@
 
     document.getElementById('stk-add').addEventListener('click', () => {
       haptic('light');
+      picksShown = PAGE;
       picksSheet.open();
     });
 
