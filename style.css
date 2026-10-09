@@ -352,16 +352,30 @@ body {
   }
 }
 
-/* Экран загрузки */
+/* Экран загрузки.
+
+   Значок приложения посередине, вокруг него подарки с витрины и россыпь
+   блёсток, внизу название. Набрано это другим шрифтом, не тем, которым
+   набрано само приложение: заставка — обложка, а не его продолжение. */
+
+@font-face {
+  font-family: "Unbounded";
+  src: url("fonts/unbounded-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  /* Название лучше показать мгновением позже, чем подменить его чужим
+     начертанием на глазах */
+  font-display: block;
+}
 
 .splash {
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
-  place-content: center;
+  grid-template-rows: 1fr auto;
   justify-items: center;
-  gap: 56px;
+  padding: 0 24px calc(max(48px, var(--safe-area-bottom)) + 40px);
   background: #0d0d10;
   /* Страховка: если JS не отработал, экран всё равно уйдёт сам */
   animation: splash-failsafe 0.4s linear 6s forwards;
@@ -375,55 +389,217 @@ body {
   transition: opacity 0.45s ease, transform 0.45s ease, visibility 0s 0.45s;
 }
 
-.splash__logo svg {
-  width: 104px;
-  height: auto;
-  display: block;
-  /* Появление: подъезжает снизу и проявляется */
-  animation: splash-enter 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
+/* Сцена: всё внутри расставлено от её середины, поэтому размер задан в
+   пикселях — от ширины экрана он зависеть не должен */
+.splash__scene {
+  position: relative;
+  align-self: center;
+  width: 280px;
+  height: 280px;
 }
 
-/* Коробка едва заметно дышит — экран не выглядит застывшим */
-.splash__box {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: splash-breathe 2.6s ease-in-out 0.6s infinite;
-}
-
-/* Каждая искорка мерцает в свой черёд, задержки заданы в разметке */
-.splash__spark {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: splash-twinkle 2.4s ease-in-out infinite;
-}
-
-.splash__spinner {
-  width: 34px;
-  height: 34px;
-  border: 2px solid rgba(255, 255, 255, 0.12);
-  border-top-color: rgba(255, 255, 255, 0.55);
+/* Свет за значком */
+.splash__glow {
+  position: absolute;
+  inset: 12%;
   border-radius: 50%;
-  animation: splash-spin 0.9s linear infinite;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(96, 196, 255, 0.3) 0%, rgba(96, 196, 255, 0) 70%);
+  filter: blur(10px);
+  animation: splash-pulse 3.4s ease-in-out infinite;
 }
 
-@keyframes splash-enter {
-  from { opacity: 0; transform: translateY(14px) scale(0.92); }
+/* Значок приложения: буква в скруглённом квадрате, как иконка на телефоне */
+.splash__icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+  border-radius: 30px;
+  background: linear-gradient(160deg, #68b4ff 0%, #3e88f7 42%, #2a5fd4 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 10px rgba(0, 0, 0, 0.25),
+    0 22px 44px -18px rgba(62, 136, 247, 0.9);
+  font-family: "Unbounded", var(--font-sf-pro);
+  font-weight: 700;
+  font-size: 54px;
+  line-height: 1;
+  color: #fff;
+  /* Буква стоит чуть выше оптического центра — так она не «падает» */
+  padding-bottom: 4px;
+  animation: splash-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both,
+             splash-breathe 3.4s ease-in-out 0.7s infinite;
+}
+
+/* Подарки и блёстки вокруг. Каждый качается сам по себе — задержки и
+   длительности разные, иначе они двигались бы строем */
+.splash__gift,
+.splash__star,
+.splash__bit {
+  position: absolute;
+  display: block;
+  opacity: 0;
+  animation: splash-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+             splash-float 4.2s ease-in-out infinite;
+}
+
+.splash__gift canvas,
+.splash__gift svg,
+.splash__gift img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#splash-gift-a {
+  top: 1%;
+  left: 55%;
+  width: 74px;
+  height: 74px;
+  animation-delay: 0.24s, 0.84s;
+}
+
+#splash-gift-b {
+  top: 58%;
+  left: 1%;
+  width: 80px;
+  height: 80px;
+  animation-delay: 0.34s, 1.3s;
+  animation-duration: 0.6s, 4.8s;
+}
+
+#splash-gift-c {
+  top: 9%;
+  left: 7%;
+  width: 60px;
+  height: 60px;
+  animation-delay: 0.3s, 2.2s;
+  animation-duration: 0.6s, 5.2s;
+}
+
+.splash__star--gold {
+  top: 50%;
+  left: 83%;
+  width: 32px;
+  height: 32px;
+  animation-delay: 0.38s, 1s;
+}
+
+.splash__star--white {
+  top: 80%;
+  left: 55%;
+  width: 24px;
+  height: 24px;
+  animation-delay: 0.42s, 1.6s;
+  animation-duration: 0.6s, 3.8s;
+}
+
+/* Блёстки берут светлый конец синего: тёмный на почти чёрном фоне
+   пропадал бы */
+.splash__bit {
+  fill: #7fc4ff;
+}
+
+.splash__bit--a {
+  top: 26%;
+  left: 88%;
+  width: 24px;
+  height: 24px;
+  fill: #a9d8ff;
+  animation-delay: 0.46s, 0.6s;
+}
+
+.splash__bit--b {
+  top: 84%;
+  left: 26%;
+  width: 20px;
+  height: 20px;
+  fill: #fff;
+  animation-delay: 0.52s, 2s;
+}
+
+.splash__bit--c {
+  top: 21%;
+  left: 40%;
+  width: 15px;
+  height: 15px;
+  animation-delay: 0.38s, 1.4s;
+}
+
+.splash__bit--d {
+  top: 69%;
+  left: 86%;
+  width: 14px;
+  height: 14px;
+  rotate: 28deg;
+  fill: #fff;
+  animation-delay: 0.56s, 2.4s;
+}
+
+/* Два кубика — просто точки цвета, без своей формы */
+.splash__bit--e,
+.splash__bit--f {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: #5aa9ff;
+}
+
+.splash__bit--e {
+  top: 3%;
+  left: 36%;
+  rotate: 18deg;
+  animation-delay: 0.6s, 1.8s;
+}
+
+.splash__bit--f {
+  top: 58%;
+  left: 0%;
+  rotate: -14deg;
+  background: #a9d8ff;
+  animation-delay: 0.64s, 2.8s;
+}
+
+.splash__name {
+  font-family: "Unbounded", var(--font-sf-pro);
+  font-weight: 700;
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: #fff;
+  animation: splash-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.18s both;
+}
+
+@keyframes splash-rise {
+  from { opacity: 0; transform: translateY(16px) scale(0.94); }
   to   { opacity: 1; transform: none; }
+}
+
+@keyframes splash-pop {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Качание вокруг своего места: поднимается и опускается на несколько
+   пикселей, слегка поворачиваясь */
+@keyframes splash-float {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  50%      { translate: 0 -9px; rotate: 4deg; }
 }
 
 @keyframes splash-breathe {
   0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.035); }
+  50%      { transform: scale(1.04); }
 }
 
-@keyframes splash-twinkle {
-  0%, 70%, 100% { opacity: 0.35; transform: scale(0.72) rotate(0deg); }
-  18%           { opacity: 1;    transform: scale(1.18) rotate(18deg); }
-  34%           { opacity: 0.9;  transform: scale(1)    rotate(0deg); }
-}
-
-@keyframes splash-spin {
-  to { transform: rotate(360deg); }
+@keyframes splash-pulse {
+  0%, 100% { opacity: 0.75; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.1); }
 }
 
 @keyframes splash-failsafe {
@@ -431,10 +607,14 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .splash__logo svg,
-  .splash__box,
-  .splash__spark {
+  .splash__icon,
+  .splash__glow,
+  .splash__name,
+  .splash__gift,
+  .splash__star,
+  .splash__bit {
     animation: none;
+    opacity: 1;
   }
 }
 
