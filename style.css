@@ -626,8 +626,8 @@ body {
 
    Она нарочно длиннее угла, который перекрывает: концы выходят за края и
    лента смотрится наброшенной, а не вклеенной. Центр её стоит на диагонали
-   в 33 пикселях от угла — отсюда и смещения; после поворота на 45° концы
-   свешиваются примерно на тринадцать пикселей с каждой стороны.
+   в 26 пикселях от угла — отсюда и смещения; после поворота на 45° концы
+   свешиваются примерно на девять пикселей с каждой стороны.
 
    Цвет — обычный градиент под обрезкой по форме из спрайта: так его можно
    задать из админки любым, а не выбирать из готовых. */
@@ -636,15 +636,15 @@ body {
 
   position: absolute;
   z-index: 2;
-  top: calc(17px * var(--ribbon-scale));
-  right: calc(-27px * var(--ribbon-scale));
-  width: calc(120px * var(--ribbon-scale));
-  height: calc(32px * var(--ribbon-scale));
+  top: calc(13.5px * var(--ribbon-scale));
+  right: calc(-20px * var(--ribbon-scale));
+  width: calc(92px * var(--ribbon-scale));
+  height: calc(25px * var(--ribbon-scale));
   transform: rotate(45deg);
 
   display: grid;
   place-items: center;
-  font-size: calc(11px * var(--ribbon-scale));
+  font-size: calc(9.5px * var(--ribbon-scale));
   font-weight: 600;
   line-height: 1;
   color: #fff;
