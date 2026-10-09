@@ -92,6 +92,8 @@ export function cleanGift(input) {
     badge: str(input.badge, 24),
     kind: KINDS.indexOf(input.kind) === -1 ? 'default' : input.kind,
     tone: tone(input.tone),
+    // Фон карточки. Пусто — цвет снимается с самого подарка
+    bg: tone(input.bg),
     total: int(input.total, 0, 100000000),
     left: int(input.left, 0, 100000000),
     status: str(input.status, 24) || 'Non-Unique'

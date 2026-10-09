@@ -468,7 +468,7 @@
 
     // Подложка карточки — того же цвета, что и сам подарок. Готовый берём
     // сразу, иначе карточка перекрашивалась бы на глазах
-    applyTint(card, tints.get(gift.art) || null);
+    applyTint(card, tintOf(gift));
     if (!tints.has(gift.art)) {
       warmTint(gift, (tint) => {
         if (tint) applyTint(card, tint);
@@ -521,7 +521,7 @@
 
       const star = document.createElement('img');
       star.className = 'gift__star';
-      star.src = 'gifts/star.png';
+      star.src = 'gifts/star-white.png';
       star.alt = t('hdr.stars');
       star.draggable = false;
 
@@ -766,6 +766,37 @@
   // секунд, пока догружается и доигрывается анимация в самой карточке.
   const tints = new Map();
 
+  /* Фон, выбранный в админке, перебивает цвет, снятый с самого подарка.
+     Из выбранного цвета берём тон и насыщенность — подложка строится от
+     них же, поэтому осталась той же монохромной плитой. */
+  function hexTint(hex) {
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+    if (!m) return null;
+
+    const r = parseInt(m[1], 16) / 255;
+    const g = parseInt(m[2], 16) / 255;
+    const b = parseInt(m[3], 16) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+    const light = (max + min) / 2;
+
+    let hue = 0;
+    if (d) {
+      if (max === r) hue = ((g - b) / d) % 6;
+      else if (max === g) hue = (b - r) / d + 2;
+      else hue = (r - g) / d + 4;
+    }
+
+    const sat = d ? d / (1 - Math.abs(2 * light - 1)) : 0;
+    return { hue: Math.round((hue * 60 + 360) % 360), sat: Math.round(sat * 100) };
+  }
+
+  function tintOf(gift) {
+    if (gift && gift.bg) return hexTint(gift.bg);
+    return (gift && tints.get(gift.art)) || null;
+  }
+
   function applyTint(card, tint) {
     if (!card) return;
 
@@ -897,7 +928,8 @@
 
   function warmTint(gift, done) {
     shotOf(gift).then((shot) => {
-      if (done) done(shot.tint);
+      // Выбранный в админке фон главнее снятого цвета
+      if (done) done(gift && gift.bg ? hexTint(gift.bg) : shot.tint);
     });
   }
 
@@ -973,7 +1005,7 @@
     // Подложка берёт цвет у самого подарка. Готовый — сразу, иначе он
     // досчитается и встанет уже под открытым листом
     const stage = sheet.querySelector('.sheet__stage');
-    applyTint(stage, tints.get(gift.art) || null);
+    applyTint(stage, tintOf(gift));
     if (!tints.has(gift.art)) {
       warmTint(gift, (tint) => {
         if (tint && sheetGift === gift) applyTint(stage, tint);
@@ -1231,7 +1263,7 @@
     const card = owned.querySelector('.own-card');
     // Готовый цвет — сразу; иначе подложка остаётся запасной, пока не
     // досчитается, и перекрашивается уже под закрытым листом
-    applyTint(card, tints.get(gift.art) || null);
+    applyTint(card, tintOf(gift));
     if (!tints.has(gift.art)) {
       warmTint(gift, (tint) => {
         if (tint && ownGift === gift) applyTint(card, tint);
@@ -2346,7 +2378,7 @@
     stakeTerm = STAKE_TERMS[1];
 
     const stage = document.getElementById('stake-stage');
-    applyTint(stage, tints.get(gift.art) || null);
+    applyTint(stage, tintOf(gift));
     if (!tints.has(gift.art)) {
       warmTint(gift, (tint) => {
         if (tint && stakeGift === gift) applyTint(stage, tint);
@@ -2385,7 +2417,7 @@
     if (!spot.gift) return;
 
     const stage = document.getElementById('spot-stage');
-    applyTint(stage, tints.get(spot.gift.art) || null);
+    applyTint(stage, tintOf(spot.gift));
 
     document.getElementById('spot-title').textContent = spot.gift.name;
     document.getElementById('spot-note').textContent = spot.left

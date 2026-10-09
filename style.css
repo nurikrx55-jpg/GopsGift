@@ -558,51 +558,11 @@ body {
   --tint-glow: 44%;
   --tint-top: 22%;
   --tint-bottom: 11%;
-  -webkit-backdrop-filter: blur(16px) saturate(1.5);
-  backdrop-filter: blur(16px) saturate(1.5);
-  box-shadow:
-    /* Световой кант сверху и приглушённый по остальным краям — ободок стекла */
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    inset 1px 0 0 rgba(255, 255, 255, 0.07),
-    inset -1px 0 0 rgba(255, 255, 255, 0.07),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-    /* Преломление у нижней кромки: свет собирается в толще стекла */
-    inset 0 -22px 26px -24px rgba(255, 255, 255, 0.3),
-    0 14px 26px -16px rgba(0, 0, 0, 0.8),
-    0 3px 8px -5px rgba(0, 0, 0, 0.6);
+  /* Стекла здесь нет: ни размытия, ни ободка, ни бликов. Карточка — просто
+     цветная плита с мягкой тенью; стекло осталось у листов и кнопок */
+  box-shadow: 0 12px 24px -16px rgba(0, 0, 0, 0.8);
 }
 
-/* Блик: свет падает из верхнего левого угла и гаснет к середине карточки */
-.gift::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    152deg,
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(255, 255, 255, 0.05) 17%,
-    rgba(255, 255, 255, 0) 41%
-  );
-  pointer-events: none;
-}
-
-/* Отсвет от подарка на дне карточки — из-за него стекло кажется толстым */
-.gift::after {
-  content: '';
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  bottom: 0;
-  height: 46%;
-  border-radius: inherit;
-  background: radial-gradient(58% 100% at 50% 100%, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 72%);
-  pointer-events: none;
-}
-
-/* Доли взяты из образца: арт 120 на карточке 180 x 200, отступ сверху 28.
-   Позиционируем абсолютно — тогда проценты считаются от всей карточки,
-   а не от области внутри padding, и пропорции держатся на любой ширине. */
 .gift__art {
   position: absolute;
   z-index: 1;
@@ -690,14 +650,15 @@ body {
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  gap: 5px;
+  padding: 6px 13px 6px 10px;
   border-radius: 999px;
-  background: linear-gradient(170deg, #51442c 0%, var(--gold) 52%, #3a301f 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 226, 150, 0.22),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
-    0 3px 8px -4px rgba(0, 0, 0, 0.6);
+  /* Тёмная прозрачная капсула: под цвет карточки она подстраивается сама,
+     а не спорит с ним — прежняя золотая выбивалась на синем и фиолетовом */
+  background: rgba(8, 8, 12, 0.46);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   white-space: nowrap;
 }
 
@@ -712,12 +673,7 @@ body {
   font-size: 15px;
   font-weight: 600;
   line-height: 20px;
-  /* Золото под стать звезде; color — запасной вариант, если clip не поддержан */
-  color: #fdd21a;
-  background-image: linear-gradient(135deg, #fdd21a, #e47b03);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #fff;
 }
 
 /* Карточка подарка крупным планом */

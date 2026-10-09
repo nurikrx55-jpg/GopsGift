@@ -494,8 +494,32 @@
 
   // --- Карточка подарка как на витрине ---
 
+  // Тон и насыщенность из #rrggbb — так же, как их считает приложение
+  function tintOf(hex) {
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+    if (!m) return null;
+
+    const r = parseInt(m[1], 16) / 255;
+    const g = parseInt(m[2], 16) / 255;
+    const b = parseInt(m[3], 16) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+    const light = (max + min) / 2;
+
+    let hue = 0;
+    if (d) {
+      if (max === r) hue = ((g - b) / d) % 6;
+      else if (max === g) hue = (b - r) / d + 2;
+      else hue = (r - g) / d + 4;
+    }
+
+    const sat = d ? d / (1 - Math.abs(2 * light - 1)) : 0;
+    return { hue: Math.round((hue * 60 + 360) % 360), sat: Math.round(sat * 100) };
+  }
+
   function giftCard(gift, loop) {
-    const card = el('article', 'gift');
+    const card = el('article', 'gift tint-face');
 
     const art = el('div', 'gift__art');
     card.appendChild(art);
@@ -509,7 +533,7 @@
 
     const price = el('span', 'gift__price');
     const star = el('img', 'gift__star');
-    star.src = 'gifts/star.png';
+    star.src = 'gifts/star-white.png';
     star.alt = '';
     const amount = el('span', 'gift__amount');
     price.append(star, amount);
@@ -523,6 +547,18 @@
       if (next.tone) badge.style.setProperty('--ribbon-a', next.tone);
       else badge.style.removeProperty('--ribbon-a');
       amount.textContent = num(next.price);
+
+      // Фон: выбранный — тоном из него, не выбранный — нейтральный. В
+      // приложении без выбора цвет снимается с самого подарка, а в админке
+      // этого не посчитать, поэтому здесь он серый
+      const hue = tintOf(next.bg);
+      if (hue) {
+        card.style.setProperty('--tint-h', String(hue.hue));
+        card.style.setProperty('--tint-s', hue.sat + '%');
+      } else {
+        card.style.removeProperty('--tint-h');
+        card.style.removeProperty('--tint-s');
+      }
     };
     card.paint(gift);
     card.art = art;
@@ -951,6 +987,31 @@
       const toneWrap = field('Свой цвет ленты', toneRow, true);
       body.appendChild(toneWrap);
 
+      /* Фон карточки. Не выбран — приложение снимает цвет с самого подарка;
+         выбран — берёт этот, и карточка с листом красятся от него. */
+      const back = el('input', 'ad-color');
+      back.type = 'color';
+      back.value = draft.bg || '#6b5fb0';
+
+      const backRow = el('div', 'ad-tone');
+      backRow.appendChild(back);
+      backRow.appendChild(button('Автоматически', {
+        kind: 'ghost',
+        onClick: () => {
+          draft.bg = '';
+          back.value = '#6b5fb0';
+          card.paint(draft);
+          haptic('pick');
+        }
+      }));
+
+      back.addEventListener('input', () => {
+        draft.bg = back.value;
+        card.paint(draft);
+      });
+
+      body.appendChild(field('Фон подарка', backRow, true));
+
       const sync = () => {
         draft.name = name.value;
         draft.price = Number(price.value) || 0;
@@ -1000,6 +1061,7 @@
               badge: badge.value.trim(),
               kind: draft.kind,
               tone: draft.tone || '',
+              bg: draft.bg || '',
               total: Number(total.value) || 0,
               left: Number(left.value) || 0,
               status: status.value.trim()
