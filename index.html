@@ -574,9 +574,40 @@
         </dl>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Предупреждение перед ставкой: обратного хода не будет -->
+  <div class="sheet sheet--pick sheet--warn" id="warn" hidden>
+    <div class="sheet__backdrop" data-sheet-close></div>
+
+    <div class="sheet__panel glass" role="dialog" aria-modal="true" aria-labelledby="warn-title">
+      <div class="sheet__head">
+        <span class="sheet__grabber" aria-hidden="true"></span>
+      </div>
+
+      <div class="pick__top">
+        <h2 class="pick__title" id="warn-title">
+          <span data-i18n="stake.warnTitle">Подарок уйдёт в стейкинг</span>
+        </h2>
+
+        <button class="pick__close glass" type="button" data-sheet-close
+                aria-label="Закрыть" data-i18n-aria="gift.close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet__scroll pick__scroll">
+        <p class="warn__text" data-i18n="stake.warnText"></p>
+      </div>
+
       <div class="sheet__foot">
-        <button class="pick__btn pick__btn--off glass" type="button" id="spot-out"
-                data-i18n="stake.unstake">Снять со стейкинга</button>
+        <button class="pick__btn pick__btn--off glass" type="button" data-sheet-close
+                data-i18n="pick.cancel">Отмена</button>
+        <button class="pick__btn pick__btn--on" type="button" id="warn-go"
+                data-i18n="stake.warnGo">Всё равно поставить</button>
       </div>
     </div>
   </div>

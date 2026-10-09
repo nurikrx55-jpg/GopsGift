@@ -733,9 +733,11 @@ body {
 .sheet__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  /* Плотнее, чем кажется нужным: под листом остаётся белая кнопка раздела,
+     и сквозь полупрозрачную подложку она светила белой полосой */
+  background: rgba(0, 0, 0, 0.78);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   opacity: 0;
   transition: opacity 0.32s ease;
 }
@@ -908,12 +910,12 @@ body {
   font-weight: 600;
 }
 
-/* Наличие: приписка стоит в одну строку с «выпущено», а не уезжает вниз.
-   Строке разрешаем сжиматься, иначе она распёрла бы колонку таблицы. */
+/* Наличие: приписка стоит рядом с «выпущено», а не уезжает вниз. Места
+   на это хватает не всегда — в узком листе она переходит на вторую строку,
+   и это лучше, чем обрезанное число. */
 .sheet__value.sheet__value--row {
-  flex-wrap: nowrap;
   min-width: 0;
-  gap: 7px;
+  gap: 5px 7px;
   /* Строка плотнее обычной: иначе «2 000/2 000 выпущено» и приписка вдвоём
      не влезают в колонку */
   font-size: 14px;
@@ -1113,19 +1115,32 @@ body {
    самом листе, кромка из --glass-edge на карточках со строками и на
    кнопке отказа. Ничего своего здесь не заведено. */
 
-/* Лист выбора стоит карточкой с отбивкой от краёв: он короткий, и во всю
-   ширину экрана смотрелся бы тяжелее, чем выбор из трёх строк */
-.sheet--pick {
+/* Листы стоят карточкой с отбивкой от краёв, а не во всю ширину экрана:
+   так они читаются как окно поверх приложения, а не как его продолжение */
+.sheet--pick,
+.sheet--buy,
+.sheet--stake,
+.sheet--spot {
   --pick-gap: max(12px, var(--safe-area-bottom));
 }
 
-.sheet--pick .sheet__panel {
+.sheet--pick .sheet__panel,
+.sheet--buy .sheet__panel,
+.sheet--stake .sheet__panel,
+.sheet--spot .sheet__panel {
   width: min(520px, calc(100% - 24px));
   margin-bottom: var(--pick-gap);
   padding-bottom: 14px;
   border-radius: 28px;
   /* Закрыт — уведён вниз целиком, вместе с этой отбивкой */
   transform: translateY(calc(100% + var(--pick-gap)));
+}
+
+/* Подложка под подарком повторяет скругление карточки */
+.sheet--buy .sheet__stage,
+.sheet--stake .sheet__stage,
+.sheet--spot .sheet__stage {
+  border-radius: 28px 28px 0 0;
 }
 
 .pick__top {
@@ -1848,7 +1863,8 @@ body {
   padding: 11px 18px;
   border-radius: 99em;
   font-size: 15px;
-  white-space: nowrap;
+  /* Длинная фраза переносится: в одну строку она вылезала за края капсулы */
+  text-align: center;
   /* Перехватывать нажатия не должно — оно только сообщает */
   pointer-events: none;
   opacity: 0;
@@ -2552,9 +2568,23 @@ body {
   transition: width 0.5s ease;
 }
 
-/* У поставленного подарка лист тоже во льду */
-.sheet--spot .sheet__stage {
-  position: relative;
+/* В листе лёд идёт без светлой обводки: по краю подложки она читалась
+   белой рамкой вокруг подарка */
+.sheet--spot .stk__frost {
+  box-shadow: none;
+}
+
+/* Предупреждение встаёт поверх листа, из которого его открыли */
+.sheet--warn {
+  z-index: 210;
+}
+
+/* Предупреждение перед ставкой */
+.warn__text {
+  padding: 2px 2px 6px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--hint);
 }
 
 /* Правило цены над витриной выбора */

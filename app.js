@@ -1896,50 +1896,36 @@
      карточке появляется лента Staking, лёд поверх и счётчик дней. В окне
      выбора его уже нет — ставить дважды одну и ту же штуку нельзя. */
 
-  const STAKE_TIERS = [
-    { kind: 'legend', key: 'stake.tier.legend', rate: 35 },
-    { kind: 'epic', key: 'stake.tier.epic', rate: 22 },
-    { kind: 'rare', key: 'stake.tier.rare', rate: 14 },
-    { kind: 'plain', key: 'stake.tier.plain', rate: 8 }
-  ];
-
   // Лент на карточках семь видов, ставок — четыре: остальные идут по общей
   const TIER_OF = { legend: 'legend', blood: 'legend', epic: 'epic', rare: 'rare' };
   const STAKE_TERMS = [7, 30, 90];
+  const STAKE_API = '/api/stake';
   const YEAR = 365;
   const DAY_MS = 24 * 60 * 60 * 1000;
-  // Дешёвый подарок в стейкинг не берут: с него и за год набежит ерунда
-  const STAKE_MIN = 300;
-  const STAKE_KEY = 'gg:stake';
+  // Запасные ставки — на случай, если содержимое пришло без них
+  const STAKE_BACK = { legend: 35, epic: 22, rare: 14, plain: 8, min: 300 };
 
-  let staked = [];
-
-  function readStaked() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STAKE_KEY) || '[]');
-      staked = Array.isArray(saved) ? saved.filter((one) => one && one.id && one.days) : [];
-    } catch (_) {
-      staked = [];
-    }
+  // Ставки и порог цены задаёт админка, приложение их только показывает
+  function stakeRules() {
+    const state = Store.state() || {};
+    return Object.assign({}, STAKE_BACK, state.stake || {});
   }
 
-  function writeStaked() {
-    try {
-      localStorage.setItem(STAKE_KEY, JSON.stringify(staked));
-    } catch (_) {}
-  }
-
-  function tierOf(gift) {
-    const name = TIER_OF[gift && gift.kind] || 'plain';
-    return STAKE_TIERS.find((one) => one.kind === name) || STAKE_TIERS[STAKE_TIERS.length - 1];
+  function rateOf(gift) {
+    return stakeRules()[TIER_OF[gift && gift.kind] || 'plain'] || 0;
   }
 
   function canStake(gift) {
-    return Boolean(gift) && (gift.price || 0) >= STAKE_MIN;
+    return Boolean(gift) && (gift.price || 0) >= stakeRules().min;
   }
 
   function stakeIncome(gift, days) {
-    return Math.round((gift.price || 0) * tierOf(gift).rate / 100 * days / YEAR);
+    return Math.round((gift.price || 0) * rateOf(gift) / 100 * days / YEAR);
+  }
+
+  // Что человек отдал в стейкинг. Приходит с сервера вместе со счётом
+  function stakes() {
+    return (ME && Array.isArray(ME.stakes) ? ME.stakes : []);
   }
 
   // Доли звезды на экране всё-таки нужны: за день с одного подарка набегает
@@ -1951,12 +1937,15 @@
     return window.I18N.lang() === 'ru' ? short.replace('.', ',') : short;
   }
 
-  // Сколько прошло и сколько набежало на одной ставке
+  /* Сколько прошло и сколько набежало на одной ставке. Процент и цену
+     берём из самой записи: админ поменяет ставки завтра, а человеку было
+     обещано сегодняшнее. */
   function spotOf(entry) {
-    const gift = giftById(entry.id);
+    const gift = giftById(entry.giftId);
     const full = entry.days * DAY_MS;
     const gone = Math.min(Math.max(Date.now() - entry.at, 0), full);
-    const perDay = gift ? (gift.price || 0) * tierOf(gift).rate / 100 / YEAR : 0;
+    const price = typeof entry.price === 'number' ? entry.price : (gift ? gift.price : 0);
+    const perDay = (price || 0) * (entry.rate || 0) / 100 / YEAR;
 
     return {
       gift: gift,
@@ -1977,25 +1966,6 @@
     }
   }
 
-  // Что ещё не поставлено. Одинаковые подарки считаем поштучно: отдали одну
-  // копию — остальные по-прежнему свободны
-  function freeGifts() {
-    const taken = new Map();
-    staked.forEach((one) => taken.set(one.id, (taken.get(one.id) || 0) + 1));
-
-    const out = [];
-    OWNED.gifts.forEach((gift) => {
-      const held = taken.get(gift.id) || 0;
-      if (held) {
-        taken.set(gift.id, held - 1);
-        return;
-      }
-      out.push(gift);
-    });
-
-    return out;
-  }
-
   // --- Что видно в разделе ---
 
   function paintStakeSum() {
@@ -2003,16 +1973,17 @@
     const word = document.getElementById('stk-sum-word');
     if (!sum) return;
 
+    const list = stakes();
     let perDay = 0;
     let earned = 0;
-    staked.forEach((entry) => {
+    list.forEach((entry) => {
       const spot = spotOf(entry);
       perDay += spot.perDay;
       earned += spot.earned;
     });
 
-    sum.textContent = formatPrice(staked.length);
-    if (word) word.textContent = countOf(staked.length, 'gift.count');
+    sum.textContent = formatPrice(list.length);
+    if (word) word.textContent = countOf(list.length, 'gift.count');
     document.getElementById('stk-day').textContent = stars(perDay);
     document.getElementById('stk-earned').textContent = stars(earned);
   }
@@ -2059,11 +2030,12 @@
 
     paintStakeSum();
 
+    const mine = stakes();
     releaseArt(list);
     list.textContent = '';
-    box.hidden = !staked.length;
+    box.hidden = !mine.length;
 
-    staked.forEach((entry) => {
+    mine.forEach((entry) => {
       const card = stakeCard(entry);
       if (card) list.appendChild(card);
     });
@@ -2103,12 +2075,14 @@
     const rule = document.getElementById('picks-rule');
     if (!list) return;
 
-    if (rule) rule.textContent = t('stake.min', { n: formatPrice(STAKE_MIN) });
+    if (rule) rule.textContent = t('stake.min', { n: formatPrice(stakeRules().min) });
 
     releaseArt(list);
     list.textContent = '';
 
-    const free = freeGifts();
+    // Поставленные подарки сервер уже снял со счёта, поэтому здесь всё,
+    // что у человека осталось
+    const free = OWNED.gifts;
     if (!free.length) {
       list.appendChild(stakeEmpty(() => picksSheet.close()));
       return;
@@ -2135,6 +2109,7 @@
 
   let stakeSheet = null;
   let spotSheet = null;
+  let warnSheet = null;
   let infoSheet = null;
   let picksSheet = null;
   let stakePlayer = null;
@@ -2146,7 +2121,7 @@
   function paintStake() {
     if (!stakeGift) return;
 
-    document.getElementById('stake-rate').textContent = t('stake.apy', { n: tierOf(stakeGift).rate });
+    document.getElementById('stake-rate').textContent = t('stake.apy', { n: rateOf(stakeGift) });
     document.getElementById('stake-income').textContent = formatPrice(stakeIncome(stakeGift, stakeTerm));
 
     Array.from(document.querySelectorAll('.stk__term')).forEach((node) => {
@@ -2208,15 +2183,61 @@
 
     document.getElementById('spot-bar').style.width = (spot.share * 100).toFixed(1) + '%';
     document.getElementById('spot-term').textContent = entry.days + ' ' + countOf(entry.days, 'stake.days');
-    document.getElementById('spot-rate').textContent = t('stake.apy', { n: tierOf(spot.gift).rate });
+    document.getElementById('spot-rate').textContent = t('stake.apy', { n: entry.rate || rateOf(spot.gift) });
     document.getElementById('spot-earned').textContent = stars(spot.earned);
+  }
+
+  let staking = false;
+
+  /* Ставку делает сервер: он же снимает подарок со счёта и запоминает
+     процент на этот день. Отсюда уходит только, что ставят и на сколько. */
+  function putStake() {
+    if (!stakeGift || staking) return;
+
+    const gift = stakeGift;
+    staking = true;
+    const go = document.getElementById('warn-go');
+    go.disabled = true;
+
+    fetch(STAKE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        initData: (tg && tg.initData) || '',
+        action: 'add',
+        giftId: gift.id,
+        days: stakeTerm
+      })
+    }).then((response) => response.json()
+      .catch(() => ({}))
+      .then((data) => {
+        if (!response.ok) throw new Error(data.message || t('pay.off'));
+        return data;
+      }))
+      .then((data) => {
+        // Счёт и ставки приходят порознь — в хранилище они кладутся вместе
+        Store.apply(null, Object.assign({}, data.me, { stakes: data.stakes || [] }));
+        fillFromStore();
+        renderStake();
+        paintProfile();
+
+        haptic('success');
+        warnSheet.close();
+        stakeSheet.close();
+        toast(t('stake.saved'));
+      })
+      .catch((error) => {
+        toast(error && error.message ? error.message : t('pay.off'));
+      })
+      .then(() => {
+        staking = false;
+        go.disabled = false;
+      });
   }
 
   function initStaking() {
     const root = document.getElementById('stake');
     if (!root) return;
-
-    readStaked();
 
     stakeSheet = createSheet(root, {
       fill: fillStake,
@@ -2233,7 +2254,7 @@
     spotSheet = createSheet(document.getElementById('spot'), {
       fill: fillSpot,
       opened: (entry) => {
-        const gift = giftById(entry.id);
+        const gift = giftById(entry.giftId);
         if (gift) spotPlayer = openArt(document.getElementById('spot-art'), gift);
       },
       closed: () => {
@@ -2245,6 +2266,7 @@
 
     infoSheet = createSheet(document.getElementById('info'));
     picksSheet = createSheet(document.getElementById('picks'), { fill: fillPicks });
+    warnSheet = createSheet(document.getElementById('warn'));
 
     document.getElementById('stk-info').addEventListener('click', () => {
       haptic('light');
@@ -2265,30 +2287,14 @@
       });
     });
 
+    // Сперва предупреждение: обратного хода у ставки нет
     document.getElementById('stake-go').addEventListener('click', () => {
-      if (!stakeGift) return;
-
-      staked.push({ id: stakeGift.id, days: stakeTerm, at: Date.now() });
-      writeStaked();
-
-      haptic('success');
-      stakeSheet.close();
-      renderStake();
-      toast(t('stake.saved'));
-    });
-
-    document.getElementById('spot-out').addEventListener('click', () => {
-      if (!spotEntry) return;
-
-      const at = staked.indexOf(spotEntry);
-      if (at !== -1) staked.splice(at, 1);
-      writeStaked();
-
+      if (!stakeGift || staking) return;
       haptic('light');
-      spotSheet.close();
-      renderStake();
-      toast(t('stake.back'));
+      warnSheet.open();
     });
+
+    document.getElementById('warn-go').addEventListener('click', putStake);
 
     renderStake();
   }

@@ -8,6 +8,7 @@
    gg:file:<id>       — загруженные из админки анимации и картинки
    gg:order:<id>      — заказ: кто, что и за сколько покупает
    gg:charge:<id>     — отметка, что этот платёж уже засчитан
+   gg:stake:<id>      — что человек отдал в стейкинг и на какой срок
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -28,7 +29,8 @@ const K = {
   joined: 'gg:users:joined',
   file: (id) => 'gg:file:' + id,
   order: (id) => 'gg:order:' + id,
-  charge: (id) => 'gg:charge:' + id
+  charge: (id) => 'gg:charge:' + id,
+  stake: (id) => 'gg:stake:' + id
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -110,6 +112,39 @@ export function cleanBanner(input) {
   return banner;
 }
 
+/* Стейкинг. Ставки и порог живут в содержимом, рядом с витриной: их
+   правит админка, и приложение получает их на заходе. Сроки не трогаем —
+   от них зависит слишком многое, чтобы менять их мимоходом. */
+
+export const STAKE_TERMS = [7, 30, 90];
+
+export const STAKE_DEFAULT = {
+  legend: 35,
+  epic: 22,
+  rare: 14,
+  plain: 8,
+  min: 300
+};
+
+export function cleanStake(input) {
+  const src = input || {};
+  return {
+    legend: int(src.legend, 0, 1000),
+    epic: int(src.epic, 0, 1000),
+    rare: int(src.rare, 0, 1000),
+    plain: int(src.plain, 0, 1000),
+    min: int(src.min, 0, 100000000)
+  };
+}
+
+// Какая ставка полагается подарку. Лент семь, ставок четыре
+const STAKE_TIER = { legend: 'legend', blood: 'legend', epic: 'epic', rare: 'rare' };
+
+export function stakeRate(gift, rates) {
+  const table = rates || STAKE_DEFAULT;
+  return table[STAKE_TIER[gift && gift.kind] || 'plain'] || 0;
+}
+
 export function cleanTasks(input) {
   if (!Array.isArray(input)) throw new InputError('Задания пришли не списком');
 
@@ -169,6 +204,10 @@ export async function readContent(fresh) {
   const raw = await command('GET', K.content);
   const value = raw ? JSON.parse(raw) : await seed();
 
+  // Настройки стейкинга появились позже самой витрины: у записей, сделанных
+  // до них, их нет, и подставить значения проще здесь, чем в каждом месте
+  if (!value.stake) value.stake = Object.assign({}, STAKE_DEFAULT);
+
   contentCache = { at: Date.now(), value: value };
   return value;
 }
@@ -189,6 +228,7 @@ export function publicContent(content) {
     gifts: content.gifts || [],
     banners: content.banners || [],
     tasks: content.tasks || [],
+    stake: content.stake || STAKE_DEFAULT,
     updatedAt: content.updatedAt || 0
   };
 }
@@ -409,6 +449,65 @@ export async function settleOrder(id, payment) {
   ]);
 
   return done;
+}
+
+// --- Стейкинг ---
+
+/* Отданный подарок уходит со счёта и живёт в ставке: забрать его раньше
+   срока нельзя, и держать его в двух местах сразу было бы неправдой.
+
+   Ставку записываем вместе с подарком: админ поменяет проценты завтра, а
+   обещано было сегодняшнее. */
+
+export async function readStakes(userId) {
+  const raw = await command('GET', K.stake(String(userId)));
+  if (!raw) return [];
+
+  try {
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+export async function addStake(userId, input, content) {
+  const id = String(userId);
+  const days = int(input.days, 1, 3650);
+  if (STAKE_TERMS.indexOf(days) === -1) throw new InputError('Такого срока нет');
+
+  const giftId = slug(input.giftId);
+  const gift = (content.gifts || []).find((one) => one.id === giftId);
+  if (!gift) throw new InputError('Такого подарка больше нет');
+
+  const rates = content.stake || STAKE_DEFAULT;
+  if ((gift.price || 0) < rates.min) throw new InputError('Этот подарок дешевле порога');
+
+  const rawAcct = await command('GET', K.acct(id));
+  const acct = normalAccount(rawAcct);
+
+  const at = acct.gifts.indexOf(giftId);
+  if (at === -1) throw new InputError('Этого подарка у вас нет');
+
+  // Со счёта уходит ровно одна копия, остальные остаются свободными
+  acct.gifts.splice(at, 1);
+
+  const stakes = await readStakes(id);
+  stakes.push({
+    id: newId('st'),
+    giftId: giftId,
+    days: days,
+    rate: stakeRate(gift, rates),
+    price: int(gift.price, 0, 100000000),
+    at: Date.now()
+  });
+
+  await pipeline([
+    ['SET', K.acct(id), JSON.stringify(acct)],
+    ['SET', K.stake(id), JSON.stringify(stakes)]
+  ]);
+
+  return { stakes: stakes, acct: acct };
 }
 
 // --- Файлы ---

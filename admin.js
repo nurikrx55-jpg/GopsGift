@@ -1899,6 +1899,50 @@
 
     cols.appendChild(link);
 
+    // Стейкинг: ставки по редкостям и порог цены
+    const stake = el('section', 'ad-card');
+    stake.appendChild(el('h3', null, 'Стейкинг'));
+    stake.appendChild(el('p', 'ad-note',
+      'Сколько подарок приносит за год — по его редкости. И с какой цены его вообще можно ставить.'));
+
+    const now = content.stake || {};
+    const fields = {};
+    const form = el('div', 'ad-form');
+
+    [
+      ['legend', 'Легендарные, %'],
+      ['epic', 'Эпические, %'],
+      ['rare', 'Редкие, %'],
+      ['plain', 'Остальные, %']
+    ].forEach((pair) => {
+      const node = input(now[pair[0]], { type: 'number' });
+      fields[pair[0]] = node;
+      form.appendChild(field(pair[1], node));
+    });
+
+    const least = input(now.min, { type: 'number' });
+    fields.min = least;
+    form.appendChild(field('Ставить можно от', affix(least, 'star-img'), true));
+
+    stake.appendChild(form);
+    stake.appendChild(el('p', 'ad-note',
+      'Уже сделанные ставки не меняются: процент записан в каждой из них на день, когда её сделали.'));
+
+    stake.appendChild(button('Сохранить', {
+      kind: 'go',
+      icon: 'check',
+      onClick: (event) => {
+        const next = {};
+        Object.keys(fields).forEach((key) => {
+          next[key] = Math.max(0, parseInt(String(fields[key].value).replace(/\D/g, ''), 10) || 0);
+        });
+
+        run(event.currentTarget, 'stake.save', { stake: next }, () => toast('Ставки сохранены'));
+      }
+    }));
+
+    cols.appendChild(stake);
+
     view.appendChild(cols);
   }
 
