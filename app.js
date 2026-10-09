@@ -2228,30 +2228,6 @@
   // пустое приложение и решает, что оно сломалось
   let hideSplash = () => {};
 
-  /* Подарки на заставке — те же файлы, что и на витрине, но взятые из
-     репозитория: заставка показывается раньше, чем приходит содержимое из
-     базы, и ждать его она не должна. */
-  const SPLASH_GIFTS = [
-    { at: 'splash-gift-a', art: 'gifts/grooby.json' },
-    { at: 'splash-gift-b', art: 'gifts/car.json' }
-  ];
-
-  let splashPlayers = [];
-
-  function dressSplash() {
-    whenLottieReady(() => {
-      // Заставка могла уже уйти, пока грузился проигрыватель
-      if (splash.classList.contains('is-done')) return;
-
-      const start = prefersStill() ? playOnce : loopArt;
-      SPLASH_GIFTS.forEach((one) => {
-        const box = document.getElementById(one.at);
-        const player = box && start(box, one.art);
-        if (player) splashPlayers.push(player);
-      });
-    });
-  }
-
   function initSplash() {
     if (!splash) return;
 
@@ -2262,18 +2238,10 @@
       if (done) return;
       done = true;
       const wait = Math.max(0, SPLASH_MIN_MS - (performance.now() - started));
-      setTimeout(() => {
-        splash.classList.add('is-done');
-        // Ушедшая заставка не должна дальше рисовать свои анимации
-        setTimeout(() => {
-          splashPlayers.forEach((player) => player.destroy());
-          splashPlayers = [];
-        }, 500);
-      }, wait);
+      setTimeout(() => splash.classList.add('is-done'), wait);
     };
 
     setTimeout(hideSplash, SPLASH_MAX_MS);
-    dressSplash();
   }
 
   // Содержимое не пришло вовсе. Молча оставлять пустой экран нельзя —
