@@ -502,7 +502,7 @@
     showArt(art, gift, loop);
 
     const badge = el('span', 'gift__badge');
-    badge.innerHTML = '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true"><use href="#ribbon-shape"></use></svg>';
+    badge.innerHTML = '<span class="gift__ribbon"></span>';
     const label = el('span', 'gift__label');
     badge.appendChild(label);
     card.appendChild(badge);
@@ -519,6 +519,9 @@
       label.textContent = next.badge || '';
       badge.hidden = !next.badge;
       badge.dataset.kind = next.kind || 'default';
+      // Свой цвет перебивает цвет редкости
+      if (next.tone) badge.style.setProperty('--ribbon-a', next.tone);
+      else badge.style.removeProperty('--ribbon-a');
       amount.textContent = num(next.price);
     };
     card.paint(gift);
@@ -907,6 +910,9 @@
         swatch.setAttribute('aria-pressed', String(draft.kind === ribbon.id));
         swatch.addEventListener('click', () => {
           draft.kind = ribbon.id;
+          // Образец задаёт и цвет: свой, если он был, снимаем
+          draft.tone = '';
+          tone.value = ribbon.from;
           swatches.querySelectorAll('.ad-swatch').forEach((one) => one.setAttribute('aria-pressed', String(one === swatch)));
           card.paint(draft);
           haptic('pick');
@@ -915,6 +921,35 @@
       });
       swatchWrap.appendChild(swatches);
       body.appendChild(swatchWrap);
+
+      /* Свой цвет. Он перебивает образец: образцы — это заодно и редкость,
+         от которой считается стейкинг, а цвет ленты к ней не привязан */
+      const tone = el('input', 'ad-color');
+      tone.type = 'color';
+      tone.value = draft.tone || (RIBBONS.find((one) => one.id === (draft.kind || 'default')) || RIBBONS[0]).from;
+
+      const toneRow = el('div', 'ad-tone');
+      toneRow.appendChild(tone);
+
+      const toneOff = button('Как у образца', {
+        kind: 'ghost',
+        onClick: () => {
+          draft.tone = '';
+          const back = RIBBONS.find((one) => one.id === (draft.kind || 'default')) || RIBBONS[0];
+          tone.value = back.from;
+          card.paint(draft);
+          haptic('pick');
+        }
+      });
+      toneRow.appendChild(toneOff);
+
+      tone.addEventListener('input', () => {
+        draft.tone = tone.value;
+        card.paint(draft);
+      });
+
+      const toneWrap = field('Свой цвет ленты', toneRow, true);
+      body.appendChild(toneWrap);
 
       const sync = () => {
         draft.name = name.value;
@@ -964,6 +999,7 @@
               price: Number(price.value) || 0,
               badge: badge.value.trim(),
               kind: draft.kind,
+              tone: draft.tone || '',
               total: Number(total.value) || 0,
               left: Number(left.value) || 0,
               status: status.value.trim()

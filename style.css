@@ -622,22 +622,24 @@ body {
   object-fit: contain;
 }
 
-/* Лента в углу.
-   Центр ленты сперва совмещаем с углом карточки (отрицательные margin),
-   затем отодвигаем внутрь по диагонали на --ribbon-inset и поворачиваем. */
-/* Оба торца ленты срезаны в path ровно под 45°, поэтому после поворота
-   они становятся горизонталью и вертикалью и ложатся впритык к краям
-   карточки. Смещения посчитаны из середин этих торцов — при них скруглённые
-   углы остаются целыми и обрезка не нужна. */
+/* Лента на углу карточки.
+
+   Она нарочно длиннее угла, который перекрывает: концы выходят за края и
+   лента смотрится наброшенной, а не вклеенной. Центр её стоит на диагонали
+   в 33 пикселях от угла — отсюда и смещения; после поворота на 45° концы
+   свешиваются примерно на тринадцать пикселей с каждой стороны.
+
+   Цвет — обычный градиент под обрезкой по форме из спрайта: так его можно
+   задать из админки любым, а не выбирать из готовых. */
 .gift__badge {
-  --ribbon-fill: url(#ribbon-default);
+  --ribbon-a: #364b5c;
 
   position: absolute;
   z-index: 2;
-  top: calc(15.49px * var(--ribbon-scale));
-  right: calc(-20.68px * var(--ribbon-scale));
-  width: calc(98px * var(--ribbon-scale));
-  height: calc(26px * var(--ribbon-scale));
+  top: calc(17px * var(--ribbon-scale));
+  right: calc(-27px * var(--ribbon-scale));
+  width: calc(120px * var(--ribbon-scale));
+  height: calc(32px * var(--ribbon-scale));
   transform: rotate(45deg);
 
   display: grid;
@@ -649,24 +651,28 @@ body {
   pointer-events: none;
 }
 
-.gift__badge[data-kind="premium"] { --ribbon-fill: url(#ribbon-premium); }
-.gift__badge[data-kind="sold"]    { --ribbon-fill: url(#ribbon-sold); }
-.gift__badge[data-kind="time"]    { --ribbon-fill: url(#ribbon-time); }
-
-/* Редкость: зелёная, фиолетовая, жёлтая. Без обводок — только заливка */
-.gift__badge[data-kind="rare"]   { --ribbon-fill: url(#ribbon-rare); }
-.gift__badge[data-kind="epic"]   { --ribbon-fill: url(#ribbon-epic); }
-.gift__badge[data-kind="legend"] { --ribbon-fill: url(#ribbon-legend); }
-.gift__badge[data-kind="blood"]  { --ribbon-fill: url(#ribbon-blood); }
+/* Цвет по редкости — пока админка не задала свой */
+.gift__badge[data-kind="premium"] { --ribbon-a: #f6b329; }
+.gift__badge[data-kind="sold"]    { --ribbon-a: #5f3a3e; }
+.gift__badge[data-kind="time"]    { --ribbon-a: #b292f5; }
+.gift__badge[data-kind="rare"]    { --ribbon-a: #3fae6a; }
+.gift__badge[data-kind="epic"]    { --ribbon-a: #a97bf0; }
+.gift__badge[data-kind="legend"]  { --ribbon-a: #f9c81f; }
+.gift__badge[data-kind="blood"]   { --ribbon-a: #ff5a52; }
 
 /* Лента поставленного подарка — холодная, под стать льду на карточке */
-.gift__badge[data-kind="stake"]  { --ribbon-fill: url(#ribbon-stake); }
+.gift__badge[data-kind="stake"]   { --ribbon-a: #5aa9ff; }
 
+/* Сама лента: градиент от заданного цвета к его же затемнению, обрезанный
+   по форме. Второй конец считаем от первого — одного цвета достаточно */
 .gift__ribbon {
   grid-area: 1 / 1;
   width: 100%;
   height: 100%;
-  fill: var(--ribbon-fill);
+  background: linear-gradient(135deg,
+    var(--ribbon-a) 0%,
+    color-mix(in srgb, var(--ribbon-a) 55%, #120608) 100%);
+  clip-path: url(#ribbon-wrap);
 }
 
 .gift__label {
@@ -832,6 +838,8 @@ body {
   right: 0;
   bottom: 0;
   height: 42%;
+  /* Поверх льда: у поставленного подарка он накрывал собой растворение */
+  z-index: 3;
   background: linear-gradient(180deg, rgba(26, 26, 26, 0) 0%, rgba(26, 26, 26, 0.55) 55%, var(--secondary-bg) 100%);
   pointer-events: none;
 }
@@ -890,7 +898,7 @@ body {
   display: grid;
   grid-template-columns: minmax(92px, max-content) 1fr;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 20px;
   /* Линии строк упёрлись бы в скругление — лишнее срезаем */
   overflow: hidden;
 }
@@ -907,7 +915,10 @@ body {
   border-top: 1px solid var(--line);
 }
 
+/* Колонка названий чуть светлее значений: так таблица читается строками,
+   а не сплошным полем */
 .sheet__specs dt {
+  background: rgba(255, 255, 255, 0.045);
   color: var(--hint);
   border-right: 1px solid var(--line);
 }

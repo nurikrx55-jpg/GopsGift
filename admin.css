@@ -708,6 +708,34 @@
 
 /* --- Поля --- */
 
+/* Свой цвет ленты: квадрат с выбором и кнопка «как у образца» рядом */
+.ad-tone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ad-color {
+  width: 54px;
+  height: 42px;
+  flex: none;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--s2);
+  cursor: pointer;
+}
+
+.ad-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.ad-color::-webkit-color-swatch {
+  border: 0;
+  border-radius: 9px;
+}
+
+
 .ad-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

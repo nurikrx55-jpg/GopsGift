@@ -66,6 +66,12 @@ export function newId(prefix) {
 
 const KINDS = ['blood', 'legend', 'premium', 'epic', 'rare', 'time', 'sold', 'default'];
 
+// Свой цвет ленты. Пусто — лента возьмёт цвет редкости
+function tone(value) {
+  const hex = str(value, 9).toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(hex) ? hex : '';
+}
+
 // Путь к анимации или картинке: файл из репозитория или загрузка из админки
 function assetRef(value) {
   const ref = str(value, 200);
@@ -85,6 +91,7 @@ export function cleanGift(input) {
     price: int(input.price, 0, 1000000),
     badge: str(input.badge, 24),
     kind: KINDS.indexOf(input.kind) === -1 ? 'default' : input.kind,
+    tone: tone(input.tone),
     total: int(input.total, 0, 100000000),
     left: int(input.left, 0, 100000000),
     status: str(input.status, 24) || 'Non-Unique'
