@@ -883,11 +883,16 @@
     return Boolean(box && box.checked);
   }
 
+  // Админ берёт подарок даром: ни цены, ни купонов ему на кнопке не нужно
+  function freeHand() {
+    return Boolean(ME && ME.admin);
+  }
+
   function paintCoupons() {
     const row = document.getElementById('cpn');
     if (!row || !sheetGift) return;
 
-    const cut = couponCut();
+    const cut = freeHand() ? 0 : couponCut();
     row.hidden = cut <= 0;
     if (cut <= 0) return;
 
@@ -908,8 +913,13 @@
 
     paintCoupons();
 
+    const free = freeHand();
+    const button = document.getElementById('sheet-buy');
+    button.classList.toggle('is-free', free);
+    document.getElementById('sheet-buy-text').textContent = t(free ? 'gift.free' : 'gift.buy');
+
     const full = sheetGift.price * qty;
-    const cut = useCoupons() ? couponCut() : 0;
+    const cut = !free && useCoupons() ? couponCut() : 0;
     document.getElementById('sheet-buy-price').textContent = formatPrice(full - cut);
   }
 
@@ -1366,8 +1376,9 @@
     }
 
     // openInvoice появился в Bot API 6.1; без него счёт пришлось бы
-    // открывать перепиской с ботом, а это уже не «на этом же экране»
-    if (!tg || !tg.openInvoice) {
+    // открывать перепиской с ботом, а это уже не «на этом же экране».
+    // Админу счёт не нужен вовсе, поэтому его это не держит
+    if (!freeHand() && (!tg || !tg.openInvoice)) {
       toast(t('pay.oldApp'));
       return;
     }
@@ -1378,9 +1389,14 @@
     buyBusy(true);
 
     payPost({ giftId: gift.id, qty: want, coupons: useCoupons() ? couponCut() : 0 })
-      .then((data) => new Promise((done) => {
-        tg.openInvoice(data.link, (status) => done({ status: status, order: data.order }));
-      }))
+      .then((data) => {
+        // Админу счёт не выставляется — заказ уже засчитан
+        if (data.free) return { status: 'paid', order: data.order };
+
+        return new Promise((done) => {
+          tg.openInvoice(data.link, (status) => done({ status: status, order: data.order }));
+        });
+      })
       .then((result) => {
         if (result.status === 'cancelled') return null;
         if (result.status === 'failed') throw new Error(t('pay.failed'));

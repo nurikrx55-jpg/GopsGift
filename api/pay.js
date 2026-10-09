@@ -10,9 +10,9 @@
    спрашивает «уже?» («check») и забирает обновлённый счёт. */
 
 import { configured } from './_lib/db.js';
-import { verify } from './_lib/telegram.js';
+import { verify, isAdmin } from './_lib/telegram.js';
 import {
-  readContent, publicContent, createOrder, readOrder, getUser, InputError
+  readContent, publicContent, createOrder, readOrder, getUser, settleOrder, InputError
 } from './_lib/data.js';
 import { call, hasBot, BotError } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
@@ -56,7 +56,8 @@ async function start(input, user) {
      Совсем до нуля цену они не сводят: счёт меньше звезды Telegram не
      примет, и одну звезду всегда оставляем. */
   const me = await getUser(user.id);
-  const want = Math.max(0, Math.round(Number(input.coupons) || 0));
+  const free = isAdmin(user.id);
+  const want = free ? 0 : Math.max(0, Math.round(Number(input.coupons) || 0));
   const coupons = Math.min(want, me ? me.coupons || 0 : 0, full - 1);
   const amount = full - coupons;
 
@@ -68,6 +69,18 @@ async function start(input, user) {
     amount: amount,
     coupons: coupons
   });
+
+  /* Админ берёт подарок без оплаты: витрину он проверяет на себе, и
+     списывать за это звёзды не с кого. Счёт не выставляем вовсе — заказ
+     сразу засчитан, подарок уходит на счёт тем же путём, что и купленный.
+     Купоны при этом не трогаем: платить было нечем. */
+  if (free) {
+    await settleOrder(order.id, { telegram_payment_charge_id: 'free-' + order.id });
+    return { order: order.id, free: true, amount: 0 };
+  }
+
+  if (!hasBot()) throw refuse('pay.off', 'Оплата не настроена');
+  if (!process.env.WEBHOOK_SECRET) throw refuse('pay.nohook', 'Оплата на сервере ещё не включена');
 
   // По payload бот узнает заказ, когда Telegram сообщит об оплате
   const link = await call('createInvoiceLink', {
@@ -104,14 +117,6 @@ export default {
   async fetch(request) {
     if (request.method !== 'POST') return json({ error: 'method' }, 405);
     if (!configured()) return json({ error: 'no-db' }, 503);
-    if (!hasBot()) return json({ error: 'no-bot' }, 503);
-
-    // Без webhook платёж всё равно сорвался бы: ответить Telegram на
-    // pre_checkout_query было бы некому, и он отменил бы списание сам.
-    // Лучше сказать об этом до счёта, чем после
-    if (!process.env.WEBHOOK_SECRET) {
-      return json({ error: 'no-hook', code: 'pay.nohook', message: 'Оплата на сервере ещё не включена' }, 503);
-    }
 
     const input = await body(request);
     const user = verify(input.initData, MAX_AGE);
