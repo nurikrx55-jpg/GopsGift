@@ -814,13 +814,26 @@ body {
   position: relative;
   /* Подарок — тоже ручка: тянуть лист удобнее всего прямо за него */
   touch-action: none;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16 / 10;
   display: grid;
   place-items: center;
   /* Вырываемся из боковых отступов прокрутки — подложка идёт от края до края */
   margin: 0 -16px;
   border-radius: 38px 38px 0 0;
   overflow: hidden;
+}
+
+/* Подложка подарка внизу растворяется в самом листе. Без этого цветная
+   половина обрывалась ровной чертой, и под ней начинался серый */
+.sheet__stage::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42%;
+  background: linear-gradient(180deg, rgba(26, 26, 26, 0) 0%, rgba(26, 26, 26, 0.55) 55%, var(--secondary-bg) 100%);
+  pointer-events: none;
 }
 
 /* Узор поверх подложки — тот же, что на купленном подарке */
@@ -841,6 +854,8 @@ body {
   z-index: 1;
   width: 42%;
   aspect-ratio: 1;
+  /* Над растворяющимся краем: иначе низ подарка уходил бы в туман */
+  margin-bottom: 9%;
 }
 
 .sheet__art canvas,
@@ -2148,6 +2163,19 @@ body {
 
 /* Карточка купленного подарка */
 
+/* Её подложка внизу тоже растворяется в листе — тем же приёмом, что и у
+   карточки на продажу */
+.own-card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34%;
+  background: linear-gradient(180deg, rgba(26, 26, 26, 0) 0%, rgba(26, 26, 26, 0.5) 58%, var(--secondary-bg) 100%);
+  pointer-events: none;
+}
+
 .own-card {
   position: relative;
   /* Вырываемся из боковых отступов прокрутки — подложка идёт от края до края */
@@ -2202,6 +2230,13 @@ body {
 .own-card__close svg {
   width: 18px;
   height: 18px;
+}
+
+/* Содержимое идёт поверх растворяющегося края */
+.own-card__art,
+.own-card__acts {
+  position: relative;
+  z-index: 1;
 }
 
 .own-card__art {
