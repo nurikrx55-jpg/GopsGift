@@ -526,7 +526,7 @@
     showArt(art, gift, loop);
 
     const badge = el('span', 'gift__badge');
-    badge.innerHTML = '<span class="gift__ribbon"></span>';
+    badge.innerHTML = '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true"><use href="#ribbon-shape"></use></svg>';
     const label = el('span', 'gift__label');
     badge.appendChild(label);
     card.appendChild(badge);
@@ -544,8 +544,8 @@
       badge.hidden = !next.badge;
       badge.dataset.kind = next.kind || 'default';
       // Свой цвет перебивает цвет редкости
-      if (next.tone) badge.style.setProperty('--ribbon-a', next.tone);
-      else badge.style.removeProperty('--ribbon-a');
+      if (next.tone) badge.style.setProperty('--ribbon-fill', next.tone);
+      else badge.style.removeProperty('--ribbon-fill');
       amount.textContent = num(next.price);
 
       // Фон: выбранный — тоном из него, не выбранный — нейтральный. В

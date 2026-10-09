@@ -485,10 +485,13 @@
       const badge = document.createElement('span');
       badge.className = 'gift__badge';
       badge.dataset.kind = gift.kind || 'default';
-      // Цвет ленты задаёт админка; не задала — берётся по редкости
-      if (gift.tone) badge.style.setProperty('--ribbon-a', gift.tone);
-      // Форма ленты лежит в спрайте, здесь только заливка под обрезку
-      badge.innerHTML = '<span class="gift__ribbon" aria-hidden="true"></span>';
+      // Цвет ленты может задать админка — тогда лента одноцветная; не
+      // задала — заливка по редкости, градиентом из спрайта
+      if (gift.tone) badge.style.setProperty('--ribbon-fill', gift.tone);
+      // Контур ленты лежит в спрайте, здесь только ссылка на него
+      badge.innerHTML =
+        '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true">' +
+        '<use href="#ribbon-shape"></use></svg>';
 
       const label = document.createElement('span');
       label.className = 'gift__label';
@@ -2237,7 +2240,9 @@
     const badge = document.createElement('span');
     badge.className = 'gift__badge';
     badge.dataset.kind = 'stake';
-    badge.innerHTML = '<span class="gift__ribbon" aria-hidden="true"></span>';
+    badge.innerHTML =
+      '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true">' +
+      '<use href="#ribbon-shape"></use></svg>';
 
     const label = document.createElement('span');
     label.className = 'gift__label';

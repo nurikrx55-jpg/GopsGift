@@ -582,72 +582,51 @@ body {
   object-fit: contain;
 }
 
-/* Лента на углу карточки.
-
-   Она нарочно длиннее угла, который перекрывает: концы выходят за края и
-   лента смотрится наброшенной, а не вклеенной. Центр её стоит на диагонали
-   в 26 пикселях от угла — отсюда и смещения; после поворота на 45° концы
-   свешиваются примерно на девять пикселей с каждой стороны.
-
-   Цвет — обычный градиент под обрезкой по форме из спрайта: так его можно
-   задать из админки любым, а не выбирать из готовых. */
+/* Лента в углу.
+   Центр ленты сперва совмещаем с углом карточки (отрицательные margin),
+   затем отодвигаем внутрь по диагонали на --ribbon-inset и поворачиваем. */
+/* Оба торца ленты срезаны в path ровно под 45°, поэтому после поворота
+   они становятся горизонталью и вертикалью и ложатся впритык к краям
+   карточки. Смещения посчитаны из середин этих торцов — при них скруглённые
+   углы остаются целыми и обрезка не нужна. */
 .gift__badge {
-  --ribbon-a: #364b5c;
+  --ribbon-fill: url(#ribbon-default);
 
   position: absolute;
   z-index: 2;
-  top: calc(13.5px * var(--ribbon-scale));
-  right: calc(-20px * var(--ribbon-scale));
-  width: calc(92px * var(--ribbon-scale));
-  height: calc(25px * var(--ribbon-scale));
+  top: calc(15.49px * var(--ribbon-scale));
+  right: calc(-20.68px * var(--ribbon-scale));
+  width: calc(98px * var(--ribbon-scale));
+  height: calc(26px * var(--ribbon-scale));
   transform: rotate(45deg);
 
   display: grid;
   place-items: center;
-  font-size: calc(9.5px * var(--ribbon-scale));
+  font-size: calc(11px * var(--ribbon-scale));
   font-weight: 600;
   line-height: 1;
   color: #fff;
   pointer-events: none;
 }
 
-/* Цвет по редкости — пока админка не задала свой */
-.gift__badge[data-kind="premium"] { --ribbon-a: #f6b329; }
-.gift__badge[data-kind="sold"]    { --ribbon-a: #5f3a3e; }
-.gift__badge[data-kind="time"]    { --ribbon-a: #b292f5; }
-.gift__badge[data-kind="rare"]    { --ribbon-a: #3fae6a; }
-.gift__badge[data-kind="epic"]    { --ribbon-a: #a97bf0; }
-.gift__badge[data-kind="legend"]  { --ribbon-a: #f9c81f; }
-.gift__badge[data-kind="blood"]   { --ribbon-a: #ff5a52; }
+.gift__badge[data-kind="premium"] { --ribbon-fill: url(#ribbon-premium); }
+.gift__badge[data-kind="sold"]    { --ribbon-fill: url(#ribbon-sold); }
+.gift__badge[data-kind="time"]    { --ribbon-fill: url(#ribbon-time); }
+
+/* Редкость: зелёная, фиолетовая, жёлтая. Без обводок — только заливка */
+.gift__badge[data-kind="rare"]   { --ribbon-fill: url(#ribbon-rare); }
+.gift__badge[data-kind="epic"]   { --ribbon-fill: url(#ribbon-epic); }
+.gift__badge[data-kind="legend"] { --ribbon-fill: url(#ribbon-legend); }
+.gift__badge[data-kind="blood"]  { --ribbon-fill: url(#ribbon-blood); }
 
 /* Лента поставленного подарка — холодная, под стать льду на карточке */
-.gift__badge[data-kind="stake"]   { --ribbon-a: #5aa9ff; }
+.gift__badge[data-kind="stake"]  { --ribbon-fill: url(#ribbon-stake); }
 
-/* Сама лента: градиент от заданного цвета к его затемнению, вырезанный по
-   форме маской. Маска — картинкой, а не clip-path на разметку из спрайта:
-   ссылку на спрайт Safari в Telegram местами не находил, и ленты на
-   карточках пропадали. Картинка с формой лежит прямо здесь и от спрайта не
-   зависит. Поле у неё шире ленты, чтобы обводка не обрезалась по краю. */
 .gift__ribbon {
-  position: relative;
   grid-area: 1 / 1;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg,
-    var(--ribbon-a) 0%,
-    color-mix(in srgb, var(--ribbon-a) 55%, #120608) 100%);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%20124%2036'%3E%3Cpath%20d='M84.9189%200.147398L34.2855%207.97869e-05C29.325%20-0.0143992%2024.5619%201.94229%2021.044%205.43973L0.925646%2025.4414C-1.04386%2027.3994%200.33722%2030.7613%203.11445%2030.7694L115.911%2031.0976C118.688%2031.1057%20120.089%2027.752%20118.131%2025.7825L98.1285%205.66416C94.6311%202.14629%2089.8794%200.161838%2084.9189%200.147398Z'%20fill='black'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%20124%2036'%3E%3Cpath%20d='M84.9189%200.147398L34.2855%207.97869e-05C29.325%20-0.0143992%2024.5619%201.94229%2021.044%205.43973L0.925646%2025.4414C-1.04386%2027.3994%200.33722%2030.7613%203.11445%2030.7694L115.911%2031.0976C118.688%2031.1057%20120.089%2027.752%20118.131%2025.7825L98.1285%205.66416C94.6311%202.14629%2089.8794%200.161838%2084.9189%200.147398Z'%20fill='black'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-}
-
-/* Обводка: тонкий светлый контур по краю ленты, внутрь от неё */
-.gift__ribbon::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.55);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%20124%2036'%3E%3Cpath%20d='M84.9189%200.147398L34.2855%207.97869e-05C29.325%20-0.0143992%2024.5619%201.94229%2021.044%205.43973L0.925646%2025.4414C-1.04386%2027.3994%200.33722%2030.7613%203.11445%2030.7694L115.911%2031.0976C118.688%2031.1057%20120.089%2027.752%20118.131%2025.7825L98.1285%205.66416C94.6311%202.14629%2089.8794%200.161838%2084.9189%200.147398Z'%20fill='none'%20stroke='black'%20stroke-width='3'%20stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%20124%2036'%3E%3Cpath%20d='M84.9189%200.147398L34.2855%207.97869e-05C29.325%20-0.0143992%2024.5619%201.94229%2021.044%205.43973L0.925646%2025.4414C-1.04386%2027.3994%200.33722%2030.7613%203.11445%2030.7694L115.911%2031.0976C118.688%2031.1057%20120.089%2027.752%20118.131%2025.7825L98.1285%205.66416C94.6311%202.14629%2089.8794%200.161838%2084.9189%200.147398Z'%20fill='none'%20stroke='black'%20stroke-width='3'%20stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  fill: var(--ribbon-fill);
 }
 
 .gift__label {
