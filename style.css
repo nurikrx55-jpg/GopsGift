@@ -1739,10 +1739,32 @@ body {
   fill: currentColor;
 }
 
-.prf__total {
+/* Счётчик и порядок — одной строкой: порядок прижат к правому краю */
+.prf__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 26px 0 0;
-  padding: 0 20px;
+  padding: 0 16px;
+}
+
+.prf__total {
+  padding: 0 4px;
   font-size: 19px;
+}
+
+/* Кнопка та же, что на витрине, только пониже: рядом с ней не плашка, а
+   строка счётчика */
+.prf__sort {
+  flex: none;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.prf__sort[hidden] {
+  display: none;
 }
 
 .prf__list {

@@ -1621,27 +1621,36 @@
     });
   }
 
+  /* Один лист на три списка: что показывать на витрине, в каком порядке
+     она стоит и в каком порядке стоят свои подарки в профиле */
+  const PICKS = {
+    scope: { title: 'pick.scope', items: () => SCOPES, now: () => scopeId },
+    sort: { title: 'pick.sort', items: () => SORTS, now: () => sortId },
+    own: { title: 'pick.sort', items: () => OWN_SORTS, now: () => ownSortId }
+  };
+
   function fillPick(what) {
-    const sort = what === 'sort';
-    pickNow = {
-      sort: sort,
-      chosen: sort ? sortId : scopeId
-    };
+    const kind = PICKS[what] ? what : 'scope';
+    const list = PICKS[kind];
 
+    pickNow = { kind: kind, chosen: list.now() };
+
+    // У отбора значок подарка, у порядка — полоски
+    const scope = kind === 'scope';
     const icon = document.getElementById('pick-icon');
-    icon.setAttribute('viewBox', sort ? '0 0 18 11' : '0 0 14 16');
-    icon.querySelector('use').setAttribute('href', sort ? '#sort-lines' : '#task-gift');
-    icon.classList.toggle('pick__icon--sort', sort);
+    icon.setAttribute('viewBox', scope ? '0 0 14 16' : '0 0 18 11');
+    icon.querySelector('use').setAttribute('href', scope ? '#task-gift' : '#sort-lines');
+    icon.classList.toggle('pick__icon--sort', !scope);
 
-    document.getElementById('pick-title-text').textContent = t(sort ? 'pick.sort' : 'pick.scope');
+    document.getElementById('pick-title-text').textContent = t(list.title);
 
-    const list = document.getElementById('pick-list');
-    list.textContent = '';
+    const box = document.getElementById('pick-list');
+    box.textContent = '';
 
     const card = document.createElement('div');
     card.className = 'pick__card';
-    (sort ? SORTS : SCOPES).forEach((option) => pickRow(option, card));
-    list.appendChild(card);
+    list.items().forEach((option) => pickRow(option, card));
+    box.appendChild(card);
 
     paintPick();
   }
@@ -1649,11 +1658,17 @@
   function applyPick() {
     haptic('light');
 
-    if (pickNow.sort) sortId = pickNow.chosen;
-    else scopeId = pickNow.chosen;
+    if (pickNow.kind === 'own') {
+      ownSortId = pickNow.chosen;
+      renderOwned(prfTab);
+    } else {
+      if (pickNow.kind === 'sort') sortId = pickNow.chosen;
+      else scopeId = pickNow.chosen;
 
-    paintFilters();
-    drawGifts();
+      paintFilters();
+      drawGifts();
+    }
+
     pickSheet.close();
   }
 
@@ -1687,6 +1702,9 @@
     const sort = document.getElementById('filter-sort');
     if (scope) scope.addEventListener('click', open('scope'));
     if (sort) sort.addEventListener('click', open('sort'));
+
+    const own = document.getElementById('prf-sort');
+    if (own) own.addEventListener('click', open('own'));
 
     const apply = document.getElementById('pick-apply');
     if (apply) apply.addEventListener('click', applyPick);
@@ -1814,10 +1832,43 @@
   // Какая вкладка профиля открыта сейчас
   let prfTab = 'gifts';
 
+  /* Порядок в профиле. Витринный сюда не годится: «скоро закончатся» про
+     свои подарки ничего не говорит, зато редкость — говорит. «Новые» —
+     те, что пришли последними, поэтому список разворачиваем. */
+  const RARITY = { legend: 3, blood: 3, epic: 2, rare: 1 };
+
+  const OWN_SORTS = [
+    { id: 'new', key: 'sort.new', order: null },
+    { id: 'dear', key: 'sort.dear', order: (a, b) => b.price - a.price },
+    { id: 'cheap', key: 'sort.cheap', order: (a, b) => a.price - b.price },
+    { id: 'rare', key: 'sort.rare', order: (a, b) => (RARITY[b.kind] || 0) - (RARITY[a.kind] || 0) }
+  ];
+
+  let ownSortId = 'new';
+
+  function pickedOwnSort() {
+    return OWN_SORTS.find((one) => one.id === ownSortId) || OWN_SORTS[0];
+  }
+
+  function sortOwned(items) {
+    const sort = pickedOwnSort();
+    // Счёт хранит подарки по порядку прихода, значит свежие — в конце
+    const list = sort.id === 'new' ? items.slice().reverse() : items.slice();
+    if (sort.order) list.sort(sort.order);
+    return list;
+  }
+
   function renderOwned(kind) {
     const list = document.getElementById('prf-list');
     const total = document.getElementById('prf-total');
-    const items = OWNED[kind] || [];
+    const items = sortOwned(OWNED[kind] || []);
+
+    const sort = document.getElementById('prf-sort');
+    if (sort) {
+      // Один подарок переставлять местами не с чем
+      sort.hidden = items.length < 2;
+      document.getElementById('prf-sort-text').textContent = t(pickedOwnSort().key);
+    }
 
     releaseArt(list);
     list.textContent = '';

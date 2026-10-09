@@ -53,6 +53,7 @@
       'sort.cheap': 'Сначала дешёвые',
       'sort.dear': 'Сначала дорогие',
       'sort.rest': 'Скоро закончатся',
+      'sort.rare': 'Сначала редкие',
 
       'pick.scope': 'Показывать',
       'pick.sort': 'Порядок',
@@ -193,6 +194,7 @@
       'sort.cheap': 'Cheapest first',
       'sort.dear': 'Priciest first',
       'sort.rest': 'Running out',
+      'sort.rare': 'Rarest first',
 
       'pick.scope': 'Show',
       'pick.sort': 'Order',

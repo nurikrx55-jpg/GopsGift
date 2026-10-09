@@ -269,7 +269,15 @@
         </button>
       </div>
 
-      <p class="prf__total" id="prf-total"></p>
+      <div class="prf__line">
+        <p class="prf__total" id="prf-total"></p>
+
+        <button class="filter prf__sort" type="button" id="prf-sort" hidden>
+          <span id="prf-sort-text"></span>
+          <i class="filter__line" aria-hidden="true"></i>
+          <svg class="filter__icon filter__icon--sort" viewBox="0 0 18 11" aria-hidden="true"><use href="#sort-lines"></use></svg>
+        </button>
+      </div>
 
       <div class="prf__list" id="prf-list"></div>
     </section>
