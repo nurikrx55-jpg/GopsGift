@@ -754,7 +754,7 @@ body {
   flex-direction: column;
   background: var(--secondary-bg);
   /* Скругление крупное: лист читается отдельным окном, а не краем экрана */
-  border-radius: 30px 30px 0 0;
+  border-radius: 38px 38px 0 0;
   padding-bottom: max(16px, var(--safe-area-bottom));
   /* Закрыта — уведена за нижний край; выезд и возврат идут одной кривой */
   transform: translateY(100%);
@@ -819,7 +819,7 @@ body {
   place-items: center;
   /* Вырываемся из боковых отступов прокрутки — подложка идёт от края до края */
   margin: 0 -16px;
-  border-radius: 30px 30px 0 0;
+  border-radius: 38px 38px 0 0;
   overflow: hidden;
 }
 
@@ -2126,7 +2126,7 @@ body {
   position: relative;
   /* Вырываемся из боковых отступов прокрутки — подложка идёт от края до края */
   margin: 0 -16px;
-  border-radius: 30px 30px 0 0;
+  border-radius: 38px 38px 0 0;
   overflow: hidden;
   /* Высоту задаёт содержимое, а не aspect-ratio: от выведенной им высоты
      проценты у детей разрешаются ненадёжно — подарок то не влезал, то
