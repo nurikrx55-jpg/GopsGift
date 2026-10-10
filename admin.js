@@ -533,7 +533,7 @@
 
     const price = el('span', 'gift__price');
     const star = el('img', 'gift__star');
-    star.src = 'gifts/star-white.png';
+    star.src = 'gifts/star.png';
     star.alt = '';
     const amount = el('span', 'gift__amount');
     price.append(star, amount);

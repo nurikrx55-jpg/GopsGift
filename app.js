@@ -524,7 +524,9 @@
 
       const star = document.createElement('img');
       star.className = 'gift__star';
-      star.src = 'gifts/star-white.png';
+      // Жёлтая звезда — под стать жёлтому числу рядом; белая осталась там,
+      // где число белое: в шапке, в листе и на кнопке покупки
+      star.src = 'gifts/star.png';
       star.alt = t('hdr.stars');
       star.draggable = false;
 
