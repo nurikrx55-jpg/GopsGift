@@ -1968,12 +1968,10 @@
     const total = document.getElementById('prf-total');
     const items = sortOwned(OWNED[kind] || []);
 
-    const sort = document.getElementById('prf-sort');
-    if (sort) {
-      // Один подарок переставлять местами не с чем
-      sort.hidden = items.length < 2;
-      document.getElementById('prf-sort-text').textContent = t(pickedOwnSort().key);
-    }
+    // Кнопка отбора видна всегда, как у образца; что порядок изменён,
+    // говорит синяя точка на ней
+    const dot = document.getElementById('prf-sort-dot');
+    if (dot) dot.hidden = ownSortId === 'new';
 
     releaseArt(list);
     list.textContent = '';
@@ -2029,6 +2027,12 @@
 
     stars.textContent = formatPrice(ME ? ME.stars : 0);
     coupons.textContent = formatPrice(ME ? ME.coupons : 0);
+
+    // В профиле своей шапки нет — балансы стоят в его строке с языком
+    const prfStars = document.getElementById('prf-stars');
+    const prfCoupons = document.getElementById('prf-coupons');
+    if (prfStars) prfStars.textContent = stars.textContent;
+    if (prfCoupons) prfCoupons.textContent = coupons.textContent;
   }
 
   function initProfile() {
@@ -2070,7 +2074,8 @@
     // что человек видел на экране
     const shownId = user ? String(user.id) : null;
     id.textContent = shownId || '—';
-    copy.hidden = !user;
+    // Копировать нечего — значок не показываем, а прочерк оставляем
+    copy.querySelector('svg').style.display = user ? '' : 'none';
 
     function copyId() {
       if (!shownId) return;
@@ -2094,11 +2099,28 @@
     }
 
     copy.addEventListener('click', copyId);
+    copy.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      copyId();
+    });
+
+    // Кошелёк, рефералы, топ, крафты и часть отбора у нас пока не
+    // работают. Кнопки стоят, как у образца, и честно говорят, что скоро
+    const pane = tabs.closest('.pane');
+    pane.querySelectorAll('[data-soon]').forEach((button) => {
+      button.addEventListener('click', () => {
+        haptic('light');
+        toast(t('soon.gems'));
+      });
+    });
 
     const buttons = Array.from(tabs.querySelectorAll('.prf-tabs__tab'));
     buttons.forEach((button, index) => {
       button.addEventListener('click', () => {
         if (button.classList.contains('is-active')) return;
+        // «Крафты» пока только стоят на месте — переключаться некуда
+        if (button.hasAttribute('data-soon')) return;
 
         haptic('select');
         buttons.forEach((other) => other.classList.toggle('is-active', other === button));

@@ -41,6 +41,14 @@
     inset -2px -2px 2px -2px rgba(255, 255, 255, 0.09),
     inset -1.8px -3px 0 -2px rgba(255, 255, 255, 0.06);
 
+  /* Та же кромка в плотном варианте образца: блики короче по горизонтали.
+     Ею сделаны кнопка языка, кнопка кошелька и ряд отбора в профиле */
+  --glass-edge-tight:
+    inset 0.8px 3px 0 -2px rgba(255, 255, 255, 0.06),
+    inset 2px 2px 0 -2px rgba(255, 255, 255, 0.09),
+    inset -2px -2px 2px -2px rgba(255, 255, 255, 0.09),
+    inset -0.8px -2px 0 -2px rgba(255, 255, 255, 0.06);
+
 }
 
 /* Монохромная подложка под подарком: свет сверху, темнее к низу. Тон задаёт
@@ -1487,48 +1495,68 @@ body {
   display: block;
 }
 
-/* Выбор языка.
+/* Профиль повторяет образец (memgift) блок в блок. Числа сняты с их
+   стилей, а не со скриншота: шапка — `.pu-*`, список разделов —
+   `.prf-acts`, вкладки — `.prf-tabs`, ряд отбора — `._filter`. */
 
-   Кружок с флагом стоит в углу поверх профиля, а не в потоке: иначе он
-   сдвинул бы вниз аватар и всё под ним. Список выезжает из-под него. */
-.lang {
-  position: absolute;
-  z-index: 20;
-  top: 0;
-  left: 16px;
+/* Своей шапки с названием у профиля нет: язык и балансы стоят строкой
+   .pu-ctrl прямо в разделе, как у образца */
+.stage[data-section="profile"] .hdr {
+  display: none;
 }
 
-.lang__btn {
-  width: 46px;
-  height: 46px;
+/* Строка с языком встаёт туда, где в других разделах шапка: её середина
+   приходится на середину шапки */
+.stage > .pane[data-pane="profile"] {
+  padding-top: calc((var(--header-h) - 40px) / 2);
+}
+
+.pu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px;
+}
+
+.pu-ctrl {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 0 2px;
+}
+
+/* Список языков выпадает из-под кружка */
+.lang {
+  position: relative;
+  z-index: 20;
+}
+
+.pu-ctrl__lang {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: transform 0.14s ease;
-}
-
-/* Подложка под стеклом: без неё кружок выцветает. Ниже стекла, отсюда
-   отрицательный z-index — тем же приёмом сделаны кнопки у навигации */
-.lang__btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  opacity: 0.33;
   background: linear-gradient(180deg, #1e1e1e, #191919);
-  pointer-events: none;
+  box-shadow: var(--glass-edge-tight);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.lang__btn:active {
-  transform: scale(0.92);
+.pu-ctrl__lang:active {
+  transform: scale(0.94);
 }
 
 .lang__flag {
-  font-size: 23px;
+  font-size: 18px;
   line-height: 1;
   /* Эмодзи-флаг рисуется шрифтом системы, а не нашим */
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
@@ -1540,23 +1568,20 @@ body {
 
 .lang__menu {
   position: absolute;
-  top: 54px;
+  z-index: 50;
+  top: 48px;
   left: 0;
-  min-width: 208px;
-  padding: 6px;
-  border-radius: 22px;
-  display: grid;
-  /* Жидкое стекло, плотный вариант — тот же, что у кнопок отбора: сквозь
-     прозрачное просвечивал бы аватар, и список читался бы хуже */
-  background: linear-gradient(180deg, #1e1e1e, #191919);
-  -webkit-backdrop-filter: blur(28px) saturate(0.6);
-  backdrop-filter: blur(28px) saturate(0.6);
-  box-shadow: var(--glass-edge), 0 18px 40px -16px rgba(0, 0, 0, 0.8);
-  /* Раскрывается из того угла, под которым стоит кнопка */
-  transform-origin: 12px -12px;
+  width: 156px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: 14px;
+  background: #252528;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  transform-origin: top left;
   opacity: 0;
-  transform: scale(0.9) translateY(-6px);
-  transition: opacity 0.2s ease, transform 0.26s var(--ease);
+  transform: translateY(-6px) scale(0.96);
+  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
 .lang__menu.is-on {
@@ -1565,28 +1590,28 @@ body {
 }
 
 .lang__row {
+  height: 38px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 48px;
+  gap: 8px;
   padding: 0 12px;
   border: 0;
-  border-radius: 16px;
+  border-radius: 10px;
   background: none;
   color: #f5f5f7;
   font-family: inherit;
-  font-size: 16px;
+  font-size: 13px;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.2s ease;
 }
 
 .lang__row:active {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(245, 245, 247, 0.05);
 }
 
 .lang__row .lang__flag {
-  font-size: 21px;
+  font-size: 17px;
 }
 
 .lang__name {
@@ -1594,126 +1619,251 @@ body {
   min-width: 0;
 }
 
-/* Галочка у выбранного языка */
+/* Галочки у образца нет: выбранный язык и так виден по флагу на кнопке */
 .lang__tick {
-  width: 20px;
-  height: 20px;
-  flex: none;
-  color: var(--accent);
-  opacity: 0;
-}
-
-.lang__tick svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.lang__row[aria-selected="true"] .lang__tick {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lang__menu {
-    transition-duration: 0.01ms;
-  }
-}
-
-.prf__card {
-  display: grid;
-  justify-items: center;
-  padding: 4px 16px 0;
-}
-
-.prf__avatar {
-  width: 128px;
-  height: 128px;
-  border-radius: 50%;
-  /* Фоллбэк, когда Telegram не отдал фотографию */
-  background: linear-gradient(160deg, #8fe06a, #58c24a);
-  background-size: cover;
-  background-position: center;
-  display: grid;
-  place-items: center;
-  font-size: 44px;
-  color: rgba(0, 0, 0, 0.35);
-}
-
-.prf__title {
-  margin: 16px 0 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.prf__name {
-  font-size: 19px;
-  line-height: 1.2;
-}
-
-.prf__meta {
-  margin: 7px 0 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 15px;
-  color: var(--hint);
-}
-
-.prf__dot {
-  opacity: 0.55;
-}
-
-.prf__copy {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  color: var(--hint);
-  cursor: pointer;
-  /* Ни рамки, ни подсветки: это просто глиф, который копирует по нажатию */
-  outline: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: color 0.2s ease, transform 0.12s ease;
-}
-
-.prf__copy:active {
-  transform: scale(0.86);
-}
-
-/* Вход в админку — только у тех, кто в ней числится */
-.prf__admin[hidden] {
   display: none;
 }
 
-.prf__admin {
-  display: inline-flex;
+.pu-ctrl__balances {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 14px;
-  padding: 8px 15px 8px 12px;
-  border-radius: 99em;
+  gap: 18px;
+}
+
+.pu-ctrl__balance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+}
+
+.pu-ctrl__balance span {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
   color: #f5f5f7;
-  font-size: 14px;
-  text-decoration: none;
-  transition: transform 0.12s ease;
+  opacity: 0.85;
 }
 
-.prf__admin:active {
-  transform: scale(0.94);
-}
-
-.prf__admin svg {
+.pu-ctrl__icon {
+  display: block;
   width: 17px;
   height: 17px;
+  opacity: 0.8;
+  -webkit-user-drag: none;
 }
 
-/* Переключатель «Подарки / NFT» */
+/* Купон крупнее звезды: у его рисунка внутри есть поля */
+.pu-ctrl__icon--ticket {
+  width: 22px;
+  height: 22px;
+  transform: translateX(1.4px);
+  opacity: 1;
+  fill: #f5f5f7;
+}
+
+/* Аватар. Нет фотографии — первая буква на тёмной плите */
+.pu-ava {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #252528 center / cover no-repeat;
+  display: grid;
+  place-items: center;
+  /* 1.8em от шестнадцати — столько у образца */
+  font-size: 28.8px;
+  font-weight: 700;
+  color: #f5f5f7;
+}
+
+.pu-name {
+  max-width: 260px;
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: normal;
+  color: #f5f5f7;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pu-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+
+.pu-meta__gifts {
+  font-size: 13px;
+  font-weight: 500;
+  color: #8e8e93;
+}
+
+.pu-meta__dot {
+  font-size: 12px;
+  color: #5e5e62;
+  opacity: 0.4;
+}
+
+/* Номер копируется нажатием, значок рядом только подсказывает это */
+.pu-meta__id {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5e5e62;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.12s ease;
+}
+
+.pu-meta__id:active {
+  color: #f5f5f7;
+}
+
+.pu-meta__id svg {
+  flex-shrink: 0;
+}
+
+.pu-wallet {
+  max-width: 100%;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0 auto 12px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 99em;
+  background: linear-gradient(180deg, #232323, #1b1b1b);
+  -webkit-backdrop-filter: blur(28px) saturate(0.6);
+  backdrop-filter: blur(28px) saturate(0.6);
+  box-shadow: var(--glass-edge-tight);
+  color: #f5f5f7;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pu-wallet:active {
+  transform: scale(0.95);
+}
+
+.pu-wallet svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.9;
+  fill: currentColor;
+}
+
+.pu-wallet span {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.15px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Список разделов: одна тёмная плита, строки разделены волоском */
+.prf-acts {
+  display: flex;
+  flex-direction: column;
+  margin: 14px 16px 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #191919;
+}
+
+.prf-acts__item {
+  position: relative;
+  width: 100%;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px 0 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #f5f5f7;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.12s ease;
+}
+
+.prf-acts__item[hidden] {
+  display: none;
+}
+
+/* Волосок рисуем сверху у каждой строки, кроме первой, а не снизу у
+   каждой, кроме последней: последней бывает спрятанная админка, и тогда
+   волосок повис бы под «Топом» */
+.prf-acts__item + .prf-acts__item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 14px;
+  height: 1px;
+  background: rgba(245, 245, 247, 0.08);
+  pointer-events: none;
+}
+
+.prf-acts__item:active {
+  background-color: rgba(245, 245, 247, 0.04);
+}
+
+.prf-acts__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prf-acts__go {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(245, 245, 247, 0.06);
+  color: #f5f5f7;
+}
+
+.prf-acts__go svg {
+  display: block;
+  width: 8px;
+  height: 13px;
+  opacity: 0.5;
+}
+
+/* Вкладки «Подарки / NFT / Крафты». Само стекло приходит из .glass — у
+   образца оно ровно такое же */
 .prf-tabs {
   position: relative;
   display: flex;
   align-items: stretch;
   height: 52px;
-  margin: 26px 16px 0;
+  margin: 18px 16px 10px;
   padding: 4px;
   border-radius: 99em;
 }
@@ -1724,75 +1874,208 @@ body {
   top: 4px;
   bottom: 4px;
   left: 4px;
-  width: calc((100% - 8px) / 2);
-  border-radius: 99em;
-  background: rgba(255, 255, 255, 0.09);
+  width: calc((100% - 8px) / 3);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.086);
+  pointer-events: none;
   transform: translateX(calc(var(--prf-index, 0) * 100%));
-  transition: transform 0.42s var(--ease);
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .prf-tabs__tab {
   position: relative;
   z-index: 1;
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   padding: 0;
   border: 0;
-  border-radius: 99em;
-  background: none;
-  color: var(--hint);
-  font-family: inherit;
-  font-size: 17px;
-  cursor: pointer;
-  transition: color 0.26s ease;
-}
-
-.prf-tabs__tab.is-active {
+  border-radius: 999px;
+  background: transparent;
   color: #f5f5f7;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Значок залитый, а не контурный: цвет берёт у подписи и гаснет вместе с
-   ней на неактивной вкладке. И мельче прежнего куба — сплошная фигура при
-   том же размере выглядит тяжелее контурной */
+.prf-tabs__tab:active {
+  transform: scale(0.97);
+}
+
+.prf-tabs__tab span {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  opacity: 0.4;
+  transition: opacity 0.28s ease;
+}
+
 .prf-tabs__tab svg {
   width: 15px;
   height: 15px;
   fill: currentColor;
+  opacity: 0.4;
+  transition: opacity 0.28s ease;
 }
 
-/* Счётчик и порядок — одной строкой: порядок прижат к правому краю */
-.prf__line {
+.prf-tabs__tab.is-active span,
+.prf-tabs__tab.is-active svg {
+  opacity: 1;
+}
+
+/* Ряд отбора и строка счётчика под ним */
+.prf-filter {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 12px;
-  margin: 26px 0 0;
+  margin-top: 12px;
   padding: 0 16px;
 }
 
-.prf__total {
-  padding: 0 4px;
-  font-size: 19px;
+/* Кнопок больше, чем влезает: ряд листается вбок до самого края экрана */
+.prf-filter__items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -16px;
+  padding: 0 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  touch-action: pan-x;
 }
 
-/* Кнопка та же, что на витрине, только пониже: рядом с ней не плашка, а
-   строка счётчика */
-.prf__sort {
-  flex: none;
-  height: 36px;
-  padding: 0 12px;
-  font-size: 14px;
-}
-
-.prf__sort[hidden] {
+.prf-filter__items::-webkit-scrollbar {
   display: none;
 }
 
+/* Отбивка после последней кнопки: padding справа у прокрутки съедается */
+.prf-filter__items::after {
+  content: '';
+  flex: 0 0 4px;
+}
+
+.prf-filter__item {
+  position: relative;
+  flex: 1;
+  min-width: fit-content;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 99em;
+  background: linear-gradient(180deg, #1e1e1e 50%, #191919);
+  -webkit-backdrop-filter: blur(28px) saturate(0.6);
+  backdrop-filter: blur(28px) saturate(0.6);
+  box-shadow: var(--glass-edge-tight);
+  color: #f5f5f7;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+
+.prf-filter__item:active {
+  transform: scale(0.95);
+}
+
+.prf-filter__item.is-off {
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+/* Синяя точка: отбор включён */
+.prf-filter__dot {
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #0083fd;
+}
+
+.prf-filter__dot[hidden] {
+  display: none;
+}
+
+.prf-filter__title {
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.prf-filter__border {
+  width: 1px;
+  height: 19px;
+  flex-shrink: 0;
+  margin: 0 5px;
+  background: #363639;
+}
+
+.prf-filter__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: currentColor;
+  opacity: 0.5;
+}
+
+.prf-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+}
+
+.prf-info__total {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  color: #8e8e93;
+}
+
+.prf-info__display {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  /* Цвет значка — его собственный, у образца он не перекрашен */
+  color: #98989d;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.prf-info__display:active {
+  transform: scale(0.92);
+  opacity: 0.75;
+}
+
+.prf-info__display svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  opacity: 0.5;
+}
+
 .prf__list {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 /* «Показать ещё» под длинным списком */
