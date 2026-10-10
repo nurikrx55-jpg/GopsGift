@@ -490,7 +490,7 @@
       if (gift.tone) badge.style.setProperty('--ribbon-fill', gift.tone);
       // Контур ленты лежит в спрайте, здесь только ссылка на него
       badge.innerHTML =
-        '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true">' +
+        '<svg class="gift__ribbon" viewBox="-2 -2 124 36" aria-hidden="true">' +
         '<use href="#ribbon-shape"></use></svg>';
 
       const label = document.createElement('span');
@@ -2241,7 +2241,7 @@
     badge.className = 'gift__badge';
     badge.dataset.kind = 'stake';
     badge.innerHTML =
-      '<svg class="gift__ribbon" viewBox="0 0 98 26" aria-hidden="true">' +
+      '<svg class="gift__ribbon" viewBox="-2 -2 124 36" aria-hidden="true">' +
       '<use href="#ribbon-shape"></use></svg>';
 
     const label = document.createElement('span');
