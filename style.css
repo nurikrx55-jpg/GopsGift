@@ -522,10 +522,12 @@ body {
   height: 11px;
 }
 
+/* Сетка витрины — как в образце: колонка не уже 150px, промежуток 14px.
+   На телефоне это те же две колонки, что были, но числа уже не наши */
 .gifts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
   padding: 0 16px;
   /* Отбивка от строки отбора */
   margin-top: 14px;
@@ -540,37 +542,81 @@ body {
   font-size: 15px;
 }
 
-/* Карточка — стекло, а не серая плита. Три слоя дают весь объём:
-   мягкая подсветка под подарком, наклонный градиент корпуса и блик по
-   верхней кромке. Ободок и падающая тень живут в box-shadow. */
+/* Карточка подарка повторяет образец (memgift, `._gift`) числом в число:
+   рост 203px, скругление 26px, тёмная плита #252528 и ни одной тени.
+   Всё, что на ней лежит, разведено по слоям: узор, подарок, лента, цена.
+
+   Размеры ленты и её середина, узор, плашка цены — свои переменные: у
+   мелких карточек в профиле образец даёт другой набор, и меняется он там
+   одним блоком, а не переписыванием правил. */
 .gift {
-  /* Масштаб ленты наследуется: в профиле карточки мельче, и лента с ними */
-  --ribbon-scale: 1;
-  /* Скругление вынесено в переменную: в профиле карточки мельче */
+  --ribbon-w: 100px;
+  --ribbon-h: 42px;
+  /* Середина ленты: столько от верхнего и от правого края карточки */
+  --ribbon-cx: 24px;
+  --ribbon-cy: 25px;
+  --ribbon-font: 14px;
+  --ribbon-max: 70px;
+
   --gift-radius: 26px;
+
+  /* Узор не доходит до низа карточки: там стоит плашка цены */
+  --pattern-bottom: 30px;
+  --pattern-radius: var(--gift-radius) var(--gift-radius) 0 0;
+  --pattern-opacity: 0.25;
+
   position: relative;
-  /* Пропорции образца (180 x 200); ширину задаёт сетка, две штуки в ряд */
-  aspect-ratio: 180 / 200;
+  height: 203px;
   padding: 12px;
   border-radius: var(--gift-radius);
+  /* Плита образца; поверх неё ляжет тон самого подарка из .tint-face */
+  background-color: #252528;
   /* Подложку даёт .tint-face: тон у неё от самого подарка. Здесь только
      глушим светлоту — рядом стоит соседняя карточка со своим цветом */
   --tint-glow: 44%;
   --tint-top: 22%;
   --tint-bottom: 11%;
-  /* Стекла здесь нет: ни размытия, ни ободка, ни бликов. Карточка — просто
-     цветная плита с мягкой тенью; стекло осталось у листов и кнопок */
-  box-shadow: 0 12px 24px -16px rgba(0, 0, 0, 0.8);
+  /* Карточка выныривает, а не возникает — как в образце */
+  animation: bubbleNft 0.2s linear;
 }
 
+/* Узор поверх подложки — та же картинка, что на листе, и та же, что у
+   образца: файл совпадает с их `gift_bg` побайтно */
+.gift::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--pattern-bottom);
+  border-radius: var(--pattern-radius);
+  background: url("gifts/pattern.png") center / cover no-repeat;
+  opacity: var(--pattern-opacity);
+  pointer-events: none;
+}
+
+@keyframes bubbleNft {
+  from {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Поле подарка — из образца: 70% карточки по обеим сторонам, верх на 6%.
+   Отличие одно: подарок в поле вписан целиком, а не обрезан по краям */
 .gift__art {
   position: absolute;
   z-index: 1;
-  top: 14%;
+  top: 6%;
   left: 50%;
   transform: translateX(-50%);
-  width: 66.67%;
-  aspect-ratio: 1;
+  width: 70%;
+  height: 70%;
 }
 
 .gift__art canvas,
@@ -587,28 +633,27 @@ body {
    Она наброшена на подарок, а не вклеена в угол: длиннее того угла, который
    перекрывает, и концы свешиваются за края карточки.
 
-   Размеры и место сняты с образца (memgift, `._rarity`): поле ленты 100 x 42,
-   его центр стоит в 25px вниз и 24px влево от угла карточки, и всё это
-   повёрнуто на 45°. Здесь центр задан через край: 25 - 42/2 сверху и
-   24 - 100/2 справа. Фигура уже самого поля — лишнее место сверху и снизу
-   нарочное, в нём помещается обводка. */
+   Размеры и место сняты с образца (memgift, `._rarity`): поле ленты
+   100 x 42, его центр стоит в 25px вниз и 24px влево от угла карточки, и
+   всё это повёрнуто на 45°. Здесь середина задана через край — отсюда
+   половины в top и right. */
 .gift__badge {
   --ribbon-fill: url(#ribbon-default);
 
   position: absolute;
-  z-index: 2;
-  top: calc(4px * var(--ribbon-scale));
-  right: calc(-26px * var(--ribbon-scale));
-  width: calc(100px * var(--ribbon-scale));
-  height: calc(42px * var(--ribbon-scale));
+  z-index: 10;
+  top: calc(var(--ribbon-cy) - var(--ribbon-h) / 2);
+  right: calc(var(--ribbon-cx) - var(--ribbon-w) / 2);
+  width: var(--ribbon-w);
+  height: var(--ribbon-h);
   transform: rotate(45deg);
 
   display: grid;
   place-items: center;
-  font-size: calc(11px * var(--ribbon-scale));
+  font-size: var(--ribbon-font);
   font-weight: 600;
   line-height: 1;
-  color: #fff;
+  color: #f5f5f7;
   pointer-events: none;
 }
 
@@ -639,56 +684,35 @@ body {
   grid-area: 1 / 1;
   /* Текст идёт поверх ленты */
   z-index: 1;
+  /* Длинное название не вылезает за ленту, а обрывается — как в образце */
+  max-width: var(--ribbon-max);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-/* Плашка цены */
+/* Плашка цены — кнопка покупки из образца: тёплая полупрозрачная капсула
+   (#ffa600 на 12%), золотое число и звезда в 14px. Стекла здесь нет — у
+   образца его на этой плашке тоже нет */
 .gift__price {
   position: absolute;
-  z-index: 2;
+  z-index: 10;
   left: 50%;
-  bottom: 12px;
+  bottom: 20px;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 13px 6px 10px;
-  border-radius: 999px;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 50px;
+  background: rgba(255, 166, 0, 0.12);
   white-space: nowrap;
 }
 
-/* Материал — то же жидкое стекло, что у капсулы навигации и плашек, только
-   собранное из двух слоёв под содержимым: сама плашка стоит в своём
-   контексте наложения (z-index: 2), и подложка лёгла бы поверх стекла,
-   будь стекло на ней самой. Поэтому ::before — подложка, ::after — стекло
-   над ней; текст и звезда остаются выше обоих. */
-.gift__price::before,
-.gift__price::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-/* Подложка: без неё стекло выцветает на светлой карточке */
-.gift__price::before {
-  opacity: 0.33;
-  background: linear-gradient(180deg, #1e1e1e, #191919);
-}
-
-.gift__price::after {
-  /* Запасной цвет для браузеров без color-mix */
-  background-color: rgba(30, 30, 30, 0.5);
-  background-color: color-mix(in srgb, #1e1e1e 50%, transparent);
-  -webkit-backdrop-filter: blur(13px) saturate(1.4);
-  backdrop-filter: blur(13px) saturate(1.4);
-  box-shadow: var(--glass-edge);
-}
-
 .gift__star {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   display: block;
   -webkit-user-drag: none;
 }
@@ -696,9 +720,9 @@ body {
 .gift__amount {
   font-size: 15px;
   font-weight: 600;
-  line-height: 20px;
-  /* Жёлтый тот же, каким светится легендарная лента */
-  color: #f9c81f;
+  line-height: 1;
+  /* Золото образца */
+  color: #fbbd23;
 }
 
 /* Карточка подарка крупным планом */
@@ -1427,21 +1451,14 @@ body {
   }
 }
 
-/* Карточка на витрине откликается на нажатие */
+/* Карточка на витрине откликается на нажатие — одним сжатием, как образец */
 .gift {
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.22s ease;
+  transition: transform 0.16s ease;
 }
 
 .gift:active {
   transform: scale(0.97);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 1px 0 0 rgba(255, 255, 255, 0.05),
-    inset -1px 0 0 rgba(255, 255, 255, 0.05),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 -22px 26px -24px rgba(255, 255, 255, 0.2),
-    0 6px 14px -10px rgba(0, 0, 0, 0.75);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2137,12 +2154,22 @@ body {
 
 .prf__list .gifts {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
+  gap: 12px;
 }
 
 .prf__list .gift {
-  --ribbon-scale: 0.66;
-  --gift-radius: 16px;
+  --ribbon-w: 88px;
+  --ribbon-h: 36px;
+  --ribbon-cx: 24px;
+  --ribbon-cy: 22px;
+  --ribbon-font: 12px;
+  --ribbon-max: 64px;
+  --gift-radius: 20px;
+  --pattern-bottom: 0px;
+  --pattern-radius: var(--gift-radius);
+  --pattern-opacity: 0.18;
+  height: auto;
+  aspect-ratio: 1;
   padding: 8px;
 }
 
@@ -2676,12 +2703,22 @@ body {
 .stk__list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
+  gap: 12px;
 }
 
 .stk__list .gift {
-  --ribbon-scale: 0.66;
-  --gift-radius: 16px;
+  --ribbon-w: 88px;
+  --ribbon-h: 36px;
+  --ribbon-cx: 24px;
+  --ribbon-cy: 22px;
+  --ribbon-font: 12px;
+  --ribbon-max: 64px;
+  --gift-radius: 20px;
+  --pattern-bottom: 0px;
+  --pattern-radius: var(--gift-radius);
+  --pattern-opacity: 0.18;
+  height: auto;
+  aspect-ratio: 1;
   padding: 8px;
 }
 
@@ -2776,13 +2813,23 @@ body {
 .picks {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
+  gap: 12px;
   padding-bottom: 12px;
 }
 
 .picks .gift {
-  --ribbon-scale: 0.66;
-  --gift-radius: 16px;
+  --ribbon-w: 88px;
+  --ribbon-h: 36px;
+  --ribbon-cx: 24px;
+  --ribbon-cy: 22px;
+  --ribbon-font: 12px;
+  --ribbon-max: 64px;
+  --gift-radius: 20px;
+  --pattern-bottom: 0px;
+  --pattern-radius: var(--gift-radius);
+  --pattern-opacity: 0.18;
+  height: auto;
+  aspect-ratio: 1;
   padding: 8px;
 }
 
