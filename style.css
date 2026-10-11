@@ -1856,30 +1856,31 @@ body {
   opacity: 0.5;
 }
 
-/* Вкладки «Подарки / NFT / Крафты». Само стекло приходит из .glass — у
-   образца оно ровно такое же */
+/* Вкладки «Подарки / NFT / Крафты» — по присланному образцу: плоская
+   дорожка без стекла, светлая капсула во всю её высоту, подписи белые
+   на всех вкладках. Числа пересчитаны с образца на ширину экрана */
 .prf-tabs {
   position: relative;
   display: flex;
   align-items: stretch;
-  height: 52px;
+  height: 36px;
   margin: 18px 16px 10px;
-  padding: 4px;
   border-radius: 99em;
+  background: #282627;
 }
 
-/* Капсула едет за --prf-index */
+/* Капсула скользит за --prf-index */
 .prf-tabs__thumb {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 4px;
-  width: calc((100% - 8px) / 3);
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(100% / 3);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.086);
+  background: #3a3a3a;
   pointer-events: none;
   transform: translateX(calc(var(--prf-index, 0) * 100%));
-  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .prf-tabs__tab {
@@ -1891,42 +1892,28 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   padding: 0;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #f5f5f7;
+  color: #fff;
   font-family: inherit;
   cursor: pointer;
-  transition: transform 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
-.prf-tabs__tab:active {
-  transform: scale(0.97);
-}
-
 .prf-tabs__tab span {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.2px;
   white-space: nowrap;
-  opacity: 0.4;
-  transition: opacity 0.28s ease;
 }
 
 .prf-tabs__tab svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   fill: currentColor;
-  opacity: 0.4;
-  transition: opacity 0.28s ease;
-}
-
-.prf-tabs__tab.is-active span,
-.prf-tabs__tab.is-active svg {
-  opacity: 1;
 }
 
 /* Ряд отбора и строка счётчика под ним */
