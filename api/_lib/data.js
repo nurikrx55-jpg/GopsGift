@@ -474,6 +474,63 @@ export async function settleOrder(id, payment) {
   return done;
 }
 
+// --- Передача подарка ---
+
+/* Как у memgift: получателя ищут по имени, @нику или Telegram ID среди
+   тех, кто открывал приложение. Наружу — только имя, ник и фото */
+export async function findRecipients(query, selfId) {
+  const q = str(query, 64).replace(/^@/, '');
+  if (!q) return [];
+
+  const found = await listUsers({ query: q, limit: 20 });
+  return found.items
+    .filter((person) => String(person.id) !== String(selfId))
+    .map((person) => ({
+      user_id: String(person.id),
+      name: [person.firstName, person.lastName].filter(Boolean).join(' ') ||
+        (person.username ? '@' + person.username : 'ID ' + person.id),
+      username: person.username || '',
+      user_photo: person.photo || ''
+    }));
+}
+
+/* Один подарок уходит со счёта отправителя на счёт получателя. Счета
+   читаем и пишем одной пачкой — между чтением и записью второй передаче
+   того же подарка просто не из чего будет взять */
+export async function transferGift(fromId, toId, giftId) {
+  const from = String(fromId);
+  const to = String(toId);
+  const gift = slug(giftId);
+
+  if (!to || to === from) throw new InputError('Вы не можете отправить самому себе.');
+
+  const [rawFrom, rawTo, rawUser] = await pipeline([
+    ['GET', K.acct(from)],
+    ['GET', K.acct(to)],
+    ['GET', K.user(to)]
+  ]);
+  if (!rawUser) throw new InputError('Пользователь не найден');
+
+  const sender = normalAccount(rawFrom);
+  const at = sender.gifts.indexOf(gift);
+  if (at === -1) throw new InputError('Подарок вам больше не принадлежит');
+
+  const recipient = normalAccount(rawTo);
+  sender.gifts.splice(at, 1);
+  recipient.gifts.push(gift);
+
+  await pipeline([
+    ['SET', K.acct(from), JSON.stringify(sender)],
+    ['SET', K.acct(to), JSON.stringify(recipient)]
+  ]);
+
+  const person = JSON.parse(rawUser);
+  return {
+    name: [person.firstName, person.lastName].filter(Boolean).join(' ') || person.username || to,
+    gifts: sender.gifts
+  };
+}
+
 // --- Топ покупателей ---
 
 /* Счётчик покупок завёлся позже самих покупок. Прошлые сосчитаем один раз

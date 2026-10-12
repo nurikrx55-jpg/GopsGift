@@ -1238,7 +1238,7 @@
       // Страница на весь экран не утягивается: её закрывает стрелка «назад»
       if (page) return;
 
-      const handle = event.target.closest('.sheet__head, .sheet__stage, .own-card, .pick__top');
+      const handle = event.target.closest('.sheet__head, .sheet__stage, .pick__top');
       if (!handle && scroll.scrollTop > 0) return;
 
       pointerId = event.pointerId;
@@ -1317,10 +1317,105 @@
     return api;
   }
 
+  // «Назад» и Esc закрывают верхнее окно: окно отправки встаёт поверх
+  // окна подарка и уходит первым
   function closeOpenSheet() {
-    sheets.forEach((one) => {
-      if (one.isOpen()) one.close();
+    for (let i = sheets.length - 1; i >= 0; i -= 1) {
+      if (sheets[i].isOpen()) {
+        sheets[i].close();
+        return;
+      }
+    }
+  }
+
+  // Системная «назад» видна, пока открыто хоть одно окно
+  function syncBack() {
+    if (!tg || !tg.BackButton) return;
+    if (sheets.some((one) => one.isOpen())) tg.BackButton.show();
+    else tg.BackButton.hide();
+  }
+
+  /* Лист memgift (`.mgm-dock`): выезжает снизу, закрывается крестиком,
+     «Закрыть», подложкой, «назад» и пальцем — если тянуть вниз из самого
+     верха листа. Крючки те же, что у нижних листов: fill/opened/closed */
+  function createDock(root, overlay, hooks) {
+    if (!root || !overlay) return null;
+
+    const sheet = root.querySelector('.mgm-sheet');
+    const on = hooks || {};
+    let timer = null;
+
+    function isOpen() {
+      return root.classList.contains('is-open');
+    }
+
+    function open(payload) {
+      if (isOpen()) return;
+      clearTimeout(timer);
+      if (on.fill) on.fill(payload);
+
+      sheet.scrollTop = 0;
+      root.style.transform = '';
+      overlay.classList.add('is-open');
+      root.classList.add('is-open');
+      if (stage) stage.style.overflow = 'hidden';
+      syncBack();
+
+      if (on.opened) on.opened(payload);
+    }
+
+    function close() {
+      if (!isOpen()) return;
+
+      overlay.classList.remove('is-open');
+      root.classList.remove('is-open', 'is-dragging');
+      root.style.transform = '';
+      syncBack();
+      if (stage && !sheets.some((one) => one.isOpen())) stage.style.overflow = '';
+
+      // Содержимое снимаем, когда лист уже уехал
+      timer = setTimeout(() => {
+        if (on.closed) on.closed();
+      }, 340);
+    }
+
+    overlay.addEventListener('click', close);
+    root.querySelectorAll('[data-dock-close]').forEach((node) => {
+      node.addEventListener('click', () => {
+        haptic('light');
+        close();
+      });
     });
+
+    // Утягивание вниз: только из самого верха листа, иначе это прокрутка
+    let startY = null;
+    let shift = 0;
+
+    sheet.addEventListener('touchstart', (event) => {
+      if (sheet.scrollTop > 0 || event.touches.length !== 1) return;
+      startY = event.touches[0].clientY;
+      shift = 0;
+    }, { passive: true });
+
+    sheet.addEventListener('touchmove', (event) => {
+      if (startY === null) return;
+      shift = Math.max(0, event.touches[0].clientY - startY);
+      if (shift <= 0) return;
+      root.classList.add('is-dragging');
+      root.style.transform = 'translate(-50%, ' + shift + 'px)';
+    }, { passive: true });
+
+    sheet.addEventListener('touchend', () => {
+      if (startY === null) return;
+      startY = null;
+      root.classList.remove('is-dragging');
+      root.style.transform = '';
+      if (shift > 110) close();
+    });
+
+    const api = { open: open, close: close, isOpen: isOpen };
+    sheets.push(api);
+    return api;
   }
 
   let ownGift = null;
@@ -1329,14 +1424,15 @@
   // Собачку убираем: в поле стоит ник, а не упоминание.
   function ownerName(gift) {
     const user = tgUser();
-    if (user) return userTitle(user).replace(/^@/, '');
+    // Как у memgift: имя из Telegram, ник — если имени нет
+    if (user) return [user.first_name, user.last_name].filter(Boolean).join(' ') || userTitle(user).replace(/^@/, '');
     return (gift && gift.owner) || '—';
   }
 
   function fillOwned(gift) {
     ownGift = gift;
 
-    const card = owned.querySelector('.own-card');
+    const card = document.getElementById('owned-head');
     paintRarity(card, gift);
     // Готовый цвет — сразу; иначе подложка остаётся запасной, пока не
     // досчитается, и перекрашивается уже под закрытым листом
@@ -1364,7 +1460,11 @@
       toast(t(key));
     };
 
-    document.getElementById('owned-send').addEventListener('click', soon('soon.send'));
+    document.getElementById('owned-send').addEventListener('click', () => {
+      if (!ownGift) return;
+      haptic('light');
+      sendSheet.open(ownGift);
+    });
     document.getElementById('owned-share').addEventListener('click', soon('soon.share'));
 
     document.getElementById('owned-copy').addEventListener('click', () => {
@@ -1385,6 +1485,241 @@
 
       if (legacyCopy(link)) done();
     });
+  }
+
+  // --- Отправка подарка ---
+
+  /* Окно memgift: ищем человека по имени, @нику или Telegram ID, выбираем
+     строкой и отправляем. Отправка бесплатная — «за ★ 0», как у образца
+     вне первых суток. Кто отправляет, сервер узнаёт по подписи Telegram */
+  const TRANSFER_API = '/api/transfer';
+  const SEARCH_WAIT = 350;
+
+  let sendSheet = null;
+  let sendGift = null;
+  let sendPlayer = null;
+  let sendTo = null;
+  let sendTimer = null;
+  let sendAsk = 0;
+  let sending = false;
+
+  function transferPost(payload) {
+    return fetch(TRANSFER_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ initData: (tg && tg.initData) || '' }, payload))
+    }).then((response) => response.json()
+      .catch(() => ({}))
+      .then((data) => {
+        if (!response.ok) throw new Error(data.message || '');
+        return data;
+      }));
+  }
+
+  function sendStatus(text, error) {
+    const status = document.getElementById('send-status');
+    status.hidden = !text;
+    status.textContent = text || '';
+    status.classList.toggle('is-error', Boolean(error));
+    document.getElementById('send-search').classList.toggle('is-error', Boolean(error));
+  }
+
+  function sendAvatar(box, person) {
+    box.textContent = '';
+    if (person.user_photo) {
+      const img = document.createElement('img');
+      img.src = person.user_photo;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => {
+        img.remove();
+        box.textContent = (person.name || '?').charAt(0);
+      });
+      box.appendChild(img);
+    } else {
+      const letter = document.createElement('span');
+      letter.textContent = (person.name || '?').replace('@', '').charAt(0);
+      box.appendChild(letter);
+    }
+  }
+
+  function sendReset() {
+    sendTo = null;
+    clearTimeout(sendTimer);
+    sendAsk += 1;
+    const input = document.getElementById('send-input');
+    input.value = '';
+    document.getElementById('send-search').classList.remove('is-picked', 'is-error');
+    document.getElementById('send-picked').hidden = true;
+    document.getElementById('send-loader').hidden = true;
+    document.getElementById('send-list').hidden = true;
+    document.getElementById('send-list').textContent = '';
+    document.getElementById('send-go').disabled = true;
+    sendStatus('');
+  }
+
+  function sendPick(person) {
+    haptic('select');
+    sendTo = person;
+    document.getElementById('send-search').classList.add('is-picked');
+    document.getElementById('send-picked').hidden = false;
+    document.getElementById('send-list').hidden = true;
+    document.getElementById('send-loader').hidden = true;
+    sendStatus('');
+
+    sendAvatar(document.getElementById('send-picked-ava'), person);
+    document.getElementById('send-picked-name').textContent = person.name;
+    document.getElementById('send-go').disabled = false;
+  }
+
+  function sendList(users) {
+    const list = document.getElementById('send-list');
+    list.textContent = '';
+    list.hidden = !users.length;
+
+    users.forEach((person, index) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'pgm-recipient-row';
+      row.style.setProperty('--i', String(index));
+      row.setAttribute('role', 'option');
+
+      const ava = document.createElement('span');
+      ava.className = 'pgm-recipient-row__ava';
+      sendAvatar(ava, person);
+
+      const mid = document.createElement('span');
+      mid.className = 'pgm-recipient-row__mid';
+      const name = document.createElement('span');
+      name.className = 'pgm-recipient-row__name';
+      name.textContent = person.name;
+      const id = document.createElement('span');
+      id.className = 'pgm-recipient-row__id';
+      id.textContent = person.username ? '@' + person.username : 'ID ' + person.user_id;
+      mid.append(name, id);
+
+      const action = document.createElement('span');
+      action.className = 'pgm-recipient-row__action';
+      action.textContent = t('send.select');
+
+      row.append(ava, mid, action);
+      row.addEventListener('click', () => sendPick(person));
+      list.appendChild(row);
+    });
+  }
+
+  function sendSearch(query) {
+    const ask = ++sendAsk;
+    const me = tgUser();
+    const plain = query.replace(/^@/, '');
+
+    if (!plain) {
+      document.getElementById('send-loader').hidden = true;
+      sendList([]);
+      sendStatus('');
+      return;
+    }
+
+    if (me && (plain === String(me.id) || plain === me.username)) {
+      sendList([]);
+      sendStatus(t('send.self'), true);
+      return;
+    }
+
+    document.getElementById('send-loader').hidden = false;
+    sendStatus('');
+
+    transferPost({ action: 'search', query: plain })
+      .then((data) => {
+        if (ask !== sendAsk) return;
+        const users = data.users || [];
+        sendList(users);
+        sendStatus(users.length ? '' : t('send.empty'));
+      })
+      .catch(() => {
+        if (ask !== sendAsk) return;
+        sendList([]);
+        sendStatus(t('send.error'), true);
+      })
+      .then(() => {
+        if (ask === sendAsk) document.getElementById('send-loader').hidden = true;
+      });
+  }
+
+  function sendNow() {
+    if (!sendTo || !sendGift || sending) return;
+    sending = true;
+    haptic('light');
+
+    const button = document.getElementById('send-go');
+    button.classList.add('is-loading');
+    const to = sendTo;
+    const gift = sendGift;
+
+    transferPost({ action: 'send', gift: gift.id, to: to.user_id })
+      .then((data) => {
+        // Сервер отдаёт счёт без ставок и признака админа — их берём свои
+        Store.apply(null, Object.assign({}, Store.me(), data.me));
+        fillFromStore();
+        initHeader();
+        paintProfile();
+        renderStake();
+
+        haptic('success');
+        toast(t('send.done', { name: data.name || to.name }));
+        sendSheet.close();
+        ownSheet.close();
+      })
+      .catch((error) => {
+        toast(error && error.message ? error.message : t('send.fail'));
+      })
+      .then(() => {
+        sending = false;
+        button.classList.remove('is-loading');
+      });
+  }
+
+  function initSend() {
+    sendSheet = createDock(document.getElementById('send'), document.getElementById('send-ov'), {
+      fill: (gift) => {
+        sendGift = gift;
+        const head = document.getElementById('send-head');
+        paintRarity(head, gift);
+        applyTint(head, tintOf(gift));
+        document.getElementById('send-title').textContent = gift.name;
+        sendReset();
+      },
+      opened: (gift) => {
+        sendPlayer = openArt(document.getElementById('send-art'), gift);
+      },
+      closed: () => {
+        closeArt(document.getElementById('send-art'), sendPlayer);
+        sendPlayer = null;
+        sendGift = null;
+      }
+    });
+    if (!sendSheet) return;
+
+    const input = document.getElementById('send-input');
+    input.addEventListener('input', () => {
+      clearTimeout(sendTimer);
+      const query = input.value.trim();
+      sendTimer = setTimeout(() => sendSearch(query), SEARCH_WAIT);
+    });
+    input.addEventListener('keyup', (event) => {
+      if (event.key !== 'Enter') return;
+      clearTimeout(sendTimer);
+      input.blur();
+      sendSearch(input.value.trim());
+    });
+
+    document.getElementById('send-unpick').addEventListener('click', () => {
+      haptic('light');
+      sendReset();
+      input.focus();
+    });
+
+    document.getElementById('send-go').addEventListener('click', sendNow);
   }
 
   // --- Экран после покупки ---
@@ -1612,7 +1947,7 @@
       }
     });
 
-    ownSheet = createSheet(owned, {
+    ownSheet = createDock(owned, document.getElementById('owned-ov'), {
       fill: fillOwned,
       opened: (gift) => {
         ownPlayer = openArt(document.getElementById('owned-art'), gift);
@@ -1672,6 +2007,7 @@
       });
     }
 
+    initSend();
     initOwnedTools();
     initWon();
   }

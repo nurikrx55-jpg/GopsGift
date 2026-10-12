@@ -109,6 +109,17 @@
       'profile.referral': 'Реферальная программа',
       'profile.top': 'Топ',
       'profile.crafts': 'Крафты',
+      'send.recipient': 'Получатель',
+      'send.clear': 'Очистить получателя',
+      'send.placeholder': 'Имя, @юзернейм или Telegram ID',
+      'send.for': 'Отправить за',
+      'send.sending': 'Отправляем…',
+      'send.select': 'Выбрать',
+      'send.empty': 'Пользователи не найдены',
+      'send.error': 'Не удалось найти пользователей. Попробуйте ещё раз.',
+      'send.self': 'Вы не можете отправить самому себе.',
+      'send.done': 'Подарок отправлен · {name}',
+      'send.fail': 'Не удалось отправить подарок',
       'profile.clearAll': 'Очистить',
       'profile.collections': '{n} коллекции',
       'profile.modelTitle': 'Модель подарка',
@@ -276,6 +287,17 @@
       'profile.referral': 'Referral program',
       'profile.top': 'Top',
       'profile.crafts': 'Crafts',
+      'send.recipient': 'Recipient',
+      'send.clear': 'Clear recipient',
+      'send.placeholder': 'Name, @username or Telegram ID',
+      'send.for': 'Send for',
+      'send.sending': 'Sending…',
+      'send.select': 'Select',
+      'send.empty': 'No users found',
+      'send.error': 'Could not find users. Please try again.',
+      'send.self': 'You cannot send to yourself.',
+      'send.done': 'Gift sent · {name}',
+      'send.fail': 'Could not send the gift',
       'profile.clearAll': 'Clear',
       'profile.collections': '{n} collections',
       'profile.modelTitle': 'Gift model',
@@ -430,6 +452,10 @@
 
     where.querySelectorAll('[data-i18n-alt]').forEach((node) => {
       node.setAttribute('alt', t(node.dataset.i18nAlt));
+    });
+
+    where.querySelectorAll('[data-i18n-placeholder]').forEach((node) => {
+      node.setAttribute('placeholder', t(node.dataset.i18nPlaceholder));
     });
 
     document.documentElement.lang = lang;
