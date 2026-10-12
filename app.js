@@ -1469,22 +1469,169 @@
 
     document.getElementById('owned-copy').addEventListener('click', () => {
       if (!ownGift) return;
-
-      const link = location.origin + '/?gift=' + encodeURIComponent(ownGift.id);
-      const done = () => {
-        haptic('success');
-        toast(t('profile.linkCopied'));
-      };
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(link).then(done, () => {
-          if (legacyCopy(link)) done();
-        });
-        return;
-      }
-
-      if (legacyCopy(link)) done();
+      copyText(location.origin + '/?gift=' + encodeURIComponent(ownGift.id), 'profile.linkCopied');
     });
+  }
+
+  // В буфер обмена — с запасным путём для старых клиентов
+  function copyText(value, doneKey) {
+    const done = () => {
+      haptic('success');
+      toast(t(doneKey));
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).then(done, () => {
+        if (legacyCopy(value)) done();
+      });
+      return;
+    }
+
+    if (legacyCopy(value)) done();
+  }
+
+  // --- Реферальная программа ---
+
+  /* Страница memgift: своя ссылка `startapp=ref_<id>`, «Копировать» и
+     «Поделиться», ниже — кто по ней пришёл. Список приходит частями по
+     двадцать и догружается, когда прокрутка доходит до конца */
+  const REF_API = '/api/referrals';
+
+  let refSheet = null;
+  let refLink = '';
+  let refOffset = 0;
+  let refMore = false;
+  let refBusy = false;
+
+  // Как у образца: длинную ссылку показываем с многоточием посередине
+  function shortLink(link) {
+    const bare = link.replace(/^https?:\/\//, '');
+    return bare.length <= 36 ? bare : bare.slice(0, 18) + '…' + bare.slice(-12);
+  }
+
+  function refRow(person) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'rf-row';
+
+    const ava = document.createElement('div');
+    ava.className = 'rf-row__ava';
+    if (person.photo) {
+      const img = document.createElement('img');
+      img.src = person.photo;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      ava.appendChild(img);
+    } else {
+      const letter = document.createElement('span');
+      letter.textContent = ((person.name || '?').replace('@', '').trim().charAt(0) || '?').toUpperCase();
+      ava.appendChild(letter);
+    }
+
+    const mid = document.createElement('div');
+    mid.className = 'rf-row__mid';
+    const name = document.createElement('span');
+    name.className = 'rf-row__name';
+    name.textContent = person.name || '—';
+    const id = document.createElement('span');
+    id.className = 'rf-row__id';
+    id.textContent = person.tld;
+    mid.append(name, id);
+
+    const go = document.createElement('span');
+    go.className = 'rf-row__go';
+    go.innerHTML = '<svg viewBox="0 0 8 14" aria-hidden="true"><path d="M1 1.5L6.5 7 1 12.5"></path></svg>';
+
+    row.append(ava, mid, go);
+    // Чужих профилей у нас нет — по нажатию берём ID, как образец по нажатию на него
+    row.addEventListener('click', () => copyText(String(person.tld), 'ref.idCopied'));
+    return row;
+  }
+
+  function loadRefs(reset) {
+    if (refBusy || (!reset && !refMore)) return;
+    if (!Store.live()) return;
+    refBusy = true;
+    if (reset) refOffset = 0;
+
+    fetch(REF_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: (tg && tg.initData) || '', offset: refOffset })
+    }).then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!data) return;
+
+        refLink = data.link || '';
+        document.getElementById('rf-url').textContent = refLink ? shortLink(refLink) : '—';
+        document.getElementById('rf-count').textContent = formatPrice(data.total || 0);
+
+        const list = document.getElementById('rf-list');
+        if (reset) list.textContent = '';
+        (data.items || []).forEach((person) => list.appendChild(refRow(person)));
+
+        const any = list.children.length > 0;
+        list.hidden = !any;
+        document.getElementById('rf-empty').hidden = any;
+
+        refOffset += (data.items || []).length;
+        refMore = Boolean(data.more);
+      })
+      .catch(() => {})
+      .then(() => {
+        refBusy = false;
+      });
+  }
+
+  function refCopy() {
+    if (!refLink) {
+      toast(t('ref.noLink'));
+      return;
+    }
+    copyText(refLink, 'ref.copied');
+  }
+
+  function refShare() {
+    haptic('light');
+    if (!refLink) {
+      toast(t('ref.noLink'));
+      return;
+    }
+    const url = 'https://t.me/share/url?url=' + encodeURIComponent(refLink) +
+      '&text=' + encodeURIComponent(t('ref.message'));
+    if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
+    else window.open(url, '_blank', 'noopener');
+  }
+
+  function initReferral() {
+    const root = document.getElementById('ref');
+    const entry = document.getElementById('prf-referral');
+    if (!root || !entry) return;
+
+    refSheet = createSheet(root, {
+      fill: () => {
+        document.getElementById('rf-list').hidden = true;
+        document.getElementById('rf-empty').hidden = false;
+        document.getElementById('rf-count').textContent = '0';
+        loadRefs(true);
+      }
+    });
+
+    entry.addEventListener('click', () => {
+      haptic('light');
+      refSheet.open();
+    });
+
+    document.getElementById('rf-link').addEventListener('click', refCopy);
+    document.getElementById('rf-copy').addEventListener('click', refCopy);
+    document.getElementById('rf-share').addEventListener('click', refShare);
+    document.getElementById('rf-invite').addEventListener('click', refShare);
+
+    // Дошли до конца списка — просим следующую часть
+    const scroll = root.querySelector('.sheet__scroll');
+    scroll.addEventListener('scroll', () => {
+      if (scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 120) loadRefs(false);
+    }, { passive: true });
   }
 
   // --- Отправка подарка ---
@@ -2008,6 +2155,7 @@
     }
 
     initSend();
+    initReferral();
     initOwnedTools();
     initWon();
   }

@@ -2,7 +2,7 @@
    отмечаем его в списке пользователей. */
 
 import { configured } from './_lib/db.js';
-import { verify, isAdmin } from './_lib/telegram.js';
+import { verify, isAdmin, startParam } from './_lib/telegram.js';
 import { readContent, publicContent, touchUser, readStakes } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
@@ -22,7 +22,7 @@ export default {
     try {
       const content = await readContent();
       const tg = verify(input.initData, MAX_AGE);
-      const me = tg ? await touchUser(tg) : null;
+      const me = tg ? await touchUser(tg, startParam(input.initData)) : null;
 
       if (me) {
         me.admin = isAdmin(me.id);

@@ -11,6 +11,7 @@
    gg:stake:<id>      — что человек отдал в стейкинг и на какой срок
    gg:buyers:<gift>   — кто сколько штук этого подарка купил, для «Топа покупателей»
    gg:buyers:filled   — отметка, что прошлые покупки уже сосчитаны по счетам
+   gg:refs:<id>       — кого человек привёл своей ссылкой, по времени прихода
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -34,6 +35,7 @@ const K = {
   charge: (id) => 'gg:charge:' + id,
   stake: (id) => 'gg:stake:' + id,
   buyers: (gift) => 'gg:buyers:' + gift,
+  refs: (id) => 'gg:refs:' + id,
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -268,7 +270,7 @@ function normalAccount(raw) {
 
 // Заход в приложение: обновляем профиль и отдаём счёт. Новичку заводим
 // пустой счёт
-export async function touchUser(tg) {
+export async function touchUser(tg, start) {
   const id = String(tg.id);
   const now = Date.now();
   const [rawProfile, rawAcct] = await pipeline([
@@ -287,14 +289,27 @@ export async function touchUser(tg) {
     tgPremium: Boolean(tg.is_premium),
     firstSeen: before.firstSeen || now,
     lastSeen: now,
-    visits: int(before.visits, 0, 1e9) + 1
+    visits: int(before.visits, 0, 1e9) + 1,
+    ref: before.ref || ''
   };
+
+  /* Пришёл по чужой ссылке (`startapp=ref_<id>`) — запоминаем, кто привёл.
+     Только при первом заходе: иначе любой старый знакомый «приводился» бы
+     заново каждым, кто кинет ему ссылку */
+  const invited = /^ref_(\d{1,20})$/.exec(String(start || ''));
+  let inviter = '';
+  if (!rawProfile && invited && invited[1] !== id) {
+    const known = await command('GET', K.user(invited[1]));
+    if (known) inviter = invited[1];
+  }
+  if (inviter) profile.ref = inviter;
 
   const commands = [
     ['SET', K.user(id), JSON.stringify(profile)],
     ['ZADD', K.seen, now, id],
     ['ZADD', K.joined, 'NX', profile.firstSeen, id]
   ];
+  if (inviter) commands.push(['ZADD', K.refs(inviter), 'NX', now, id]);
 
   let acct = rawAcct ? normalAccount(rawAcct) : null;
   if (!acct) {
@@ -472,6 +487,31 @@ export async function settleOrder(id, payment) {
   ]);
 
   return done;
+}
+
+// --- Рефералы ---
+
+// Кого человек привёл: свежие первыми, наружу только имя и фото
+export async function listReferrals(userId, offset, limit) {
+  const from = int(offset, 0, 1e7);
+  const size = int(limit, 1, 50);
+  const [ids, total] = await pipeline([
+    ['ZREVRANGE', K.refs(String(userId)), from, from + size - 1],
+    ['ZCARD', K.refs(String(userId))]
+  ]);
+
+  const profiles = (ids || []).length ? await mgetJson(ids.map(K.user)) : [];
+  const items = (ids || []).map((id, index) => {
+    const person = profiles[index] ? JSON.parse(profiles[index]) : {};
+    return {
+      tld: id,
+      name: [person.firstName, person.lastName].filter(Boolean).join(' ') ||
+        (person.username ? '@' + person.username : ''),
+      photo: person.photo || ''
+    };
+  });
+
+  return { total: Number(total) || 0, items: items };
 }
 
 // --- Передача подарка ---

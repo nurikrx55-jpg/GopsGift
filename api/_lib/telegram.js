@@ -90,6 +90,16 @@ export function verify(initData, maxAge) {
   }
 }
 
+// Стартовый параметр (`startapp=…` в ссылке). Читать его можно только у
+// initData, уже прошедших verify: сам по себе он ничем не подписан отдельно
+export function startParam(initData) {
+  try {
+    return String(new URLSearchParams(initData).get('start_param') || '').slice(0, 64);
+  } catch (_) {
+    return '';
+  }
+}
+
 export function adminIds() {
   return String(process.env.ADMIN_IDS || OWNER_ID)
     .split(',')
