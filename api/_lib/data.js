@@ -69,6 +69,9 @@ export function newId(prefix) {
 }
 
 const KINDS = ['blood', 'legend', 'premium', 'epic', 'rare', 'time', 'sold', 'default'];
+// Редкость — цвет карточки на странице подарка, как у memgift. Пусто —
+// приложение выведет её из цвета ленты
+const RARITIES = ['rare', 'veryrare', 'epic', 'legend', 'author'];
 
 // Свой цвет ленты. Пусто — лента возьмёт цвет редкости
 function tone(value) {
@@ -95,6 +98,7 @@ export function cleanGift(input) {
     price: int(input.price, 0, 1000000),
     badge: str(input.badge, 24),
     kind: KINDS.indexOf(input.kind) === -1 ? 'default' : input.kind,
+    rarity: RARITIES.indexOf(input.rarity) === -1 ? '' : input.rarity,
     tone: tone(input.tone),
     // Фон карточки. Пусто — цвет снимается с самого подарка
     bg: tone(input.bg),

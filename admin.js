@@ -31,6 +31,17 @@
     { id: 'default', name: 'Графит', from: '#364b5c', to: '#172d42' }
   ];
 
+  // Редкость — цвет карточки на странице подарка, ровно как у memgift
+  // (`._gift ._item.rare` и т.д.). «Авто» — выводится из цвета ленты
+  const RARITIES = [
+    { id: '', name: 'Авто', from: '#1e1e1e', to: '#191919' },
+    { id: 'rare', name: 'Rare', from: '#282867', to: '#131328' },
+    { id: 'veryrare', name: 'Very rare', from: '#1d6132', to: '#0b2211' },
+    { id: 'epic', name: 'Epic', from: '#632475', to: '#19101d' },
+    { id: 'legend', name: 'Legend', from: '#6f480e', to: '#1d1710' },
+    { id: 'author', name: 'Author', from: '#762121', to: '#221111' }
+  ];
+
   // Куда класть переменные, если база или токен ещё не настроены
   const ENV_FILE = '<code>/etc/gapsgift.env</code> на сервере';
 
@@ -1012,6 +1023,27 @@
 
       body.appendChild(field('Фон подарка', backRow, true));
 
+      // Редкость: красит карточку на странице подарка
+      const rarityWrap = el('div', 'ad-field');
+      rarityWrap.appendChild(el('span', null, 'Редкость — цвет на странице подарка'));
+      const rarities = el('div', 'ad-swatches');
+      RARITIES.forEach((rarity) => {
+        const swatch = el('button', 'ad-swatch');
+        swatch.type = 'button';
+        const dot = el('i');
+        dot.style.background = 'linear-gradient(180deg, ' + rarity.from + ', ' + rarity.to + ')';
+        swatch.append(dot, el('span', null, rarity.name));
+        swatch.setAttribute('aria-pressed', String((draft.rarity || '') === rarity.id));
+        swatch.addEventListener('click', () => {
+          draft.rarity = rarity.id;
+          rarities.querySelectorAll('.ad-swatch').forEach((one) => one.setAttribute('aria-pressed', String(one === swatch)));
+          haptic('pick');
+        });
+        rarities.appendChild(swatch);
+      });
+      rarityWrap.appendChild(rarities);
+      body.appendChild(rarityWrap);
+
       const sync = () => {
         draft.name = name.value;
         draft.price = Number(price.value) || 0;
@@ -1060,6 +1092,7 @@
               price: Number(price.value) || 0,
               badge: badge.value.trim(),
               kind: draft.kind,
+              rarity: draft.rarity || '',
               tone: draft.tone || '',
               bg: draft.bg || '',
               total: Number(total.value) || 0,

@@ -1170,64 +1170,42 @@ body {
 
 /* Это не лист снизу, а отдельная страница на весь экран — как
    `._wrap._collection` у memgift: фон #111, сверху отступ под кнопки
-   Telegram, низ с покупкой висит поверх прокрутки. Въезжает их же
-   движением (`menu-page-enter-forward`), блоки всплывают по очереди
-   (`collectionBlockIn`) */
+   Telegram, низ с покупкой висит поверх прокрутки.
+
+   Своего въезда у страницы нет, у memgift тоже: экран просто сменяется,
+   а блоки всплывают снизу по очереди (`collectionBlockIn` — .34s, шаг
+   45ms). Низ с кнопками не анимируется. Закрытие — так же мгновенно */
 .sheet--page .sheet__backdrop,
 .sheet--page .sheet__head {
   display: none;
 }
 
-.sheet--page .sheet__panel {
+.sheet--page .sheet__panel,
+.sheet--page.is-open .sheet__panel {
   width: 100%;
   height: 100%;
   max-height: none;
   border-radius: 0;
   padding-bottom: 0;
   background: #111;
-  opacity: 0;
-  filter: blur(8px);
-  transform: translate(28px, 8px) scale(0.97);
-  transition: transform 0.26s ease, opacity 0.26s ease, filter 0.26s ease;
-}
-
-.sheet--page.is-open .sheet__panel {
-  opacity: 1;
-  filter: none;
   transform: none;
   transition: none;
-  animation: page-enter 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes page-enter {
-  0% {
-    opacity: 0;
-    filter: blur(8px);
-    transform: translate(28px, 8px) scale(0.97);
-  }
-  60% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translate(-4px, -2px) scale(1.006);
-  }
-  100% {
-    opacity: 1;
-    filter: blur(0);
-    transform: none;
-  }
 }
 
 .sheet--page .sheet__scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   padding: max(16px, calc(var(--safe-area-top) + var(--content-top))) 16px 137px;
 }
 
 .sheet--page .sheet__scroll > * {
+  flex: none;
   animation: page-block-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .sheet--page .sheet__scroll > :nth-child(2) { animation-delay: 45ms; }
 .sheet--page .sheet__scroll > :nth-child(3) { animation-delay: 90ms; }
-.sheet--page .sheet__scroll > :nth-child(4) { animation-delay: 135ms; }
 
 @keyframes page-block-in {
   from {
@@ -1236,8 +1214,20 @@ body {
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: translateZ(0);
   }
+}
+
+/* Затемнение под кнопками: прокрутка уходит под низ, а не обрывается */
+.gp-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  height: 120px;
+  background: linear-gradient(180deg, rgba(14, 14, 14, 0), rgba(14, 14, 14, 0.95) 50%, #0e0e0e 78% 100%);
+  pointer-events: none;
 }
 
 /* Низ поверх прокрутки, без своей подложки */
@@ -1251,21 +1241,28 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sheet--page.is-open .sheet__panel,
   .sheet--page .sheet__scroll > * {
     animation: none;
   }
 }
 
-/* Карточка: цвет даёт сам подарок (tint-face), форма и кромка — образца */
+/* Карточка: цвет по редкости, как `._gift ._item` у memgift. Без
+   редкости — их же тёмный графит */
 .gp-card {
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 0.95;
   border-radius: 29px;
   overflow: hidden;
+  background: linear-gradient(180deg, #1e1e1e 40%, #191919);
   box-shadow: var(--glass-edge-tight);
 }
+
+.gp-card[data-rarity="rare"] { background: linear-gradient(180deg, #282867, #131328); }
+.gp-card[data-rarity="veryrare"] { background: linear-gradient(180deg, #1d6132, #0b2211); }
+.gp-card[data-rarity="epic"] { background: linear-gradient(180deg, #632475, #19101d); }
+.gp-card[data-rarity="legend"] { background: linear-gradient(180deg, #6f480e, #1d1710); }
+.gp-card[data-rarity="author"] { background: linear-gradient(180deg, #762121, #221111); }
 
 /* Узор под подарком: у образца он глушится до .22 и берёт тон подложки */
 .gp-card::before {
@@ -1300,6 +1297,33 @@ body {
   object-fit: contain;
 }
 
+/* Картинка (не анимация) у memgift лежит во всю карточку, ужатая до .72,
+   и медленно дышит (`bumpNft`) */
+.gp-card__art.is-still {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gp-card__art.is-still img {
+  object-fit: cover;
+  transform: scale3d(0.72, 0.72, 1);
+  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.35));
+  animation: gp-bump 3.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes gp-bump {
+  0%, 100% { transform: scale3d(0.72, 0.72, 1); }
+  50% { transform: scale3d(0.75, 0.75, 1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gp-card__art.is-still img {
+    animation: none;
+  }
+}
+
 .gp-card__plate {
   position: absolute;
   top: 14px;
@@ -1322,7 +1346,7 @@ body {
   display: none;
 }
 
-/* Сколько выпущено из скольких: общее число глуше */
+/* Сколько осталось из скольких: общее число глуше */
 .gp-card__supply {
   left: 14px;
   padding: 0 12px;
@@ -1417,7 +1441,6 @@ body {
 
 /* Топ покупателей */
 .gp-top {
-  margin-top: 16px;
   padding: 14px 18px 7px;
   border-radius: 29px;
   background: #171717;
@@ -1506,7 +1529,7 @@ body {
 }
 
 .sheet--buy .cpn {
-  margin-top: 16px;
+  margin-top: 0;
 }
 
 /* Низ: счётчик штук и кнопка покупки */

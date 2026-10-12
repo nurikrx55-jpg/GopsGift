@@ -1004,25 +1004,34 @@
     document.getElementById('sheet-buy-price').textContent = formatPrice(full - cut);
   }
 
+  // Редкость по образцу memgift. Не выбрана в админке — выводим из цвета
+  // ленты: у каждой ленты своя ближайшая по цвету редкость
+  const RARITY_OF_KIND = {
+    blood: 'author',
+    legend: 'legend',
+    premium: 'legend',
+    epic: 'epic',
+    rare: 'veryrare',
+    time: 'rare'
+  };
+
+  function rarityOf(gift) {
+    return (gift && (gift.rarity || RARITY_OF_KIND[gift.kind])) || '';
+  }
+
   function fillSheet(gift) {
-    // Подложка берёт цвет у самого подарка. Готовый — сразу, иначе он
-    // досчитается и встанет уже под открытым листом
     const card = sheet.querySelector('.gp-card');
-    applyTint(card, tintOf(gift));
-    if (!tints.has(gift.art)) {
-      warmTint(gift, (tint) => {
-        if (tint && sheetGift === gift) applyTint(card, tint);
-      });
-    }
+    card.dataset.rarity = rarityOf(gift);
+    document.getElementById('sheet-art').classList.toggle('is-still', isStill(gift));
 
     document.getElementById('sheet-title').textContent = gift.name;
     document.getElementById('sheet-coupons').textContent = formatPrice(ME ? ME.coupons || 0 : 0);
 
-    // Плашка «выпущено / всего» — только когда тираж известен
+    // Плашка «осталось / всего» — только когда тираж известен
     const known = typeof gift.left === 'number' && typeof gift.total === 'number';
     document.getElementById('sheet-supply').hidden = !known;
     if (known) {
-      document.getElementById('sheet-done').textContent = formatPrice(gift.total - gift.left);
+      document.getElementById('sheet-done').textContent = formatPrice(gift.left);
       document.getElementById('sheet-total').textContent = '/' + formatPrice(gift.total);
     }
 
@@ -1137,6 +1146,7 @@
     const panel = root.querySelector('.sheet__panel');
     const scroll = root.querySelector('.sheet__scroll');
     const on = hooks || {};
+    const page = root.classList.contains('sheet--page');
 
     function isOpen() {
       return root.dataset.open === 'true';
@@ -1148,6 +1158,8 @@
 
       root.hidden = false;
       root.dataset.open = 'true';
+      // Страница каждый раз открывается сверху, как новый экран
+      if (page) scroll.scrollTop = 0;
 
       // В Telegram лист закрывает системная стрелка «назад»
       if (tg && tg.BackButton) tg.BackButton.show();
@@ -1181,6 +1193,12 @@
         if (on.closed) on.closed();
       };
 
+      // Страница уходит сразу, как экран при переходе назад у memgift
+      if (page) {
+        done();
+        return;
+      }
+
       // Ждём конец выезда, но не полагаемся на событие целиком
       let fired = false;
       const onEnd = (event) => {
@@ -1213,7 +1231,7 @@
       // в жест не вмешивается. Остальное отдано прокрутке, и тянуть оттуда
       // можно, только когда прокручивать нечего или мы в самом верху.
       // Страница на весь экран не утягивается: её закрывает стрелка «назад»
-      if (root.classList.contains('sheet--page')) return;
+      if (page) return;
 
       const handle = event.target.closest('.sheet__head, .sheet__stage, .own-card, .pick__top');
       if (!handle && scroll.scrollTop > 0) return;

@@ -337,6 +337,7 @@
             price: Number(input.price) || 0,
             badge: String(input.badge || '').trim(),
             kind: input.kind || 'default',
+            rarity: input.rarity || '',
             total: Number(input.total) || 0,
             left: Math.min(Number(input.left) || 0, Number(input.total) || 0),
             status: String(input.status || '').trim() || 'Non-Unique'

@@ -423,7 +423,9 @@
            `._topBuyers`, `.pgm-footer`): карточка с подарком, имя с двумя
            круглыми кнопками, топ покупателей и низ со счётчиком и покупкой -->
       <div class="sheet__scroll">
-        <div class="gp-card tint-face">
+        <!-- Карточка и имя — один блок, как `._first` у memgift: всплывают вместе -->
+        <div class="gp-first">
+        <div class="gp-card">
           <span class="gp-card__plate gp-card__supply" id="sheet-supply" hidden>
             <span id="sheet-done"></span><span class="gp-card__total" id="sheet-total"></span>
           </span>
@@ -444,6 +446,7 @@
               <svg class="gp-head__ico gp-head__ico--share" viewBox="0 0 32 32" aria-hidden="true"><use href="#share-arrow"></use></svg>
             </button>
           </div>
+        </div>
         </div>
 
         <!-- Топ покупателей: приходит отдельным запросом, пока пуст — не виден -->
@@ -470,6 +473,9 @@
           <span class="cpn__switch" aria-hidden="true"></span>
         </label>
       </div>
+
+      <!-- Затемнение под кнопками внизу — `.bluring-b` у memgift -->
+      <div class="gp-fade" aria-hidden="true"></div>
 
       <div class="sheet__foot">
         <div class="gp-qty">
