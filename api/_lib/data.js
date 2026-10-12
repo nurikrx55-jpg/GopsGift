@@ -290,7 +290,8 @@ export async function touchUser(tg, start) {
     firstSeen: before.firstSeen || now,
     lastSeen: now,
     visits: int(before.visits, 0, 1e9) + 1,
-    ref: before.ref || ''
+    ref: before.ref || '',
+    wallet: before.wallet || ''
   };
 
   /* Пришёл по чужой ссылке (`startapp=ref_<id>`) — запоминаем, кто привёл.
@@ -487,6 +488,25 @@ export async function settleOrder(id, payment) {
   ]);
 
   return done;
+}
+
+// --- TON-кошелёк ---
+
+/* Адрес подключённого кошелька — как у memgift: человек подключает свой
+   кошелёк через TON Connect, сервер запоминает адрес. Денег тут нет, это
+   только привязка. Адрес принимаем в удобочитаемом виде (48 знаков) */
+export async function bindWallet(userId, address) {
+  const id = String(userId);
+  const wallet = str(address, 64);
+  if (wallet && !/^[A-Za-z0-9_-]{48}$/.test(wallet)) throw new InputError('Неверный адрес кошелька');
+
+  const raw = await command('GET', K.user(id));
+  if (!raw) throw new InputError('Сначала откройте приложение');
+
+  const profile = JSON.parse(raw);
+  profile.wallet = wallet;
+  await command('SET', K.user(id), JSON.stringify(profile));
+  return wallet;
 }
 
 // --- Рефералы ---

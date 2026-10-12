@@ -99,6 +99,12 @@ function serveFile(req, res, rel) {
     'Cache-Control': stable ? 'public, max-age=604800' : 'no-cache'
   };
 
+  // Манифест TON Connect и иконку из него кошельки читают со своих
+  // страниц — без этого заголовка браузер им их не отдаст
+  if (rel === 'tonconnect-manifest.json' || rel === 'gifts/app-icon.png') {
+    headers['Access-Control-Allow-Origin'] = '*';
+  }
+
   // Браузер прислал ту же метку — отвечаем «не изменилось» и не гоняем файл
   if (req.headers['if-none-match'] === tag) {
     delete headers['Content-Length'];

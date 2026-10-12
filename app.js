@@ -1490,6 +1490,263 @@
     if (legacyCopy(value)) done();
   }
 
+  // --- TON-кошелёк ---
+
+  /* Как у memgift: свой кошелёк человек подключает через TON Connect,
+     адрес запоминает сервер. Пополнение и вывод на странице кошелька
+     выглядят как у образца, но денег пока не двигают — на отправку окно
+     честно говорит, что это скоро заработает */
+  const WALLET_API = '/api/wallet';
+
+  let tc = null;
+  let walletAddr = '';
+  let walletSheet = null;
+  let unlinkSheet = null;
+  let wmodKind = 'deposit';
+  let wmodAmount = '';
+
+  // «UQAb…9fXz» — начало и конец адреса, как у образца
+  function shortAddr(address) {
+    return address && address.length > 12 ? address.slice(0, 4) + '…' + address.slice(-4) : address || '';
+  }
+
+  function walletPost(payload) {
+    return fetch(WALLET_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ initData: (tg && tg.initData) || '' }, payload))
+    }).then((response) => response.json()
+      .catch(() => ({}))
+      .then((data) => {
+        if (!response.ok) throw new Error(data.message || '');
+        return data;
+      }));
+  }
+
+  function tonBalance() {
+    return Number(ME && ME.ton) || 0;
+  }
+
+  function paintWallet() {
+    const on = Boolean(walletAddr);
+
+    const button = document.getElementById('prf-wallet');
+    if (button) {
+      button.classList.toggle('is-on', on);
+      document.getElementById('prf-wallet-text').textContent = on ? shortAddr(walletAddr) : t('profile.connect');
+    }
+
+    const hereOn = document.getElementById('wl-on');
+    if (hereOn) {
+      hereOn.hidden = !on;
+      document.getElementById('wl-off').hidden = on;
+      document.getElementById('wl-addr').textContent = shortAddr(walletAddr);
+      document.getElementById('wl-balance').textContent = formatPrice(tonBalance());
+    }
+
+    const modal = document.getElementById('wmod-wallet');
+    if (modal) {
+      modal.hidden = !on;
+      document.getElementById('wmod-connect').hidden = on;
+      document.getElementById('wmod-addr').textContent = shortAddr(walletAddr);
+      paintWmod();
+    }
+  }
+
+  // Новый адрес из кошелька — запоминаем на сервере
+  function rememberWallet(address) {
+    if (address === walletAddr) return;
+    walletAddr = address;
+    paintWallet();
+    if (!Store.live()) return;
+
+    walletPost({ action: 'bind', address: address })
+      .then(() => {
+        if (ME) ME.wallet = address;
+        haptic('success');
+        toast(t('wallet.linked'));
+      })
+      .catch(() => toast(t('wallet.linkFail')));
+  }
+
+  function tonReady(run) {
+    if (window.TON_CONNECT_UI) {
+      run();
+      return;
+    }
+    window.addEventListener('load', () => {
+      if (window.TON_CONNECT_UI) run();
+    }, { once: true });
+  }
+
+  function initTon() {
+    tonReady(() => {
+      try {
+        tc = new window.TON_CONNECT_UI.TonConnectUI({
+          manifestUrl: location.origin + '/tonconnect-manifest.json',
+          language: window.I18N.lang() === 'ru' ? 'ru' : 'en',
+          uiPreferences: { theme: 'DARK' }
+        });
+      } catch (_) {
+        tc = null;
+        return;
+      }
+
+      tc.onStatusChange((wallet) => {
+        if (!wallet || !wallet.account) return;
+        try {
+          const testnet = wallet.account.chain === '-3';
+          rememberWallet(window.TON_CONNECT_UI.toUserFriendlyAddress(wallet.account.address, testnet));
+        } catch (_) {}
+      });
+    });
+  }
+
+  function connectWallet() {
+    haptic('light');
+    if (!tc) {
+      toast(t('wallet.loading'));
+      return;
+    }
+    // Язык окна выбора — тот, что выбран в приложении сейчас
+    tc.uiOptions = { language: window.I18N.lang() === 'ru' ? 'ru' : 'en' };
+    tc.openModal();
+  }
+
+  function unlinkWallet() {
+    haptic('light');
+    if (tc && tc.connected) tc.disconnect().catch(() => {});
+    walletAddr = '';
+    if (ME) ME.wallet = '';
+    paintWallet();
+    unlinkSheet.close();
+    toast(t('wallet.unlinked'));
+    if (Store.live()) walletPost({ action: 'unbind' }).catch(() => {});
+  }
+
+  // --- Окна «Внести» и «Вывести» ---
+
+  function wmodNumber() {
+    return Number(wmodAmount) || 0;
+  }
+
+  function paintWmod() {
+    const amount = wmodNumber();
+    document.getElementById('wmod-amount').textContent = wmodAmount || '0';
+
+    const deposit = wmodKind === 'deposit';
+    const label = t(deposit ? 'wallet.deposit' : 'wallet.withdraw');
+    document.getElementById('wmod-submit-text').textContent = amount > 0 ? label + ' ' + wmodAmount + ' TON' : label;
+
+    // Как у образца: внести — от 0,1 TON, вывести — не больше баланса и только на подключённый кошелёк
+    document.getElementById('wmod-submit').disabled = deposit
+      ? amount < 0.1
+      : !(amount > 0 && amount <= tonBalance() && walletAddr);
+  }
+
+  function wmodTap(key) {
+    haptic('select');
+    if (key === 'back') {
+      wmodAmount = wmodAmount.slice(0, -1);
+    } else if (key === '.') {
+      if (wmodAmount.indexOf('.') === -1) wmodAmount = (wmodAmount || '0') + '.';
+    } else {
+      const next = wmodAmount === '0' ? key : wmodAmount + key;
+      const parts = next.split('.');
+      if (parts[0].length <= 9 && (!parts[1] || parts[1].length <= 2)) wmodAmount = next;
+    }
+    paintWmod();
+  }
+
+  function wmodIsOpen() {
+    return document.getElementById('wmod').classList.contains('is-open');
+  }
+
+  function wmodOpen(kind) {
+    haptic('light');
+    wmodKind = kind;
+    wmodAmount = '';
+    const deposit = kind === 'deposit';
+    document.getElementById('wmod-title').textContent = t(deposit ? 'wallet.depositTitle' : 'wallet.withdrawTitle');
+    const balance = document.getElementById('wmod-balance');
+    balance.hidden = deposit;
+    balance.textContent = t('wallet.balance') + ' · ' + formatPrice(tonBalance()) + ' TON';
+    document.getElementById('wmod-info').hidden = deposit;
+    paintWallet();
+
+    document.getElementById('wmod-overlay').classList.add('is-open');
+    document.getElementById('wmod').classList.add('is-open');
+    syncBack();
+  }
+
+  function wmodClose() {
+    if (!wmodIsOpen()) return;
+    document.getElementById('wmod-overlay').classList.remove('is-open');
+    document.getElementById('wmod').classList.remove('is-open');
+    syncBack();
+  }
+
+  function initWallet() {
+    const page = document.getElementById('walletpage');
+    if (!page) return;
+
+    walletAddr = (ME && ME.wallet) || '';
+
+    walletSheet = createSheet(page, { fill: paintWallet });
+    unlinkSheet = createSheet(document.getElementById('unlink'));
+
+    document.getElementById('prf-walletpage').addEventListener('click', () => {
+      haptic('light');
+      walletSheet.open();
+    });
+
+    document.getElementById('prf-wallet').addEventListener('click', () => {
+      if (walletAddr) {
+        haptic('light');
+        unlinkSheet.open();
+      } else {
+        connectWallet();
+      }
+    });
+
+    document.getElementById('wl-connect').addEventListener('click', connectWallet);
+    document.getElementById('wmod-connect').addEventListener('click', connectWallet);
+    document.getElementById('wl-unlink').addEventListener('click', () => {
+      haptic('light');
+      unlinkSheet.open();
+    });
+    document.getElementById('unlink-go').addEventListener('click', unlinkWallet);
+
+    // Вкладки истории: операций пока нет ни в одной
+    const filters = document.getElementById('wl-filters');
+    filters.addEventListener('click', (event) => {
+      const item = event.target.closest('.wl-filters__item');
+      if (!item) return;
+      haptic('select');
+      filters.querySelectorAll('.wl-filters__item').forEach((one) => one.classList.toggle('active', one === item));
+    });
+
+    document.getElementById('wl-deposit').addEventListener('click', () => wmodOpen('deposit'));
+    document.getElementById('wl-withdraw').addEventListener('click', () => wmodOpen('withdraw'));
+    document.getElementById('wmod-overlay').addEventListener('click', wmodClose);
+    document.getElementById('wmod-close').addEventListener('click', wmodClose);
+    document.getElementById('wmod-pad').addEventListener('click', (event) => {
+      const key = event.target.closest('[data-key]');
+      if (key) wmodTap(key.dataset.key);
+    });
+    document.getElementById('wmod-submit').addEventListener('click', () => {
+      haptic('light');
+      toast(t(wmodKind === 'deposit' ? 'wallet.soonDeposit' : 'wallet.soonWithdraw'));
+      wmodClose();
+    });
+
+    // В общем списке окон: «назад» и Esc закрывают и его
+    sheets.push({ open: wmodOpen, close: wmodClose, isOpen: wmodIsOpen });
+
+    paintWallet();
+    initTon();
+  }
+
   // --- Реферальная программа ---
 
   /* Страница memgift: своя ссылка `startapp=ref_<id>`, «Копировать» и
@@ -2156,6 +2413,7 @@
 
     initSend();
     initReferral();
+    initWallet();
     initOwnedTools();
     initWon();
   }

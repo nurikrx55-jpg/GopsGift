@@ -303,14 +303,15 @@
           </span>
         </p>
 
-        <button class="pu-wallet" type="button" data-soon>
+        <!-- Подключённый кошелёк показывает свой адрес; нажатие — отвязка -->
+        <button class="pu-wallet" type="button" id="prf-wallet">
           <svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
-          <span data-i18n="profile.connect">Подключить кошелек</span>
+          <span id="prf-wallet-text" data-i18n="profile.connect">Подключить кошелек</span>
         </button>
       </div>
 
       <div class="prf-acts">
-        <button class="prf-acts__item" type="button" data-soon>
+        <button class="prf-acts__item" type="button" id="prf-walletpage">
           <span class="prf-acts__title" data-i18n="profile.wallet">Кошелёк</span>
           <span class="prf-acts__go" aria-hidden="true"><svg viewBox="0 0 8 14"><use href="#chevron-go"></use></svg></span>
         </button>
@@ -547,6 +548,94 @@
       </div>
 
       <div class="gp-fade" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <!-- Отвязка кошелька — тот же лист, что выбор отбора на витрине -->
+  <div class="sheet sheet--pick" id="unlink" hidden>
+    <div class="sheet__backdrop" data-sheet-close></div>
+    <div class="sheet__panel glass" role="dialog" aria-modal="true" aria-labelledby="unlink-title">
+      <div class="sheet__head"><span class="sheet__grabber" aria-hidden="true"></span></div>
+      <div class="pick__top">
+        <h2 class="pick__title" id="unlink-title">
+          <svg class="pick__icon" viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
+          <span data-i18n="wallet.unlinkTitle">Отвязка кошелька</span>
+        </h2>
+        <button class="pick__close glass" type="button" data-sheet-close aria-label="Закрыть" data-i18n-aria="gift.close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7L17 17M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
+      </div>
+      <div class="sheet__scroll pick__scroll">
+        <p class="unlink__text" data-i18n="wallet.unlinkText">Нажмите на кнопку, чтобы подтвердить отвязку кошелька.</p>
+      </div>
+      <div class="sheet__foot">
+        <button class="pick__btn pick__btn--off glass" type="button" data-sheet-close data-i18n="pick.cancel">Отмена</button>
+        <button class="pick__btn pick__btn--on" type="button" id="unlink-go" data-i18n="wallet.unlink">Отвязать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Кошелёк — страница memgift (`._wrap.wallet`): адрес кошелька, баланс,
+       «Внести» и «Вывести», ниже история операций -->
+  <div class="sheet sheet--page sheet--wallet" id="walletpage" hidden>
+    <div class="sheet__backdrop"></div>
+    <div class="sheet__panel" role="dialog" aria-modal="true" aria-label="Кошелёк" data-i18n-aria="profile.wallet">
+      <div class="sheet__head"><span class="sheet__grabber" aria-hidden="true"></span></div>
+      <div class="sheet__scroll">
+        <div class="wl-hero">
+          <div class="wl-hero__wallet wl-hero__wallet--on" id="wl-on" hidden>
+            <span class="wl-hero__addr" id="wl-addr"></span>
+            <button type="button" class="wl-hero__disconnect" id="wl-unlink" aria-label="Отвязать" data-i18n-aria="wallet.unlink">
+              <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3L3 9"></path></svg>
+            </button>
+          </div>
+          <div class="wl-hero__wallet" id="wl-off">
+            <span class="wl-hero__addr" data-i18n="wallet.notConnected">Кошелек не подключен</span>
+            <button type="button" class="wl-hero__connect" id="wl-connect" data-i18n="wallet.connect">Подключить</button>
+          </div>
+          <div class="wl-hero__amount">
+            <h1 id="wl-balance">0</h1>
+            <svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
+          </div>
+          <p class="wl-hero__label">Gram</p>
+          <div class="wl-actions">
+            <button type="button" class="wl-actions__btn" id="wl-deposit">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10l6 6 6-6"></path></svg>
+              <span data-i18n="wallet.deposit">Внести</span>
+            </button>
+            <button type="button" class="wl-actions__btn" id="wl-withdraw">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4M16 10l-6-6-6 6"></path></svg>
+              <span data-i18n="wallet.withdraw">Вывести</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="wl-hist">
+          <div class="wl-hist__head"><h4 data-i18n="wallet.history">История</h4></div>
+          <div class="wl-filters" id="wl-filters">
+            <button type="button" class="wl-filters__item active" data-tab="all"><span class="wl-filters__title" data-i18n="wallet.tabAll">Все</span></button>
+            <button type="button" class="wl-filters__item" data-tab="gifts"><span class="wl-filters__title" data-i18n="wallet.tabGifts">Подарки</span></button>
+            <button type="button" class="wl-filters__item" data-tab="deposits"><span class="wl-filters__title" data-i18n="wallet.tabDeposits">Пополнения</span></button>
+            <button type="button" class="wl-filters__item" data-tab="withdrawals"><span class="wl-filters__title" data-i18n="wallet.tabWithdrawals">Выводы</span></button>
+          </div>
+          <div class="wl-empty"><p data-i18n="wallet.historyEmpty">Пока нет операций</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- «Внести» и «Вывести» — окна memgift (`.wmod-*`): сумма, клавиатура, кнопка -->
+  <div class="wmod-overlay" id="wmod-overlay"></div>
+  <div class="wmod-dock" id="wmod" role="dialog" aria-modal="true" aria-labelledby="wmod-title">
+    <div class="wmod-sheet">
+      <div class="wmod-sheet__handle" aria-hidden="true"></div>
+      <button type="button" class="wmod-close" id="wmod-close" aria-label="Закрыть" data-i18n-aria="gift.close"><svg viewBox="0 0 11 11" aria-hidden="true"><path d="M1 1L10 10M1 10L10 1"></path></svg></button>
+      <div class="wmod-head"><h3 id="wmod-title"></h3></div>
+      <div class="wmod-wallet" id="wmod-wallet"><span class="wmod-wallet__addr" id="wmod-addr"></span></div>
+      <button type="button" class="wmod-wallet wmod-wallet--cta" id="wmod-connect"><span data-i18n="wallet.connect">Подключить</span></button>
+      <div class="wmod-amount"><span class="wmod-amount__val" id="wmod-amount">0</span><span class="wmod-amount__unit">TON</span></div>
+      <p class="wmod-balance" id="wmod-balance" hidden></p>
+      <div class="wmod-pad" id="wmod-pad"><button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button><button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button><button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button><button type="button" data-key=".">.</button><button type="button" data-key="0">0</button><button type="button" class="wmod-pad__back" data-key="back" aria-label="Стереть"><img src="gifts/key-back.svg" alt="" draggable="false"></button></div>
+      <p class="wmod-info" id="wmod-info" data-i18n="wallet.withdrawInfo" hidden>Вывод на кошелек с TAG/MEMO не поддерживается!</p>
+      <button type="button" class="wmod-submit" id="wmod-submit" disabled><span id="wmod-submit-text"></span></button>
     </div>
   </div>
 
@@ -904,6 +993,8 @@
     <span id="toast-text"></span>
   </div>
 
+  <!-- TON Connect — подключение кошельков, та же библиотека, что у memgift -->
+  <script src="https://unpkg.com/@tonconnect/ui@2.2.0/dist/tonconnect-ui.min.js" defer></script>
   <script src="i18n.js"></script>
   <script src="local.js"></script>
   <script src="store.js"></script>
