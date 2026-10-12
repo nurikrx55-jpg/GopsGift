@@ -410,8 +410,8 @@
     </button>
   </div>
 
-  <!-- Карточка подарка крупным планом. Содержимое подставляется из app.js -->
-  <div class="sheet sheet--buy" id="sheet" hidden>
+  <!-- Страница подарка на весь экран, как у memgift. Содержимое подставляется из app.js -->
+  <div class="sheet sheet--buy sheet--page" id="sheet" hidden>
     <div class="sheet__backdrop" data-sheet-close></div>
 
     <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -471,7 +471,7 @@
         </label>
       </div>
 
-      <div class="sheet__foot gp-foot">
+      <div class="sheet__foot">
         <div class="gp-qty">
           <button class="gp-qty__btn" type="button" id="qty-less" aria-label="Убрать один" data-i18n-aria="gift.less">
             <svg viewBox="0 0 14 2" aria-hidden="true"><path d="M1 1L13 1"></path></svg>

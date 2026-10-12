@@ -1212,7 +1212,10 @@
       // Шапка и подложка с подарком — ручки: у них touch-action: none, браузер
       // в жест не вмешивается. Остальное отдано прокрутке, и тянуть оттуда
       // можно, только когда прокручивать нечего или мы в самом верху.
-      const handle = event.target.closest('.sheet__head, .sheet__stage, .gp-card, .own-card, .pick__top');
+      // Страница на весь экран не утягивается: её закрывает стрелка «назад»
+      if (root.classList.contains('sheet--page')) return;
+
+      const handle = event.target.closest('.sheet__head, .sheet__stage, .own-card, .pick__top');
       if (!handle && scroll.scrollTop > 0) return;
 
       pointerId = event.pointerId;

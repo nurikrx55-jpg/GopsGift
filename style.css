@@ -1168,19 +1168,98 @@ body {
    `.pgm-footer`. Классы свои (gp-), чтобы не задеть листы стейкинга и
    купленного подарка, которые живут на общих sheet__-классах. */
 
-.sheet--buy .sheet__panel {
-  background: #111;
+/* Это не лист снизу, а отдельная страница на весь экран — как
+   `._wrap._collection` у memgift: фон #111, сверху отступ под кнопки
+   Telegram, низ с покупкой висит поверх прокрутки. Въезжает их же
+   движением (`menu-page-enter-forward`), блоки всплывают по очереди
+   (`collectionBlockIn`) */
+.sheet--page .sheet__backdrop,
+.sheet--page .sheet__head {
+  display: none;
 }
 
-.sheet--buy .sheet__scroll {
-  padding-top: 30px;
+.sheet--page .sheet__panel {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  padding-bottom: 0;
+  background: #111;
+  opacity: 0;
+  filter: blur(8px);
+  transform: translate(28px, 8px) scale(0.97);
+  transition: transform 0.26s ease, opacity 0.26s ease, filter 0.26s ease;
+}
+
+.sheet--page.is-open .sheet__panel {
+  opacity: 1;
+  filter: none;
+  transform: none;
+  transition: none;
+  animation: page-enter 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translate(28px, 8px) scale(0.97);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate(-4px, -2px) scale(1.006);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+.sheet--page .sheet__scroll {
+  padding: max(16px, calc(var(--safe-area-top) + var(--content-top))) 16px 137px;
+}
+
+.sheet--page .sheet__scroll > * {
+  animation: page-block-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sheet--page .sheet__scroll > :nth-child(2) { animation-delay: 45ms; }
+.sheet--page .sheet__scroll > :nth-child(3) { animation-delay: 90ms; }
+.sheet--page .sheet__scroll > :nth-child(4) { animation-delay: 135ms; }
+
+@keyframes page-block-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Низ поверх прокрутки, без своей подложки */
+.sheet--page .sheet__foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(18px, calc(var(--safe-area-bottom) + 10px));
+  z-index: 100;
+  padding: 0 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet--page.is-open .sheet__panel,
+  .sheet--page .sheet__scroll > * {
+    animation: none;
+  }
 }
 
 /* Карточка: цвет даёт сам подарок (tint-face), форма и кромка — образца */
 .gp-card {
   position: relative;
-  /* Подарок — тоже ручка: тянуть лист удобнее всего прямо за него */
-  touch-action: none;
   width: 100%;
   aspect-ratio: 1 / 0.95;
   border-radius: 29px;
@@ -1431,10 +1510,6 @@ body {
 }
 
 /* Низ: счётчик штук и кнопка покупки */
-.gp-foot {
-  padding-top: 14px;
-}
-
 .gp-qty {
   flex: 0 0 132px;
   height: 56px;
