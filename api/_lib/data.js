@@ -528,6 +528,9 @@ export async function settleOrder(id, payment, ton) {
     ['ZINCRBY', K.buyers(order.giftId), order.qty, order.userId]
   ]);
 
+  // Топ этого подарка изменился — следующий запрос посчитает заново
+  dropTop(order.giftId);
+
   if (tonCost) {
     await addTonLog(order.userId, { type: 'gift', nano: tonCost, giftId: order.giftId, qty: order.qty });
   }
@@ -710,8 +713,14 @@ export async function transferGift(fromId, toId, giftId) {
    первой и только если её ещё нет — два одновременных запроса не посчитают
    дважды. ZADD ставит число, а не прибавляет, так что покупка, прошедшая
    в ту же секунду, тоже не задвоится. */
+// Сверку делаем один раз на жизнь процесса: дальше отметка в базе уже стоит,
+// и спрашивать её на каждый запрос — лишняя дорога до базы
+let buyersFilled = false;
+
 async function fillBuyers() {
+  if (buyersFilled) return;
   const first = await command('SET', K.buyersFilled, String(Date.now()), 'NX');
+  buyersFilled = true;
   if (!first) return;
 
   const ids = await command('ZRANGE', K.seen, 0, -1);
@@ -729,9 +738,22 @@ async function fillBuyers() {
   if (commands.length) await pipeline(commands);
 }
 
+/* Топ держим в памяти: база далеко, каждое обращение к ней — сотни
+   миллисекунд, а топ меняется только с покупкой. Покупка его и сбрасывает,
+   остальное живёт минуту */
+const TOP_TTL = 60 * 1000;
+const topCache = new Map();
+
+function dropTop(giftId) {
+  topCache.delete(String(giftId));
+}
+
 export async function topBuyers(giftId, limit) {
   const gift = slug(giftId);
   if (!gift) return { total: 0, top: [] };
+
+  const cached = topCache.get(gift);
+  if (cached && Date.now() - cached.at < TOP_TTL) return cached.value;
 
   await fillBuyers();
 
@@ -756,7 +778,9 @@ export async function topBuyers(giftId, limit) {
     return { name: name, photo: person.photo || '', count: counts[index] };
   });
 
-  return { total: Number(total) || 0, top: top };
+  const value = { total: Number(total) || 0, top: top };
+  topCache.set(gift, { at: Date.now(), value: value });
+  return value;
 }
 
 // --- Стейкинг ---

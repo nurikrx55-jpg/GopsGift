@@ -1120,26 +1120,61 @@
     return row;
   }
 
-  // Топ просим каждый раз заново: купить мог кто угодно, пока лист был закрыт.
-  // Пока ответа нет или купивших нет, блока не видно вовсе
-  function loadTop(gift) {
-    const box = document.getElementById('sheet-top');
-    box.hidden = true;
-    if (!Store.live()) return;
+  /* Топ покупателей приходит отдельным запросом, а сервер до базы ходит
+     долго. Поэтому топы всех подарков просим сразу после загрузки и держим
+     под рукой: страница подарка показывает его мгновенно, а свежий
+     подтягивается в фоне — купить мог кто угодно, пока страница была закрыта */
+  const tops = new Map();
+  const topAsks = new Map();
 
-    fetch('/api/top?gift=' + encodeURIComponent(gift.id))
+  function askTop(giftId) {
+    if (!Store.live()) return Promise.resolve(null);
+    if (topAsks.has(giftId)) return topAsks.get(giftId);
+
+    const ask = fetch('/api/top?gift=' + encodeURIComponent(giftId))
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
-        if (!data || sheetGift !== gift || !data.top || !data.top.length) return;
-
-        document.getElementById('sheet-top-n').textContent = '(' + formatPrice(data.total) + ')';
-        const list = document.getElementById('sheet-top-list');
-        list.textContent = '';
-        data.top.forEach((person) => list.appendChild(topRow(person)));
-        box.hidden = false;
+        if (data) tops.set(giftId, data);
+        return data;
       })
-      .catch(() => {});
+      .catch(() => null)
+      .then((data) => {
+        topAsks.delete(giftId);
+        return data;
+      });
+
+    topAsks.set(giftId, ask);
+    return ask;
   }
+
+  function paintTop(data) {
+    const box = document.getElementById('sheet-top');
+    if (!data || !data.top || !data.top.length) {
+      box.hidden = true;
+      return;
+    }
+
+    document.getElementById('sheet-top-n').textContent = '(' + formatPrice(data.total) + ')';
+    const list = document.getElementById('sheet-top-list');
+    list.textContent = '';
+    data.top.forEach((person) => list.appendChild(topRow(person)));
+    box.hidden = false;
+  }
+
+  function loadTop(gift) {
+    // Что уже знаем — сразу, без ожидания
+    paintTop(tops.get(gift.id) || null);
+
+    askTop(gift.id).then((data) => {
+      if (data && sheetGift === gift) paintTop(data);
+    });
+  }
+
+  // Заранее — по всем подаркам витрины, пока человек смотрит на неё
+  function warmTops() {
+    GIFTS.forEach((gift) => askTop(gift.id));
+  }
+
 
   // Раскрытая карточка: анимация играет по кругу, картинка просто лежит
   function openArt(container, gift) {
@@ -2541,6 +2576,10 @@
         initHeader();
         paintProfile();
         renderStake();
+
+        // Покупатель в топе этого подарка теперь другой — берём свежий
+        tops.delete(gift.id);
+        askTop(gift.id);
 
         haptic('success');
         wonOpen(gift, want > 1);
@@ -4098,6 +4137,7 @@
       fillFromStore();
 
       initGifts();
+      warmTops();
       initTasks();
       initSheet();
       initHeader();
