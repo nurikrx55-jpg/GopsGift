@@ -12,6 +12,8 @@
    gg:buyers:<gift>   — кто сколько штук этого подарка купил, для «Топа покупателей»
    gg:buyers:filled   — отметка, что прошлые покупки уже сосчитаны по счетам
    gg:refs:<id>       — кого человек привёл своей ссылкой, по времени прихода
+   gg:tonlog:<id>     — история кошелька: пополнения TON и покупки с баланса
+   gg:tontx:<hash>    — отметка, что этот перевод TON уже зачислен
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -36,6 +38,8 @@ const K = {
   stake: (id) => 'gg:stake:' + id,
   buyers: (gift) => 'gg:buyers:' + gift,
   refs: (id) => 'gg:refs:' + id,
+  tonlog: (id) => 'gg:tonlog:' + id,
+  tontx: (hash) => 'gg:tontx:' + hash,
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -156,6 +160,24 @@ export function cleanStake(input) {
   };
 }
 
+// --- Пополнения TON ---
+
+/* Куда приходят пополнения. Адрес публичный, его не прячем; поменять
+   можно переменной TON_RECEIVER в окружении сервера */
+export const TON_RECEIVER = process.env.TON_RECEIVER || 'UQCqHr55DwZJr0OWcV6fPmQrjGCqrZMxyAqwj80NuMwAzsmN';
+const NANO = 1e9;
+
+// Курс задаёт админка: сколько звёзд стоит 1 TON. Ноль — оплата TON выключена
+export function cleanTon(input) {
+  const src = input || {};
+  return { rate: int(src.rate, 0, 1e9) };
+}
+
+// Цена в нанотонах: звёзды по курсу, с округлением вверх до нанотона
+export function tonPrice(stars, rate) {
+  return rate > 0 ? Math.ceil(stars * NANO / rate) : 0;
+}
+
 // Какая ставка полагается подарку. Лент семь, ставок четыре
 const STAKE_TIER = { legend: 'legend', blood: 'legend', epic: 'epic', rare: 'rare' };
 
@@ -226,6 +248,7 @@ export async function readContent(fresh) {
   // Настройки стейкинга появились позже самой витрины: у записей, сделанных
   // до них, их нет, и подставить значения проще здесь, чем в каждом месте
   if (!value.stake) value.stake = Object.assign({}, STAKE_DEFAULT);
+  if (!value.ton) value.ton = { rate: 0 };
 
   contentCache = { at: Date.now(), value: value };
   return value;
@@ -248,6 +271,7 @@ export function publicContent(content) {
     banners: content.banners || [],
     tasks: content.tasks || [],
     stake: content.stake || STAKE_DEFAULT,
+    ton: { address: TON_RECEIVER, rate: (content.ton && content.ton.rate) || 0 },
     updatedAt: content.updatedAt || 0
   };
 }
@@ -256,7 +280,7 @@ export function publicContent(content) {
 
 // Новичок начинает с нуля: ни звёзд, ни купонов, ни подарков
 function emptyAccount() {
-  return { stars: 0, coupons: 0, gifts: [] };
+  return { stars: 0, coupons: 0, gifts: [], tonNano: 0 };
 }
 
 function normalAccount(raw) {
@@ -264,7 +288,9 @@ function normalAccount(raw) {
   return {
     stars: int(acct.stars, 0, 1e9),
     coupons: int(acct.coupons, 0, 1e9),
-    gifts: Array.isArray(acct.gifts) ? acct.gifts : []
+    gifts: Array.isArray(acct.gifts) ? acct.gifts : [],
+    // Баланс TON в нанотонах — целым числом, чтобы не терять копейки
+    tonNano: int(acct.tonNano, 0, 1e15)
   };
 }
 
@@ -387,10 +413,13 @@ export async function getUser(id) {
 
 export async function saveAccount(id, input, content) {
   const known = (content.gifts || []).map((gift) => gift.id);
+  // Баланс TON админка не правит — его приносят только пополнения
+  const before = normalAccount(await command('GET', K.acct(String(id))));
   const acct = {
     stars: int(input.stars, 0, 1e9),
     coupons: int(input.coupons, 0, 1e9),
-    gifts: cleanGiftList(input.gifts, known)
+    gifts: cleanGiftList(input.gifts, known),
+    tonNano: before.tonNano
   };
 
   await command('SET', K.acct(String(id)), JSON.stringify(acct));
@@ -451,9 +480,20 @@ export async function readOrder(id) {
 // Платёж дошёл: подарок уходит в профиль, остаток на витрине убывает.
 // Телеграм повторяет событие, пока сервер не ответит «принял», поэтому
 // засчитываем ровно один раз — отметкой по номеру платежа
-export async function settleOrder(id, payment) {
+export async function settleOrder(id, payment, ton) {
   const order = await readOrder(id);
   if (!order) return null;
+
+  // Оплата с баланса TON: хватает ли, проверяем до отметки о платеже
+  const tonCost = ton ? int(ton.nano, 0, 1e15) : 0;
+  if (tonCost) {
+    const before = normalAccount(await command('GET', K.acct(order.userId)));
+    if (before.tonNano < tonCost) {
+      const error = new InputError('Не хватает TON на балансе');
+      error.code = 'pay.tonlow';
+      throw error;
+    }
+  }
 
   const charge = str(payment && payment.telegram_payment_charge_id, 128) || order.id;
   const first = await command('SET', K.charge(charge), order.id, 'NX');
@@ -465,6 +505,7 @@ export async function settleOrder(id, payment) {
 
   // Купоны, ушедшие в скидку, списываются ровно сейчас — вместе с деньгами
   acct.coupons = Math.max(0, acct.coupons - (order.coupons || 0));
+  if (tonCost) acct.tonNano = Math.max(0, acct.tonNano - tonCost);
 
   await writeContent((state) => {
     const gift = (state.gifts || []).find((one) => one.id === order.giftId);
@@ -487,6 +528,10 @@ export async function settleOrder(id, payment) {
     ['ZINCRBY', K.buyers(order.giftId), order.qty, order.userId]
   ]);
 
+  if (tonCost) {
+    await addTonLog(order.userId, { type: 'gift', nano: tonCost, giftId: order.giftId, qty: order.qty });
+  }
+
   return done;
 }
 
@@ -507,6 +552,73 @@ export async function bindWallet(userId, address) {
   profile.wallet = wallet;
   await command('SET', K.user(id), JSON.stringify(profile));
   return wallet;
+}
+
+// --- История кошелька и пополнения ---
+
+const TON_LOG = 50;
+
+async function addTonLog(userId, entry) {
+  const raw = await command('GET', K.tonlog(String(userId)));
+  const log = raw ? JSON.parse(raw) : [];
+  log.unshift(Object.assign({ at: Date.now() }, entry));
+  await command('SET', K.tonlog(String(userId)), JSON.stringify(log.slice(0, TON_LOG)));
+}
+
+export async function tonState(userId) {
+  const [rawAcct, rawLog] = await pipeline([
+    ['GET', K.acct(String(userId))],
+    ['GET', K.tonlog(String(userId))]
+  ]);
+  return { tonNano: normalAccount(rawAcct).tonNano, log: rawLog ? JSON.parse(rawLog) : [] };
+}
+
+/* Пополнения смотрим в самом блокчейне через открытый toncenter: входящие
+   переводы на наш адрес с комментарием «GG<id>» зачисляются этому человеку.
+   Каждый перевод — один раз: отметка по его хешу ставится раньше зачисления.
+   Спрашиваем не чаще раза в несколько секунд — без ключа toncenter строг */
+const TON_API = 'https://toncenter.com/api/v2/getTransactions';
+const TON_WAIT = 4000;
+let tonAsked = 0;
+
+export async function checkDeposits() {
+  if (Date.now() - tonAsked < TON_WAIT) return 0;
+  tonAsked = Date.now();
+
+  let data;
+  try {
+    const response = await fetch(TON_API + '?address=' + encodeURIComponent(TON_RECEIVER) + '&limit=50', {
+      headers: process.env.TONCENTER_KEY ? { 'X-API-Key': process.env.TONCENTER_KEY } : {},
+      signal: AbortSignal.timeout(8000)
+    });
+    data = await response.json();
+  } catch (_) {
+    return 0;
+  }
+  if (!data || !data.ok || !Array.isArray(data.result)) return 0;
+
+  let credited = 0;
+  for (const tx of data.result) {
+    const message = tx.in_msg || {};
+    const value = Math.round(Number(message.value) || 0);
+    const hash = tx.transaction_id && tx.transaction_id.hash;
+    const mark = /(?:^|\s)GG(\d{1,20})(?:\s|$)/.exec(String(message.message || '').trim());
+    if (!value || !message.source || !hash || !mark) continue;
+
+    const userId = mark[1];
+    if (!(await command('GET', K.user(userId)))) continue;
+
+    const first = await command('SET', K.tontx(hash), userId, 'NX');
+    if (!first) continue;
+
+    const acct = normalAccount(await command('GET', K.acct(userId)));
+    acct.tonNano += value;
+    await command('SET', K.acct(userId), JSON.stringify(acct));
+    await addTonLog(userId, { type: 'deposit', nano: value, hash: hash });
+    credited += 1;
+  }
+
+  return credited;
 }
 
 // --- Рефералы ---

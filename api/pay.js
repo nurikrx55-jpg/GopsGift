@@ -12,7 +12,7 @@
 import { configured } from './_lib/db.js';
 import { verify, isAdmin } from './_lib/telegram.js';
 import {
-  readContent, publicContent, createOrder, readOrder, getUser, settleOrder, InputError
+  readContent, publicContent, createOrder, readOrder, getUser, settleOrder, tonPrice, InputError
 } from './_lib/data.js';
 import { call, hasBot, BotError } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
@@ -34,8 +34,8 @@ function refuse(code, text, vars) {
   return error;
 }
 
-async function start(input, user) {
-  const content = await readContent(true);
+// Что берут и сколько — общая проверка для оплаты звёздами и TON
+function pick(content, input) {
   const gift = (content.gifts || []).find((one) => one.id === String(input.giftId || ''));
 
   if (!gift) throw refuse('pay.gone', 'Такого подарка больше нет');
@@ -47,6 +47,44 @@ async function start(input, user) {
       ? refuse('pay.left', 'Осталось всего ' + gift.left, { n: gift.left })
       : refuse('pay.soldout', 'Подарок распродан');
   }
+
+  return { gift: gift, qty: qty };
+}
+
+/* Оплата с баланса TON: цена в звёздах переводится по курсу из админки,
+   списание и выдача подарка — одним заходом, без счёта Telegram */
+async function payTon(input, user) {
+  const content = await readContent(true);
+  const { gift, qty } = pick(content, input);
+
+  const rate = (content.ton && content.ton.rate) || 0;
+  if (!rate) throw refuse('pay.tonoff', 'Оплата TON пока не включена');
+
+  const full = gift.price * qty;
+  const nano = tonPrice(full, rate);
+
+  const order = await createOrder({
+    userId: user.id,
+    giftId: gift.id,
+    qty: qty,
+    price: gift.price,
+    amount: full,
+    coupons: 0
+  });
+
+  await settleOrder(order.id, { telegram_payment_charge_id: 'ton-' + order.id }, { nano: nano });
+
+  return {
+    order: order.id,
+    status: 'paid',
+    me: await getUser(user.id),
+    content: publicContent(await readContent(true))
+  };
+}
+
+async function start(input, user) {
+  const content = await readContent(true);
+  const { gift, qty } = pick(content, input);
 
   const full = gift.price * qty;
   if (full > MAX_STARS) throw refuse('pay.toomuch', 'Столько звёзд за один раз Telegram не примет');
@@ -123,7 +161,9 @@ export default {
     if (!user) return json({ error: 'who' }, 401);
 
     try {
-      const result = input.action === 'check' ? await check(input, user) : await start(input, user);
+      const result = input.action === 'check'
+        ? await check(input, user)
+        : input.action === 'ton' ? await payTon(input, user) : await start(input, user);
       return json(result);
     } catch (error) {
       // Понятные человеку отказы — отдельно от поломок: их приложение

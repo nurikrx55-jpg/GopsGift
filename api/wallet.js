@@ -1,10 +1,11 @@
-/* Привязка TON-кошелька, как у memgift: адрес подключённого кошелька
-   записывается в профиль, при отвязке стирается. Кто привязывает, сервер
-   узнаёт по подписи Telegram. Ни пополнения, ни вывода здесь нет. */
+/* Кошелёк, как у memgift: привязка адреса подключённого TON-кошелька,
+   баланс с историей и проверка пополнений (`check` — смотрим новые
+   переводы на наш адрес). Кто спрашивает, сервер узнаёт по подписи
+   Telegram. Вывода здесь пока нет. */
 
 import { configured } from './_lib/db.js';
 import { verify } from './_lib/telegram.js';
-import { bindWallet, InputError } from './_lib/data.js';
+import { bindWallet, tonState, checkDeposits, InputError } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
 const MAX_AGE = 30 * 24 * 60 * 60;
@@ -19,6 +20,13 @@ export default {
     if (!user) return json({ error: 'who' }, 401);
 
     try {
+      if (input.action === 'check') {
+        await checkDeposits();
+        return json(await tonState(user.id));
+      }
+
+      if (input.action === 'state') return json(await tonState(user.id));
+
       const address = input.action === 'unbind' ? '' : input.address;
       return json({ wallet: await bindWallet(user.id, address) });
     } catch (error) {

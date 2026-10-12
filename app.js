@@ -1003,6 +1003,37 @@
     const full = sheetGift.price * qty;
     const cut = !free && useCoupons() ? couponCut() : 0;
     document.getElementById('sheet-buy-price').textContent = formatPrice(full - cut);
+
+    paintTonPay(full, free);
+  }
+
+  /* Оплата с баланса TON — переключатель рядом с купонами. Виден, когда
+     курс задан и на балансе хватает на выбранное количество. Включён —
+     купоны прячутся (к TON они не применяются), на кнопке цена в TON */
+  function paintTonPay(full, free) {
+    const row = document.getElementById('tonpay');
+    if (!row) return;
+
+    const cost = tonCost(full);
+    const have = Number(ME && ME.tonNano) || 0;
+    row.hidden = free || !cost || have < cost;
+
+    const box = document.getElementById('tonpay-use');
+    if (row.hidden) box.checked = false;
+
+    document.getElementById('tonpay-have').textContent = t('gift.tonHave', { n: formatTon(have) });
+    document.getElementById('tonpay-cost').textContent = formatTon(cost) + ' TON';
+
+    const on = box.checked;
+    if (on) document.getElementById('cpn').hidden = true;
+    document.getElementById('sheet-buy-star').hidden = on;
+    document.getElementById('sheet-buy-ton').hidden = !on;
+    if (on) document.getElementById('sheet-buy-price').textContent = formatTon(cost);
+  }
+
+  function useTon() {
+    const row = document.getElementById('tonpay');
+    return Boolean(row && !row.hidden && document.getElementById('tonpay-use').checked);
   }
 
   // Редкость из админки. Пусто («Авто») — карточки красятся тоном самого
@@ -1523,8 +1554,59 @@
       }));
   }
 
+  const NANO = 1e9;
+
+  // Баланс TON на счёте — сервер хранит его в нанотонах
   function tonBalance() {
-    return Number(ME && ME.ton) || 0;
+    return (Number(ME && ME.tonNano) || 0) / NANO;
+  }
+
+  function tonRate() {
+    const state = Store.state() || {};
+    return (state.ton && state.ton.rate) || 0;
+  }
+
+  function tonAddress() {
+    const state = Store.state() || {};
+    return (state.ton && state.ton.address) || '';
+  }
+
+  // Цена в нанотонах — та же формула, что на сервере: звёзды по курсу, вверх
+  function tonCost(stars) {
+    const rate = tonRate();
+    return rate > 0 ? Math.ceil(stars * NANO / rate) : 0;
+  }
+
+  // 1.234567 → «1,23», 0.004 → «0,004»: копейки не теряем, лишних нулей не пишем
+  function formatTon(nano) {
+    const value = (Number(nano) || 0) / NANO;
+    const digits = value > 0 && value < 0.01 ? 4 : 2;
+    const fixed = (Math.floor(value * Math.pow(10, digits)) / Math.pow(10, digits)).toFixed(digits)
+      .replace(/\.?0+$/, '');
+    const parts = fixed.split('.');
+    parts[0] = formatPrice(parts[0]);
+    return parts.join(window.I18N.lang() === 'ru' ? ',' : '.');
+  }
+
+  /* Комментарий к переводу — ячейка TON, сериализованная в BOC: 32 нулевых
+     бита и текст. Собираем её сами: одна ячейка без ссылок, с CRC32C.
+     Сверено побайтно с @ton/core */
+  function crc32c(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i += 1) {
+      crc ^= bytes[i];
+      for (let k = 0; k < 8; k += 1) crc = crc & 1 ? (crc >>> 1) ^ 0x82F63B78 : crc >>> 1;
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function commentBoc(text) {
+    const body = [0, 0, 0, 0].concat(Array.from(new TextEncoder().encode(text)));
+    const cell = [0, body.length * 2].concat(body);
+    const all = [0xb5, 0xee, 0x9c, 0x72, 0x41, 0x01, 1, 1, 0, cell.length, 0].concat(cell);
+    const crc = crc32c(all);
+    all.push(crc & 255, (crc >>> 8) & 255, (crc >>> 16) & 255, (crc >>> 24) & 255);
+    return btoa(String.fromCharCode.apply(null, all));
   }
 
   function paintWallet() {
@@ -1541,7 +1623,7 @@
       hereOn.hidden = !on;
       document.getElementById('wl-off').hidden = on;
       document.getElementById('wl-addr').textContent = shortAddr(walletAddr);
-      document.getElementById('wl-balance').textContent = formatPrice(tonBalance());
+      document.getElementById('wl-balance').textContent = formatTon(Number(ME && ME.tonNano) || 0);
     }
 
     const modal = document.getElementById('wmod-wallet');
@@ -1670,7 +1752,7 @@
     document.getElementById('wmod-title').textContent = t(deposit ? 'wallet.depositTitle' : 'wallet.withdrawTitle');
     const balance = document.getElementById('wmod-balance');
     balance.hidden = deposit;
-    balance.textContent = t('wallet.balance') + ' · ' + formatPrice(tonBalance()) + ' TON';
+    balance.textContent = t('wallet.balance') + ' · ' + formatTon(Number(ME && ME.tonNano) || 0) + ' TON';
     document.getElementById('wmod-info').hidden = deposit;
     paintWallet();
 
@@ -1686,13 +1768,146 @@
     syncBack();
   }
 
+  /* Пополнение: перевод с подключённого кошелька на наш адрес с
+     комментарием «GG<id>». Деньги идут в блокчейне без нас, а зачисление
+     сервер видит сам — приложение просто переспрашивает, пока не дойдёт */
+  const DEPOSIT_TRIES = 24;
+  const DEPOSIT_WAIT = 5000;
+  let depositTimer = null;
+
+  function walletState(fresh) {
+    if (!Store.live()) return Promise.resolve(null);
+    return walletPost({ action: fresh ? 'check' : 'state' })
+      .then((data) => {
+        if (ME) ME.tonNano = data.tonNano || 0;
+        tonLog = data.log || [];
+        renderTonLog(tonLog);
+        paintWallet();
+        return data;
+      })
+      .catch(() => null);
+  }
+
+  function watchDeposit(before, left) {
+    clearTimeout(depositTimer);
+    depositTimer = setTimeout(() => {
+      walletState(true).then((data) => {
+        if (data && (data.tonNano || 0) > before) {
+          haptic('success');
+          toast(t('wallet.credited', { n: formatTon((data.tonNano || 0) - before) }));
+          if (sheetGift) setQty(qty);
+          return;
+        }
+        if (left > 1) watchDeposit(before, left - 1);
+      });
+    }, DEPOSIT_WAIT);
+  }
+
+  function sendDeposit() {
+    const amount = wmodNumber();
+    const me = tgUser();
+    if (!tc || !tc.connected) {
+      connectWallet();
+      return;
+    }
+    if (!me || amount < 0.1 || !tonAddress()) return;
+
+    const before = Number(ME && ME.tonNano) || 0;
+    tc.sendTransaction({
+      validUntil: Math.floor(Date.now() / 1000) + 600,
+      messages: [{
+        address: tonAddress(),
+        amount: String(Math.round(amount * NANO)),
+        payload: commentBoc('GG' + me.id)
+      }]
+    }).then(() => {
+      haptic('success');
+      toast(t('wallet.sent'));
+      wmodClose();
+      watchDeposit(before, DEPOSIT_TRIES);
+    }).catch(() => {
+      // Человек передумал в кошельке — молча ничего не делаем
+    });
+  }
+
+  // История как у memgift: пополнения и покупки с баланса
+  function renderTonLog(log) {
+    const box = document.getElementById('wl-list');
+    const empty = document.querySelector('.wl-empty');
+    if (!box || !empty) return;
+
+    const tab = (document.querySelector('.wl-filters__item.active') || {}).dataset;
+    const kind = tab ? tab.tab : 'all';
+    const shown = log.filter((one) => kind === 'all' ||
+      (kind === 'gifts' && one.type === 'gift') ||
+      (kind === 'deposits' && one.type === 'deposit') ||
+      (kind === 'withdrawals' && one.type === 'withdraw'));
+
+    box.textContent = '';
+    box.hidden = !shown.length;
+    empty.hidden = Boolean(shown.length);
+
+    shown.forEach((one) => {
+      const row = document.createElement('div');
+      row.className = 'item';
+
+      const nft = document.createElement('div');
+      nft.className = 'nft';
+      const gift = one.type === 'gift' ? giftById(one.giftId) : null;
+      if (gift) {
+        showShot(nft, gift);
+      } else {
+        nft.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="' +
+          (one.type === 'deposit' ? 'M10 4v12M4 10l6 6 6-6' : 'M10 16V4M16 10l-6-6-6 6') + '"></path></svg>';
+      }
+
+      const mid = document.createElement('div');
+      mid.className = 'mid';
+      const name = document.createElement('h4');
+      name.className = 'name';
+      name.textContent = gift ? gift.name + (one.qty > 1 ? ' × ' + one.qty : '') : t(one.type === 'deposit' ? 'wallet.statusDeposit' : 'wallet.statusWithdraw');
+      const meta = document.createElement('div');
+      meta.className = 'meta-row';
+      const time = document.createElement('span');
+      time.textContent = new Date(one.at).toLocaleString(window.I18N.lang() === 'ru' ? 'ru-RU' : 'en-GB', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+      });
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.textContent = '·';
+      const price = document.createElement('span');
+      price.className = 'price ' + (one.type === 'deposit' ? 'is-plus' : 'is-minus');
+      price.textContent = (one.type === 'deposit' ? '+' : '−') + formatTon(one.nano) + ' TON';
+      meta.append(time, dot, price);
+      mid.append(name, meta);
+
+      const right = document.createElement('div');
+      right.className = 'right';
+      const status = document.createElement('span');
+      status.className = 'status';
+      status.textContent = t(one.type === 'gift' ? 'wallet.statusGift' : one.type === 'deposit' ? 'wallet.statusDeposit' : 'wallet.statusWithdraw');
+      right.appendChild(status);
+
+      row.append(nft, mid, right);
+      box.appendChild(row);
+    });
+  }
+
+  let tonLog = [];
+
   function initWallet() {
     const page = document.getElementById('walletpage');
     if (!page) return;
 
     walletAddr = (ME && ME.wallet) || '';
 
-    walletSheet = createSheet(page, { fill: paintWallet });
+    walletSheet = createSheet(page, {
+      fill: () => {
+        paintWallet();
+        renderTonLog(tonLog);
+        walletState(true);
+      }
+    });
     unlinkSheet = createSheet(document.getElementById('unlink'));
 
     document.getElementById('prf-walletpage').addEventListener('click', () => {
@@ -1717,13 +1932,14 @@
     });
     document.getElementById('unlink-go').addEventListener('click', unlinkWallet);
 
-    // Вкладки истории: операций пока нет ни в одной
+    // Вкладки истории: все операции, покупки, пополнения, выводы
     const filters = document.getElementById('wl-filters');
     filters.addEventListener('click', (event) => {
       const item = event.target.closest('.wl-filters__item');
       if (!item) return;
       haptic('select');
       filters.querySelectorAll('.wl-filters__item').forEach((one) => one.classList.toggle('active', one === item));
+      renderTonLog(tonLog);
     });
 
     document.getElementById('wl-deposit').addEventListener('click', () => wmodOpen('deposit'));
@@ -1736,7 +1952,12 @@
     });
     document.getElementById('wmod-submit').addEventListener('click', () => {
       haptic('light');
-      toast(t(wmodKind === 'deposit' ? 'wallet.soonDeposit' : 'wallet.soonWithdraw'));
+      if (wmodKind === 'deposit') {
+        sendDeposit();
+        return;
+      }
+      // Вывод подключим позже — честно говорим, а не делаем вид
+      toast(t('wallet.soonWithdraw'));
       wmodClose();
     });
 
@@ -2272,7 +2493,7 @@
     // openInvoice появился в Bot API 6.1; без него счёт пришлось бы
     // открывать перепиской с ботом, а это уже не «на этом же экране».
     // Админу счёт не нужен вовсе, поэтому его это не держит
-    if (!freeHand() && (!tg || !tg.openInvoice)) {
+    if (!freeHand() && !useTon() && (!tg || !tg.openInvoice)) {
       toast(t('pay.oldApp'));
       return;
     }
@@ -2282,8 +2503,15 @@
     paying = true;
     buyBusy(true);
 
-    payPost({ giftId: gift.id, qty: want, coupons: useCoupons() ? couponCut() : 0 })
+    // С баланса TON — без счёта Telegram: сервер списывает и выдаёт сразу
+    const paid = useTon()
+      ? payPost({ action: 'ton', giftId: gift.id, qty: want })
+      : null;
+
+    (paid || payPost({ giftId: gift.id, qty: want, coupons: useCoupons() ? couponCut() : 0 }))
       .then((data) => {
+        // Оплачено с баланса TON — заказ уже засчитан, счёт уже пришёл
+        if (paid) return { status: 'ton', data: data };
         // Админу счёт не выставляется — заказ уже засчитан
         if (data.free) return { status: 'paid', order: data.order };
 
@@ -2292,6 +2520,7 @@
         });
       })
       .then((result) => {
+        if (result.status === 'ton') return result.data;
         if (result.status === 'cancelled') return null;
         if (result.status === 'failed') throw new Error(t('pay.failed'));
         return waitPaid(result.order, PAY_TRIES);
@@ -2388,6 +2617,14 @@
     const coupons = document.getElementById('cpn-use');
     if (coupons) {
       coupons.addEventListener('change', () => {
+        haptic('select');
+        setQty(qty);
+      });
+    }
+
+    const tonBox = document.getElementById('tonpay-use');
+    if (tonBox) {
+      tonBox.addEventListener('change', () => {
         haptic('select');
         setQty(qty);
       });

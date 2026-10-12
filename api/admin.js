@@ -5,7 +5,7 @@
 import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
-  readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanStake, InputError,
+  readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanStake, cleanTon, TON_RECEIVER, InputError,
   listUsers, getUser, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile
 } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
@@ -27,7 +27,8 @@ function reorder(list, ids) {
 const actions = {
   async session(payload, ctx) {
     const content = await readContent(true);
-    return { content: content, stats: await stats(content), me: ctx.user };
+    // Куда приходят пополнения TON — показываем в настройках
+    return { content: content, stats: await stats(content), me: ctx.user, tonAddress: TON_RECEIVER };
   },
 
   async stats() {
@@ -39,6 +40,17 @@ const actions = {
   async 'stake.save'(payload) {
     const content = await writeContent((state) => {
       state.stake = cleanStake(payload.stake);
+      return state;
+    });
+
+    return { content: content };
+  },
+
+  // --- Оплата TON ---
+
+  async 'ton.save'(payload) {
+    const content = await writeContent((state) => {
+      state.ton = cleanTon(payload.ton);
       return state;
     });
 

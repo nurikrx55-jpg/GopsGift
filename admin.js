@@ -205,6 +205,8 @@
   // Пока база не подключена, действия выполняет локальный двигатель: набор
   // и формат те же, поэтому экранам всё равно, куда они обращаются
   let offline = false;
+  // Кошелёк для пополнений TON — его называет сервер
+  let tonAddress = '';
 
   async function api(action, payload) {
     if (offline && window.Local) {
@@ -230,6 +232,7 @@
     }
 
     if (data.content) content = data.content;
+    if (data.tonAddress) tonAddress = data.tonAddress;
     return data;
   }
 
@@ -2078,6 +2081,31 @@
     }));
 
     cols.appendChild(stake);
+
+    // Оплата TON: курс, по которому подарок продаётся за пополненный баланс
+    const ton = el('section', 'ad-card');
+    ton.appendChild(el('h3', null, 'Оплата TON'));
+    const tonNote = el('p', 'ad-note');
+    tonNote.append('Пополнения приходят на кошелёк ');
+    tonNote.appendChild(el('code', null, tonAddress || '—'));
+    tonNote.append('. Сколько звёзд стоит 1 TON — по этому курсу подарок можно купить с баланса. Ноль — оплата TON выключена.');
+    ton.appendChild(tonNote);
+
+    const tonForm = el('div', 'ad-form');
+    const rate = input((content.ton && content.ton.rate) || 0, { type: 'number' });
+    tonForm.appendChild(field('1 TON =', affix(rate, 'star-img'), true));
+    ton.appendChild(tonForm);
+
+    ton.appendChild(button('Сохранить', {
+      kind: 'go',
+      icon: 'check',
+      onClick: (event) => {
+        const next = { rate: Math.max(0, parseInt(String(rate.value).replace(/\D/g, ''), 10) || 0) };
+        run(event.currentTarget, 'ton.save', { ton: next }, () => toast('Курс сохранён'));
+      }
+    }));
+
+    cols.appendChild(ton);
 
     view.appendChild(cols);
   }

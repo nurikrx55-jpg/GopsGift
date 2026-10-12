@@ -478,6 +478,23 @@
           <span class="cpn__cut" id="cpn-cut"></span>
           <span class="cpn__switch" aria-hidden="true"></span>
         </label>
+
+        <!-- Оплата с баланса TON. Видна, когда курс задан и баланса хватает -->
+        <label class="cpn" id="tonpay" hidden>
+          <input class="cpn__box" type="checkbox" id="tonpay-use">
+
+          <span class="cpn__mark">
+            <svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
+          </span>
+
+          <span class="cpn__text">
+            <b data-i18n="gift.payTon">Оплатить TON</b>
+            <small id="tonpay-have"></small>
+          </span>
+
+          <span class="cpn__cut" id="tonpay-cost"></span>
+          <span class="cpn__switch" aria-hidden="true"></span>
+        </label>
       </div>
 
       <!-- Затемнение под кнопками внизу — `.bluring-b` у memgift -->
@@ -497,7 +514,8 @@
         <button class="gp-buy" type="button" id="sheet-buy">
           <span class="gp-buy__title" id="sheet-buy-text" data-i18n="gift.buy">Купить</span>
           <span class="gp-buy__price">
-            <img src="gifts/star-white.png" alt="" draggable="false">
+            <img src="gifts/star-white.png" alt="" draggable="false" id="sheet-buy-star">
+            <svg viewBox="0 0 19 16" aria-hidden="true" id="sheet-buy-ton" hidden><use href="#gram"></use></svg>
             <span id="sheet-buy-price"></span>
           </span>
         </button>
@@ -616,6 +634,7 @@
             <button type="button" class="wl-filters__item" data-tab="deposits"><span class="wl-filters__title" data-i18n="wallet.tabDeposits">Пополнения</span></button>
             <button type="button" class="wl-filters__item" data-tab="withdrawals"><span class="wl-filters__title" data-i18n="wallet.tabWithdrawals">Выводы</span></button>
           </div>
+          <div class="wl-list" id="wl-list" hidden></div>
           <div class="wl-empty"><p data-i18n="wallet.historyEmpty">Пока нет операций</p></div>
         </div>
       </div>
