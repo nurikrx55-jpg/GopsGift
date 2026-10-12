@@ -197,18 +197,30 @@ async function one(query, command) {
       return found.length ? Number(found[0].n) : 0;
     }
 
+    case 'ZINCRBY': {
+      // Прибавляем к счёту участника; нового заводим с этим же числом
+      const found = rows(await query(
+        'INSERT INTO zset (k, m, s) VALUES ($1, $3, $2) ON CONFLICT (k, m) DO UPDATE SET s = zset.s + EXCLUDED.s RETURNING s',
+        [args[0], Number(args[1]), String(args[2])]
+      ));
+      return found.length ? Number(found[0].s) : null;
+    }
+
     case 'ZRANGE':
     case 'ZREVRANGE': {
       const back = String(name).toUpperCase() === 'ZREVRANGE';
       const cut = slice(args[1], args[2]);
       const order = back ? 's DESC, m DESC' : 's ASC, m ASC';
+      const scores = args.slice(3).map(String).some((flag) => flag.toUpperCase() === 'WITHSCORES');
 
       const found = rows(await query(
-        'SELECT m FROM zset WHERE k = $1 ORDER BY ' + order + ' OFFSET $2' +
+        'SELECT m, s FROM zset WHERE k = $1 ORDER BY ' + order + ' OFFSET $2' +
         (cut.limit === null ? '' : ' LIMIT $3'),
         cut.limit === null ? [args[0], cut.from] : [args[0], cut.from, cut.limit]
       ));
 
+      // Со счётом — плоским списком «участник, счёт», как отвечает Redis
+      if (scores) return found.flatMap((row) => [row.m, String(Number(row.s))]);
       return found.map((row) => row.m);
     }
 
@@ -250,6 +262,10 @@ const SIMPLE = {
       params: [args[0], members, scores]
     };
   },
+  ZINCRBY: (args) => ({
+    text: 'INSERT INTO zset (k, m, s) VALUES ($1, $3, $2) ON CONFLICT (k, m) DO UPDATE SET s = zset.s + EXCLUDED.s',
+    params: [args[0], Number(args[1]), String(args[2])]
+  }),
   MSET: (args) => {
     const keys = [];
     const values = [];

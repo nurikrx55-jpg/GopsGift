@@ -1162,6 +1162,398 @@ body {
   display: none;
 }
 
+/* Лист покупки подарка — образец memgift один в один. Числа сняты с их
+   стилей: карточка `._comp._item._gift ._item`, плашки `._supply` и
+   `._tickets`, строка имени `._context`, топ `._topBuyers`, низ
+   `.pgm-footer`. Классы свои (gp-), чтобы не задеть листы стейкинга и
+   купленного подарка, которые живут на общих sheet__-классах. */
+
+.sheet--buy .sheet__panel {
+  background: #111;
+}
+
+.sheet--buy .sheet__scroll {
+  padding-top: 30px;
+}
+
+/* Карточка: цвет даёт сам подарок (tint-face), форма и кромка — образца */
+.gp-card {
+  position: relative;
+  /* Подарок — тоже ручка: тянуть лист удобнее всего прямо за него */
+  touch-action: none;
+  width: 100%;
+  aspect-ratio: 1 / 0.95;
+  border-radius: 29px;
+  overflow: hidden;
+  box-shadow: var(--glass-edge-tight);
+}
+
+/* Узор под подарком: у образца он глушится до .22 и берёт тон подложки */
+.gp-card::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 108%;
+  height: calc(100% - 36px);
+  transform: translate(-50%, -52%);
+  background: url("gifts/pattern.png") center / cover no-repeat;
+  opacity: 0.22;
+  mix-blend-mode: luminosity;
+  pointer-events: none;
+}
+
+.gp-card__art {
+  position: absolute;
+  top: 20%;
+  left: 20%;
+  z-index: 1;
+  width: 60%;
+  height: 60%;
+}
+
+.gp-card__art canvas,
+.gp-card__art svg,
+.gp-card__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.gp-card__plate {
+  position: absolute;
+  top: 14px;
+  z-index: 2;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  border-radius: 99em;
+  background: rgba(0, 0, 0, 0.42);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: #f5f5f7;
+  font-variant-numeric: tabular-nums;
+}
+
+.gp-card__plate[hidden] {
+  display: none;
+}
+
+/* Сколько выпущено из скольких: общее число глуше */
+.gp-card__supply {
+  left: 14px;
+  padding: 0 12px;
+}
+
+.gp-card__total {
+  margin-left: 2px;
+  opacity: 0.55;
+}
+
+/* Купоны того, кто смотрит */
+.gp-card__tickets {
+  right: 14px;
+  padding: 0 11px;
+  gap: 6px;
+}
+
+.gp-card__tickets svg {
+  width: 20px;
+  height: 20px;
+  fill: #fff;
+}
+
+/* Имя и две круглые кнопки */
+.gp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px 0 4px;
+}
+
+.gp-head__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.6px;
+  color: #f5f5f7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gp-head__acts {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gp-head__btn {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99em;
+  background: linear-gradient(180deg, #232323, #1b1b1b);
+  -webkit-backdrop-filter: blur(28px) saturate(0.6);
+  backdrop-filter: blur(28px) saturate(0.6);
+  box-shadow: var(--glass-edge-tight);
+  color: #f5f5f7;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gp-head__btn:active {
+  transform: scale(0.95);
+}
+
+.gp-head__ico {
+  display: block;
+  opacity: 0.92;
+}
+
+.gp-head__ico--emoji {
+  width: 19px;
+  height: 19px;
+}
+
+.gp-head__ico--share {
+  width: 21px;
+  height: 21px;
+}
+
+/* Топ покупателей */
+.gp-top {
+  margin-top: 16px;
+  padding: 14px 18px 7px;
+  border-radius: 29px;
+  background: #171717;
+}
+
+.gp-top[hidden] {
+  display: none;
+}
+
+.gp-top__head {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f5f5f7;
+}
+
+.gp-top__head b {
+  font-weight: 500;
+  color: #6d6d6d;
+  font-variant-numeric: tabular-nums;
+}
+
+.gp-top__row {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid rgba(245, 245, 247, 0.05);
+}
+
+.gp-top__row:last-child {
+  border-bottom: 0;
+}
+
+.gp-top__ava {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #38383a;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f5f5f7;
+}
+
+.gp-top__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #f5f5f7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gp-top__count {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 99em;
+  background: linear-gradient(180deg, #232323, #1b1b1b);
+  -webkit-backdrop-filter: blur(28px) saturate(0.6);
+  backdrop-filter: blur(28px) saturate(0.6);
+  box-shadow: var(--glass-edge-tight);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: #f5f5f7;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.gp-top__count svg {
+  width: 13px;
+  height: 15px;
+  color: #f5f5f7;
+  opacity: 0.5;
+}
+
+.sheet--buy .cpn {
+  margin-top: 16px;
+}
+
+/* Низ: счётчик штук и кнопка покупки */
+.gp-foot {
+  padding-top: 14px;
+}
+
+.gp-qty {
+  flex: 0 0 132px;
+  height: 56px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 99em;
+  background: linear-gradient(180deg, #1e1e1e 50%, #191919);
+  -webkit-backdrop-filter: blur(28px) saturate(0.6);
+  backdrop-filter: blur(28px) saturate(0.6);
+  box-shadow: var(--glass-edge-tight);
+}
+
+.gp-qty__btn {
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gp-qty__btn:active {
+  opacity: 0.55;
+}
+
+/* Больше, чем есть в наличии, не набрать */
+.gp-qty__btn:disabled {
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.gp-qty__btn svg {
+  width: 14px;
+  height: 14px;
+  overflow: visible;
+  fill: none;
+  stroke: #f5f5f7;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.gp-qty__value {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: #f5f5f7;
+  font-variant-numeric: tabular-nums;
+}
+
+.gp-buy {
+  flex: 1 1 100%;
+  min-width: 0;
+  height: 56px;
+  padding: 0 16px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  border-radius: 99em;
+  background: #0083fd;
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow: var(--glass-edge);
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gp-buy:active {
+  transform: scale(0.97);
+}
+
+/* Пока открывается счёт, второй раз нажать нельзя */
+.gp-buy:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.gp-buy__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gp-buy__price {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 700;
+}
+
+.gp-buy__price img {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+/* Админ берёт подарок даром — цены на кнопке нет вовсе */
+.gp-buy.is-free .gp-buy__price {
+  display: none;
+}
+
 /* Лист выбора отбора и порядка.
    Материал тот же, что у капсулы навигации и плашек: стекло из .glass на
    самом листе, кромка из --glass-edge на карточках со строками и на
@@ -2655,7 +3047,6 @@ body {
   background: rgba(255, 255, 255, 0.4);
 }
 
-.sheet--buy .sheet__scroll,
 .sheet--stake .sheet__scroll,
 .sheet--spot .sheet__scroll {
   padding-top: 0;

@@ -50,6 +50,10 @@
         <path d="M13.1997 5.49999L4.39971 5.49999" fill="none" stroke="currentColor" stroke-width="1.375" stroke-linecap="round"></path>
         <path d="M11 9.89999H6.6" fill="none" stroke="currentColor" stroke-width="1.375" stroke-linecap="round"></path>
       </symbol>
+      <!-- Смайлик «Поставить в статус» — значок memgift (EmojiFill) -->
+      <symbol id="emoji-fill" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M2 10A8 8 0 1 0 18 10A8 8 0 1 0 2 10ZM6.324 8.227A1.038 1.038 0 1 0 8.4 8.227A1.038 1.038 0 1 0 6.324 8.227ZM11.6 8.227A1.038 1.038 0 1 0 13.676 8.227A1.038 1.038 0 1 0 11.6 8.227ZM13.932 12.753A4.8 4.8 0 0 1 6.068 12.753L7.06 12.059A3.589 3.589 0 0 0 12.94 12.059Z" fill="currentColor"/>
+      </symbol>
       <symbol id="share-arrow" viewBox="0 0 32 32">
         <path d="M26.3917 12.5257L19.3515 6.07215C18.0687 4.89625 16.0001 5.80624 16.0001 7.54645V11C3.00007 11 5.00012 27 5.00012 27C5.00012 27 9.00012 17 16.0001 17V20.4535C16.0001 22.1937 18.0687 23.1037 19.3515 21.9278L26.3917 15.4743C27.2565 14.6816 27.2565 13.3183 26.3917 12.5257Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
       </symbol>
@@ -415,37 +419,38 @@
         <span class="sheet__grabber" aria-hidden="true"></span>
       </div>
 
+      <!-- Лист собран по образцу memgift (`._comp._item._gift`, `._context`,
+           `._topBuyers`, `.pgm-footer`): карточка с подарком, имя с двумя
+           круглыми кнопками, топ покупателей и низ со счётчиком и покупкой -->
       <div class="sheet__scroll">
-        <div class="sheet__stage tint-face">
-          <div class="sheet__art" id="sheet-art"></div>
+        <div class="gp-card tint-face">
+          <span class="gp-card__plate gp-card__supply" id="sheet-supply" hidden>
+            <span id="sheet-done"></span><span class="gp-card__total" id="sheet-total"></span>
+          </span>
+          <span class="gp-card__plate gp-card__tickets">
+            <svg viewBox="0 0 18 18" aria-hidden="true"><use href="#coupon"></use></svg>
+            <span id="sheet-coupons">0</span>
+          </span>
+          <div class="gp-card__art" id="sheet-art"></div>
         </div>
 
-        <h2 class="sheet__title" id="sheet-title"></h2>
-        <p class="sheet__note" id="sheet-note"></p>
+        <div class="gp-head">
+          <h2 class="gp-head__title" id="sheet-title"></h2>
+          <div class="gp-head__acts">
+            <button class="gp-head__btn" type="button" id="sheet-emoji" aria-label="Поставить в статус" data-i18n-aria="gift.emoji">
+              <svg class="gp-head__ico gp-head__ico--emoji" viewBox="0 0 20 20" aria-hidden="true"><use href="#emoji-fill"></use></svg>
+            </button>
+            <button class="gp-head__btn" type="button" id="sheet-share" aria-label="Поделиться" data-i18n-aria="gift.share">
+              <svg class="gp-head__ico gp-head__ico--share" viewBox="0 0 32 32" aria-hidden="true"><use href="#share-arrow"></use></svg>
+            </button>
+          </div>
+        </div>
 
-        <dl class="sheet__specs">
-          <dt data-i18n="gift.supply">Наличие</dt>
-          <dd>
-            <span class="sheet__value sheet__value--row">
-              <span id="sheet-left"></span>
-              <span class="sheet__pill" id="sheet-rest" hidden></span>
-            </span>
-            <span class="sheet__gauge" id="sheet-gauge" role="img">
-              <span class="sheet__gauge-fill" id="sheet-gauge-fill"></span>
-            </span>
-          </dd>
-
-          <dt data-i18n="gift.price">Цена</dt>
-          <dd>
-            <span class="sheet__value sheet__price">
-              <img class="gift__star" src="gifts/star-white.png" alt="звёзд" data-i18n-alt="hdr.stars" draggable="false">
-              <span class="sheet__amount" id="sheet-price"></span>
-            </span>
-          </dd>
-
-          <dt data-i18n="gift.status">Статус</dt>
-          <dd><span class="sheet__value" id="sheet-status"></span></dd>
-        </dl>
+        <!-- Топ покупателей: приходит отдельным запросом, пока пуст — не виден -->
+        <section class="gp-top" id="sheet-top" hidden>
+          <h4 class="gp-top__head"><span data-i18n="gift.top">Топ покупателей</span> <b id="sheet-top-n"></b></h4>
+          <div class="gp-top__list" id="sheet-top-list"></div>
+        </section>
 
         <!-- Скидка купонами. Видна, только если купоны есть и есть что скинуть -->
         <label class="cpn" id="cpn" hidden>
@@ -466,21 +471,23 @@
         </label>
       </div>
 
-      <div class="sheet__foot">
-        <button class="sheet__share glass" type="button" id="sheet-share" aria-label="Поделиться" data-i18n-aria="gift.share">
-          <svg viewBox="0 0 32 32" aria-hidden="true"><use href="#share-arrow"></use></svg>
-        </button>
-
-        <div class="sheet__qty glass">
-          <button class="sheet__qty-btn" type="button" id="qty-less" aria-label="Убрать один" data-i18n-aria="gift.less">&minus;</button>
-          <span class="sheet__qty-value" id="qty-value" aria-live="polite">1</span>
-          <button class="sheet__qty-btn" type="button" id="qty-more" aria-label="Добавить один" data-i18n-aria="gift.more">+</button>
+      <div class="sheet__foot gp-foot">
+        <div class="gp-qty">
+          <button class="gp-qty__btn" type="button" id="qty-less" aria-label="Убрать один" data-i18n-aria="gift.less">
+            <svg viewBox="0 0 14 2" aria-hidden="true"><path d="M1 1L13 1"></path></svg>
+          </button>
+          <span class="gp-qty__value" id="qty-value" aria-live="polite">1</span>
+          <button class="gp-qty__btn" type="button" id="qty-more" aria-label="Добавить один" data-i18n-aria="gift.more">
+            <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M6.82 1V13M1 6.82H13"></path></svg>
+          </button>
         </div>
 
-        <button class="sheet__buy" type="button" id="sheet-buy">
-          <span id="sheet-buy-text" data-i18n="gift.buy">Купить за</span>
-          <img class="sheet__buy-star" src="gifts/star-white.png" alt="" draggable="false">
-          <span class="sheet__buy-sum" id="sheet-buy-price"></span>
+        <button class="gp-buy" type="button" id="sheet-buy">
+          <span class="gp-buy__title" id="sheet-buy-text" data-i18n="gift.buy">Купить</span>
+          <span class="gp-buy__price">
+            <img src="gifts/star-white.png" alt="" draggable="false">
+            <span id="sheet-buy-price"></span>
+          </span>
         </button>
       </div>
     </div>

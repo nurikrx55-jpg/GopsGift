@@ -9,6 +9,8 @@
    gg:order:<id>      — заказ: кто, что и за сколько покупает
    gg:charge:<id>     — отметка, что этот платёж уже засчитан
    gg:stake:<id>      — что человек отдал в стейкинг и на какой срок
+   gg:buyers:<gift>   — кто сколько штук этого подарка купил, для «Топа покупателей»
+   gg:buyers:filled   — отметка, что прошлые покупки уже сосчитаны по счетам
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -30,7 +32,9 @@ const K = {
   file: (id) => 'gg:file:' + id,
   order: (id) => 'gg:order:' + id,
   charge: (id) => 'gg:charge:' + id,
-  stake: (id) => 'gg:stake:' + id
+  stake: (id) => 'gg:stake:' + id,
+  buyers: (gift) => 'gg:buyers:' + gift,
+  buyersFilled: 'gg:buyers:filled'
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -459,10 +463,67 @@ export async function settleOrder(id, payment) {
 
   await pipeline([
     ['SET', K.acct(order.userId), JSON.stringify(acct)],
-    ['SET', K.order(order.id), JSON.stringify(done)]
+    ['SET', K.order(order.id), JSON.stringify(done)],
+    ['ZINCRBY', K.buyers(order.giftId), order.qty, order.userId]
   ]);
 
   return done;
+}
+
+// --- Топ покупателей ---
+
+/* Счётчик покупок завёлся позже самих покупок. Прошлые сосчитаем один раз
+   по счетам: сколько штук каждого подарка у кого лежит. Отметку ставим
+   первой и только если её ещё нет — два одновременных запроса не посчитают
+   дважды. ZADD ставит число, а не прибавляет, так что покупка, прошедшая
+   в ту же секунду, тоже не задвоится. */
+async function fillBuyers() {
+  const first = await command('SET', K.buyersFilled, String(Date.now()), 'NX');
+  if (!first) return;
+
+  const ids = await command('ZRANGE', K.seen, 0, -1);
+  const accounts = await mgetJson((ids || []).map(K.acct));
+  const commands = [];
+
+  (ids || []).forEach((id, index) => {
+    const counts = new Map();
+    normalAccount(accounts[index]).gifts.forEach((gift) => {
+      counts.set(gift, (counts.get(gift) || 0) + 1);
+    });
+    counts.forEach((n, gift) => commands.push(['ZADD', K.buyers(gift), n, id]));
+  });
+
+  if (commands.length) await pipeline(commands);
+}
+
+export async function topBuyers(giftId, limit) {
+  const gift = slug(giftId);
+  if (!gift) return { total: 0, top: [] };
+
+  await fillBuyers();
+
+  const [total, flat] = await pipeline([
+    ['ZCARD', K.buyers(gift)],
+    ['ZREVRANGE', K.buyers(gift), 0, limit - 1, 'WITHSCORES']
+  ]);
+
+  const ids = [];
+  const counts = [];
+  for (let i = 0; i < (flat || []).length; i += 2) {
+    ids.push(flat[i]);
+    counts.push(Number(flat[i + 1]) || 0);
+  }
+
+  const profiles = ids.length ? await mgetJson(ids.map(K.user)) : [];
+  const top = ids.map((id, index) => {
+    const person = profiles[index] ? JSON.parse(profiles[index]) : {};
+    // Наружу — только то, что и так видно в Telegram: имя и фото
+    const name = [person.firstName, person.lastName].filter(Boolean).join(' ') ||
+      (person.username ? '@' + person.username : '');
+    return { name: name, photo: person.photo || '', count: counts[index] };
+  });
+
+  return { total: Number(total) || 0, top: top };
 }
 
 // --- Стейкинг ---

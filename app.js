@@ -42,8 +42,6 @@
   const SHEET_CLOSE_DRAG = 110;
   // Резкий рывок закрывает, даже если утянули недалеко
   const SHEET_FLING = 0.7;
-  // Остаток меньше этой доли — показываем, что подарок на исходе
-  const SCARCE_SHARE = 0.1;
   // Потолок на случай, если наличие не указано
   const QTY_MAX = 99;
 
@@ -1009,46 +1007,93 @@
   function fillSheet(gift) {
     // Подложка берёт цвет у самого подарка. Готовый — сразу, иначе он
     // досчитается и встанет уже под открытым листом
-    const stage = sheet.querySelector('.sheet__stage');
-    applyTint(stage, tintOf(gift));
+    const card = sheet.querySelector('.gp-card');
+    applyTint(card, tintOf(gift));
     if (!tints.has(gift.art)) {
       warmTint(gift, (tint) => {
-        if (tint && sheetGift === gift) applyTint(stage, tint);
+        if (tint && sheetGift === gift) applyTint(card, tint);
       });
     }
 
     document.getElementById('sheet-title').textContent = gift.name;
-    document.getElementById('sheet-note').textContent = gift.note || '';
-    document.getElementById('sheet-status').textContent = gift.status || '—';
-    document.getElementById('sheet-price').textContent = formatPrice(gift.price);
+    document.getElementById('sheet-coupons').textContent = formatPrice(ME ? ME.coupons || 0 : 0);
 
+    // Плашка «выпущено / всего» — только когда тираж известен
     const known = typeof gift.left === 'number' && typeof gift.total === 'number';
-    const left = document.getElementById('sheet-left');
-    const rest = document.getElementById('sheet-rest');
-    const gauge = document.getElementById('sheet-gauge');
-
-    left.textContent = known
-      ? t('gift.issued', { done: formatPrice(gift.total - gift.left), total: formatPrice(gift.total) })
-      : '—';
-    rest.hidden = !known;
-    gauge.hidden = !known;
-
+    document.getElementById('sheet-supply').hidden = !known;
     if (known) {
-      // Полоска — это сам остаток: кончается подарок, кончается и она
-      const share = gift.total ? Math.min(Math.max(gift.left / gift.total, 0), 1) : 0;
-      const scarce = String(share <= SCARCE_SHARE);
-
-      gauge.dataset.scarce = scarce;
-      rest.dataset.scarce = scarce;
-      rest.textContent = t('gift.left', { n: formatPrice(gift.left) });
-      gauge.setAttribute('aria-label', t('gift.left.aria', { n: gift.left, total: gift.total }));
-
-      const fill = document.getElementById('sheet-gauge-fill');
-      fill.dataset.empty = String(gift.left <= 0);
-      // Ширину ставим после открытия — иначе шкала появится уже заполненной
-      fill.style.width = '0%';
-      sheet.dataset.fill = (share * 100).toFixed(1) + '%';
+      document.getElementById('sheet-done').textContent = formatPrice(gift.total - gift.left);
+      document.getElementById('sheet-total').textContent = '/' + formatPrice(gift.total);
     }
+
+    loadTop(gift);
+  }
+
+  // --- Топ покупателей ---
+
+  function initials(name) {
+    const parts = String(name || '').replace(/^@/, '').trim().split(/\s+/).filter(Boolean);
+    return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
+  }
+
+  function topRow(person) {
+    const row = document.createElement('div');
+    row.className = 'gp-top__row';
+
+    let ava;
+    if (person.photo) {
+      ava = document.createElement('img');
+      ava.src = person.photo;
+      ava.alt = '';
+      ava.draggable = false;
+      ava.referrerPolicy = 'no-referrer';
+      // Фото из Telegram может не открыться — тогда буквы, как без фото
+      ava.addEventListener('error', () => {
+        const letters = document.createElement('span');
+        letters.className = 'gp-top__ava';
+        letters.textContent = initials(person.name);
+        ava.replaceWith(letters);
+      });
+    } else {
+      ava = document.createElement('span');
+      ava.textContent = initials(person.name);
+    }
+    ava.className = 'gp-top__ava';
+
+    const name = document.createElement('span');
+    name.className = 'gp-top__name';
+    name.textContent = person.name || '—';
+
+    const count = document.createElement('span');
+    count.className = 'gp-top__count';
+    count.innerHTML = '<svg viewBox="0 0 14 16" aria-hidden="true"><use href="#task-gift"></use></svg>';
+    const n = document.createElement('span');
+    n.textContent = formatPrice(person.count);
+    count.appendChild(n);
+
+    row.append(ava, name, count);
+    return row;
+  }
+
+  // Топ просим каждый раз заново: купить мог кто угодно, пока лист был закрыт.
+  // Пока ответа нет или купивших нет, блока не видно вовсе
+  function loadTop(gift) {
+    const box = document.getElementById('sheet-top');
+    box.hidden = true;
+    if (!Store.live()) return;
+
+    fetch('/api/top?gift=' + encodeURIComponent(gift.id))
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!data || sheetGift !== gift || !data.top || !data.top.length) return;
+
+        document.getElementById('sheet-top-n').textContent = '(' + formatPrice(data.total) + ')';
+        const list = document.getElementById('sheet-top-list');
+        list.textContent = '';
+        data.top.forEach((person) => list.appendChild(topRow(person)));
+        box.hidden = false;
+      })
+      .catch(() => {});
   }
 
   // Раскрытая карточка: анимация играет по кругу, картинка просто лежит
@@ -1167,7 +1212,7 @@
       // Шапка и подложка с подарком — ручки: у них touch-action: none, браузер
       // в жест не вмешивается. Остальное отдано прокрутке, и тянуть оттуда
       // можно, только когда прокручивать нечего или мы в самом верху.
-      const handle = event.target.closest('.sheet__head, .sheet__stage, .own-card, .pick__top');
+      const handle = event.target.closest('.sheet__head, .sheet__stage, .gp-card, .own-card, .pick__top');
       if (!handle && scroll.scrollTop > 0) return;
 
       pointerId = event.pointerId;
@@ -1531,9 +1576,6 @@
         setQty(1);
       },
       opened: (gift) => {
-        if (sheet.dataset.fill) {
-          document.getElementById('sheet-gauge-fill').style.width = sheet.dataset.fill;
-        }
         sheetPlayer = openArt(document.getElementById('sheet-art'), gift);
       },
       closed: () => {
@@ -1592,6 +1634,14 @@
       share.addEventListener('click', () => {
         haptic('light');
         toast(t('soon.share'));
+      });
+    }
+
+    const emoji = document.getElementById('sheet-emoji');
+    if (emoji) {
+      emoji.addEventListener('click', () => {
+        haptic('light');
+        toast(t('soon.emoji'));
       });
     }
 

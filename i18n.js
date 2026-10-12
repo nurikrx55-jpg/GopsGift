@@ -75,7 +75,9 @@
       'gift.left': 'осталось {n}',
       'gift.left.aria': 'Осталось {n} из {total}',
       'gift.of': '{done} из {total}',
-      'gift.buy': 'Купить за',
+      'gift.buy': 'Купить',
+      'gift.top': 'Топ покупателей',
+      'gift.emoji': 'Поставить в статус',
       'gift.free': 'Взять бесплатно',
       'gift.less': 'Убрать один',
       'gift.more': 'Добавить один',
@@ -160,6 +162,7 @@
 
       'soon.send': 'Отправка скоро заработает',
       'soon.share': 'Поделиться скоро заработает',
+      'soon.emoji': 'Статус скоро заработает',
       'soon.gems': 'Очень скоро..',
 
       'won.one': 'Подарок куплен',
@@ -228,7 +231,9 @@
       'gift.left': '{n} left',
       'gift.left.aria': '{n} of {total} left',
       'gift.of': '{done} of {total}',
-      'gift.buy': 'Buy for',
+      'gift.buy': 'Buy',
+      'gift.top': 'Top buyers',
+      'gift.emoji': 'Set as status',
       'gift.free': 'Take for free',
       'gift.less': 'One less',
       'gift.more': 'One more',
@@ -313,6 +318,7 @@
 
       'soon.send': 'Sending is coming soon',
       'soon.share': 'Sharing is coming soon',
+      'soon.emoji': 'Status is coming soon',
       'soon.gems': 'Very soon..',
 
       'won.one': 'Gift bought',
