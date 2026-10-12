@@ -358,11 +358,13 @@
             <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#gift-oth"></use></svg>
           </button>
           <button class="prf-filter__item" type="button" id="prf-symbol">
+            <i class="prf-filter__dot" id="prf-symbol-dot" aria-hidden="true" hidden></i>
             <span class="prf-filter__title" data-i18n="profile.symbol">Символ</span>
             <i class="prf-filter__border" aria-hidden="true"></i>
             <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#symbol-mark"></use></svg>
           </button>
           <button class="prf-filter__item" type="button" id="prf-backdrop">
+            <i class="prf-filter__dot" id="prf-backdrop-dot" aria-hidden="true" hidden></i>
             <span class="prf-filter__title" data-i18n="profile.backdrop">Фон</span>
             <i class="prf-filter__border" aria-hidden="true"></i>
             <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#backdrop"></use></svg>
@@ -893,27 +895,6 @@
     </div>
 
     <button class="won__go glass" type="button" id="won-go" data-i18n="won.go">Открыть профиль</button>
-  </div>
-
-  <!-- Окно выбора memgift (`._comp._item._modelModal`): тёмная подложка,
-       панель #111 снизу, серый заголовок со значком, строки с кружком или
-       галочкой и две кнопки. Одно на все отборы профиля — app.js его наполняет -->
-  <div class="mm-overlay" id="mm-overlay"></div>
-  <div class="mm" id="mm" role="dialog" aria-modal="true" aria-labelledby="mm-title" aria-hidden="true">
-    <div class="mm__head">
-      <div class="mm__centered">
-        <svg class="mm__icon" id="mm-icon" viewBox="0 0 18 11" aria-hidden="true"><use href="#sort-lines"></use></svg>
-        <h4 id="mm-title"></h4>
-      </div>
-      <button class="mm__close" type="button" id="mm-close" aria-label="Закрыть" data-i18n-aria="gift.close">
-        <svg viewBox="0 0 11 11" aria-hidden="true"><path d="M1 1L10 10M1 10L10 1"></path></svg>
-      </button>
-    </div>
-    <div class="mm__items" id="mm-items"></div>
-    <div class="mm__buttons">
-      <button type="button" id="mm-cancel"><h4 data-i18n="pick.cancel">Отмена</h4></button>
-      <button type="button" id="mm-apply"><h4 data-i18n="pick.apply">Применить</h4></button>
-    </div>
   </div>
 
   <div class="toast glass" id="toast" role="status" aria-live="polite" hidden>

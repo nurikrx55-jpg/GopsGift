@@ -1,0 +1,370 @@
+{
+ "symbols": [
+  {
+   "name": "CompAss",
+   "image": "gifts/symbols/compass.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Pizza",
+   "image": "gifts/symbols/pizza.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Planet X",
+   "image": "gifts/symbols/planet-x.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Clock",
+   "image": "gifts/symbols/clock.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Lawyer",
+   "image": "gifts/symbols/lawyer.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Humbrella",
+   "image": "gifts/symbols/humbrella.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Party",
+   "image": "gifts/symbols/party.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Currency",
+   "image": "gifts/symbols/currency.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Info",
+   "image": "gifts/symbols/info.png",
+   "rate": 1.5
+  },
+  {
+   "name": "Birkin",
+   "image": "gifts/symbols/birkin.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Puzzles",
+   "image": "gifts/symbols/puzzles.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Gamer",
+   "image": "gifts/symbols/gamer.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Call",
+   "image": "gifts/symbols/call.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Megaphone",
+   "image": "gifts/symbols/megaphone.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Avenger",
+   "image": "gifts/symbols/avenger.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Tony",
+   "image": "gifts/symbols/tony.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Reply",
+   "image": "gifts/symbols/reply.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Rabby",
+   "image": "gifts/symbols/rabby.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Screw",
+   "image": "gifts/symbols/screw.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Gifty",
+   "image": "gifts/symbols/gifty.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Store",
+   "image": "gifts/symbols/store.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Teleplane",
+   "image": "gifts/symbols/teleplane.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Saturnito",
+   "image": "gifts/symbols/saturnito.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Lover",
+   "image": "gifts/symbols/lover.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Blaze",
+   "image": "gifts/symbols/blaze.png",
+   "rate": 1.0
+  },
+  {
+   "name": "Star",
+   "image": "gifts/symbols/star.png",
+   "rate": 1.0
+  },
+  {
+   "name": "To The Moon",
+   "image": "gifts/symbols/to-the-moon.png",
+   "rate": 0.8
+  },
+  {
+   "name": "Percents",
+   "image": "gifts/symbols/percents.png",
+   "rate": 0.7
+  },
+  {
+   "name": "Dollars",
+   "image": "gifts/symbols/dollars.png",
+   "rate": 0.5
+  },
+  {
+   "name": "Cashflow",
+   "image": "gifts/symbols/cashflow.png",
+   "rate": 0.5
+  },
+  {
+   "name": "MoneyDealer",
+   "image": "gifts/symbols/moneydealer.png",
+   "rate": 0.5
+  },
+  {
+   "name": "Redo",
+   "image": "gifts/symbols/redo.png",
+   "rate": 0.3
+  }
+ ],
+ "backdrops": [
+  {
+   "name": "Greenish",
+   "center": "#52A369",
+   "around": "#284B33",
+   "rate": 1.6
+  },
+  {
+   "name": "Reedish",
+   "center": "#E65A5C",
+   "around": "#5E1D33",
+   "rate": 1.6
+  },
+  {
+   "name": "AquaBurst",
+   "center": "#389EA5",
+   "around": "#3A8388",
+   "rate": 1.5
+  },
+  {
+   "name": "MarshGreenish",
+   "center": "#52A394",
+   "around": "#28474B",
+   "rate": 1.5
+  },
+  {
+   "name": "UniqPurple",
+   "center": "#B066E8",
+   "around": "#612F64",
+   "rate": 1.4
+  },
+  {
+   "name": "TooGray",
+   "center": "#B6AEAE",
+   "around": "#4C4545",
+   "rate": 1.3
+  },
+  {
+   "name": "LilacOrange",
+   "center": "#EE6363",
+   "around": "#E58260",
+   "rate": 1.2
+  },
+  {
+   "name": "Yellowish",
+   "center": "#F2D7A9",
+   "around": "#B29F62",
+   "rate": 1.1
+  },
+  {
+   "name": "RustDrift",
+   "center": "#875353",
+   "around": "#734040",
+   "rate": 1.0
+  },
+  {
+   "name": "CrimsonHaze",
+   "center": "#88615D",
+   "around": "#765A57",
+   "rate": 1.0
+  },
+  {
+   "name": "MintPulse",
+   "center": "#5E9989",
+   "around": "#34836E",
+   "rate": 1.0
+  },
+  {
+   "name": "ForestDrift",
+   "center": "#2D8F75",
+   "around": "#276957",
+   "rate": 1.0
+  },
+  {
+   "name": "EmeraldHaze",
+   "center": "#4E6E65",
+   "around": "#3F5952",
+   "rate": 1.0
+  },
+  {
+   "name": "LimeBurst",
+   "center": "#49A757",
+   "around": "#3D8548",
+   "rate": 1.0
+  },
+  {
+   "name": "MossDrift",
+   "center": "#478F51",
+   "around": "#46724D",
+   "rate": 1.0
+  },
+  {
+   "name": "OliveHaze",
+   "center": "#76997C",
+   "around": "#5E7657",
+   "rate": 1.0
+  },
+  {
+   "name": "GoldRush",
+   "center": "#C3BB44",
+   "around": "#918C3D",
+   "rate": 1.0
+  },
+  {
+   "name": "SandDrift",
+   "center": "#A8A359",
+   "around": "#858246",
+   "rate": 1.0
+  },
+  {
+   "name": "TaupeHaze",
+   "center": "#928265",
+   "around": "#766B57",
+   "rate": 1.0
+  },
+  {
+   "name": "VioletRush",
+   "center": "#7A45AA",
+   "around": "#633A88",
+   "rate": 1.0
+  },
+  {
+   "name": "OrchidDrift",
+   "center": "#7D6098",
+   "around": "#634E76",
+   "rate": 1.0
+  },
+  {
+   "name": "IndigoFade",
+   "center": "#56609A",
+   "around": "#4B527A",
+   "rate": 1.0
+  },
+  {
+   "name": "OceanPulse",
+   "center": "#456DA5",
+   "around": "#345583",
+   "rate": 1.0
+  },
+  {
+   "name": "LilacRush",
+   "center": "#934195",
+   "around": "#833483",
+   "rate": 1.0
+  },
+  {
+   "name": "MauveDrift",
+   "center": "#8D517A",
+   "around": "#7A4B6B",
+   "rate": 1.0
+  },
+  {
+   "name": "EmberRush",
+   "center": "#974949",
+   "around": "#833434",
+   "rate": 1.0
+  },
+  {
+   "name": "NightAbyss",
+   "center": "#48747C",
+   "around": "#395A60",
+   "rate": 1.0
+  },
+  {
+   "name": "TealDrift",
+   "center": "#4C8E9A",
+   "around": "#4B737A",
+   "rate": 1.0
+  },
+  {
+   "name": "SkyDrift",
+   "center": "#54729C",
+   "around": "#4C6588",
+   "rate": 1.0
+  },
+  {
+   "name": "GreyHaze",
+   "center": "#7D6597",
+   "around": "#665776",
+   "rate": 0.9
+  },
+  {
+   "name": "DuskHaze",
+   "center": "#595060",
+   "around": "#514B56",
+   "rate": 0.8
+  },
+  {
+   "name": "MidnightHaze",
+   "center": "#4B5C75",
+   "around": "#3E4C61",
+   "rate": 0.8
+  },
+  {
+   "name": "Nightfall",
+   "center": "#2D2E3D",
+   "around": "#1F202A",
+   "rate": 0.6
+  },
+  {
+   "name": "Eclipse",
+   "center": "#212121",
+   "around": "#0E0F0F",
+   "rate": 0.3
+  }
+ ]
+}

@@ -122,7 +122,12 @@ body {
   /* Верхний отступ держит содержимое ниже шапки с балансами */
   /* Карточек станет много — прокрутку держим на сцене, body её запрещает */
   overflow-y: auto;
+  /* Вбок сцена не ездит никогда: ленты на крайних карточках свисают за
+     край, и без этого страницу можно было таскать пальцем в сторону.
+     У memgift так же — `._wrap { overflow-x: hidden }` */
+  overflow-x: hidden;
   overscroll-behavior-y: contain;
+  overscroll-behavior-x: none;
   -webkit-overflow-scrolling: touch;
   padding-top: calc(var(--safe-area-top) + var(--content-top));
   padding-bottom: calc(var(--safe-area-bottom) + 108px);
@@ -1807,6 +1812,97 @@ body {
   transform: scale(1);
 }
 
+/* Строки с картинкой: подарок, символ или кружок цвета фона, как в окнах
+   символа и фона у memgift; рядом с именем — процент выпадения */
+.pick__row--media {
+  gap: 12px;
+}
+
+.pick__media {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: block;
+}
+
+.pick__media--gift {
+  width: 38px;
+  height: 38px;
+}
+
+.pick__media img,
+.pick__media canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Картинка символа — узор из мелких значков. В кружке, как у memgift,
+   остаётся один из них: узор увеличен и сдвинут на нужный значок */
+.pick__media--img {
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.pick__media--img img {
+  width: 550%;
+  height: 550%;
+  max-width: none;
+  margin: 6px 0 0 -27px;
+  object-fit: cover;
+}
+
+.pick__media--color {
+  border-radius: 20px;
+  background: radial-gradient(circle, var(--center-color), var(--around-color));
+}
+
+.pick__rate {
+  margin-left: 6px;
+  font-size: 14px;
+  color: var(--hint);
+}
+
+/* Несколько выборов — квадрат с галочкой вместо кольца */
+.pick__mark--check {
+  border-radius: 6px;
+}
+
+.pick__mark--check::after {
+  display: none;
+}
+
+.pick__mark--check svg {
+  width: 12px;
+  height: 9px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.2s ease, transform 0.26s var(--ease);
+}
+
+.pick__row.is-on .pick__mark--check {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.pick__row.is-on .pick__mark--check svg {
+  opacity: 1;
+  transform: none;
+}
+
+.pick__none {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--hint);
+  font-size: 15px;
+}
+
 .pick__btn {
   flex: 1 1 0;
   min-width: 0;
@@ -2872,270 +2968,6 @@ body {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-/* Окно выбора memgift: `.overlay` + `._comp._item._modelModal ._content`.
-   Подложка густая и с размытием, панель выезжает снизу своей кривой
-   (.33s), уезжает медленнее (.53s) */
-.mm-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  background: rgba(0, 0, 0, 0.8);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  transition: opacity 0.4s ease, visibility 0s linear 0.2s;
-}
-
-.mm-overlay.is-open {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition: opacity 0.3s ease, visibility 0s linear 0s;
-}
-
-.mm {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  z-index: 10000;
-  width: 100%;
-  max-width: 460px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0 16px max(40px, calc(var(--safe-area-bottom) + 16px));
-  border-radius: 12px 12px 0 0;
-  background: #111;
-  transform: translate(-50%, 100%);
-  transition: transform 0.53s cubic-bezier(0.25, 0.8, 0.5, 1);
-}
-
-.mm.is-open {
-  transform: translate(-50%, 0);
-  transition: transform 0.33s cubic-bezier(0.25, 0.8, 0.5, 1);
-}
-
-.mm__head {
-  position: relative;
-  height: 59px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.mm__centered {
-  margin: auto;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.mm__centered h4 {
-  margin: auto;
-  font-size: 16px;
-  font-weight: 600;
-  color: #8e8e93;
-}
-
-.mm__icon {
-  width: 14px;
-  height: 14px;
-  margin-top: 3px;
-  color: #8e8e93;
-}
-
-.mm__icon--stroke {
-  fill: none;
-  stroke: #8e8e93;
-}
-
-.mm__icon--fill {
-  fill: #8e8e93;
-}
-
-.mm__close {
-  position: absolute;
-  top: 18px;
-  right: 1px;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.mm__close:active {
-  transform: scale(0.94);
-}
-
-.mm__close svg {
-  display: block;
-  width: 18px;
-  height: 18px;
-  margin: 2px 0 0 -1px;
-  fill: none;
-  stroke: #f5f5f7;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.mm__items {
-  width: 100%;
-  max-height: 310px;
-  scrollbar-width: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 20px;
-  overflow-y: auto;
-}
-
-.mm__item {
-  width: 100%;
-  height: 52px;
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border-radius: 13px;
-  cursor: pointer;
-}
-
-.mm__left {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.mm__art {
-  flex: none;
-  width: 38px;
-  height: 38px;
-}
-
-.mm__art img,
-.mm__art canvas {
-  display: block;
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-}
-
-.mm__left h5 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: #f5f5f7;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Кружок одиночного выбора */
-.mm__select {
-  position: relative;
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(245, 245, 247, 0.5);
-  border-radius: 50px;
-}
-
-.mm__select.is-on {
-  border-color: #7ba4ff;
-}
-
-.mm__select.is-on::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #7ba4ff;
-  transform: translate(-50%, -50%);
-}
-
-/* Галочка множественного выбора */
-.mm__check {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid rgba(245, 245, 247, 0.1);
-  border-radius: 4px;
-  transition: transform 0.22s ease;
-}
-
-.mm__check svg {
-  display: none;
-  width: 12px;
-  height: 9px;
-  fill: none;
-  stroke: #f5f5f7;
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.mm__check.is-on {
-  border-color: #0083fd;
-  background: #0083fd;
-  transform: scale(0.9);
-}
-
-.mm__check.is-on svg {
-  display: block;
-}
-
-.mm__buttons {
-  width: 100%;
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.mm__buttons button {
-  width: 100%;
-  height: 53px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 15px;
-  border: 0;
-  border-radius: 13px;
-  background: #252528;
-  font-family: inherit;
-  cursor: pointer;
-  transition: transform 0.22s ease;
-}
-
-.mm__buttons button:active {
-  transform: scale(0.94);
-}
-
-.mm__buttons button:last-child {
-  margin-left: auto;
-  background: #0083fd;
-}
-
-.mm__buttons h4 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #f5f5f7;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Экран после покупки.

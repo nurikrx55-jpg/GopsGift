@@ -2228,26 +2228,64 @@
   let pickSheet = null;
   let pickNow = null;
 
+  /* Строка листа выбора. Бывает просто подписью, а бывает с картинкой
+     подарка или символа, с кружком цвета фона и с процентом выпадения —
+     как в окнах символа и фона у memgift */
   function pickRow(option, card) {
+    const multi = Boolean(pickNow.cfg.multi);
     const row = document.createElement('button');
-    row.className = 'pick__row';
+    row.className = 'pick__row' + (option.media ? ' pick__row--media' : '');
     row.type = 'button';
     row.dataset.id = option.id;
-    row.setAttribute('role', 'radio');
+    row.setAttribute('role', multi ? 'checkbox' : 'radio');
+
+    if (option.media) {
+      const media = document.createElement('span');
+      media.className = 'pick__media pick__media--' + option.media.type;
+      if (option.media.type === 'gift') {
+        showShot(media, option.media.gift);
+      } else if (option.media.type === 'img') {
+        const img = document.createElement('img');
+        img.src = option.media.src;
+        img.alt = '';
+        img.loading = 'lazy';
+        img.draggable = false;
+        media.appendChild(img);
+      } else if (option.media.type === 'color') {
+        media.style.setProperty('--center-color', option.media.center);
+        media.style.setProperty('--around-color', option.media.around);
+      }
+      row.appendChild(media);
+    }
 
     const label = document.createElement('span');
     label.className = 'pick__label';
-    label.textContent = t(option.key);
+    label.textContent = option.label;
+    if (option.rate) {
+      const rate = document.createElement('span');
+      rate.className = 'pick__rate';
+      rate.textContent = option.rate;
+      label.appendChild(rate);
+    }
 
     const mark = document.createElement('span');
-    mark.className = 'pick__mark';
+    mark.className = 'pick__mark' + (multi ? ' pick__mark--check' : '');
     mark.setAttribute('aria-hidden', 'true');
+    if (multi) {
+      mark.innerHTML = '<svg viewBox="0 0 25 18"><path d="M22.83 1.75L8.63 15.96 2.17 9.5"></path></svg>';
+    }
 
     row.append(label, mark);
 
     row.addEventListener('click', () => {
-      if (pickNow.chosen === option.id) return;
-      pickNow.chosen = option.id;
+      if (multi) {
+        const at = pickNow.chosen.indexOf(option.id);
+        if (at === -1) pickNow.chosen.push(option.id);
+        else pickNow.chosen.splice(at, 1);
+      } else {
+        if (pickNow.chosen === option.id) return;
+        pickNow.chosen = option.id;
+      }
       haptic('select');
       paintPick();
     });
@@ -2257,42 +2295,71 @@
 
   function paintPick() {
     const list = document.getElementById('pick-list');
+    const multi = Boolean(pickNow.cfg.multi);
 
     list.querySelectorAll('.pick__row').forEach((row) => {
-      const on = row.dataset.id === pickNow.chosen;
+      const on = multi ? pickNow.chosen.indexOf(row.dataset.id) !== -1 : row.dataset.id === pickNow.chosen;
       row.classList.toggle('is-on', on);
       row.setAttribute('aria-checked', String(on));
     });
   }
 
-  /* Один лист на три списка: что показывать на витрине, в каком порядке
-     она стоит и в каком порядке стоят свои подарки в профиле */
+  /* Витринные списки: что показывать и в каком порядке */
   const PICKS = {
     scope: { title: 'pick.scope', items: () => SCOPES, now: () => scopeId },
     sort: { title: 'pick.sort', items: () => SORTS, now: () => sortId }
   };
 
+  function shelfPick(kind) {
+    const list = PICKS[kind] || PICKS.scope;
+    const scope = kind !== 'sort';
+    return {
+      title: t(list.title),
+      // У отбора значок подарка, у порядка — полоски
+      icon: scope ? { href: '#task-gift', box: '0 0 14 16' } : { href: '#sort-lines', box: '0 0 18 11', sort: true },
+      items: list.items().map((option) => ({ id: option.id, label: t(option.key) })),
+      selected: list.now(),
+      onApply: (id) => {
+        if (kind === 'sort') sortId = id;
+        else scopeId = id;
+        paintFilters();
+        drawGifts();
+      }
+    };
+  }
+
+  /* Один лист на все выборы: витрина передаёт имя списка, профиль —
+     готовое описание: заголовок, значок, строки, один выбор или несколько */
   function fillPick(what) {
-    const kind = PICKS[what] ? what : 'scope';
-    const list = PICKS[kind];
+    const cfg = typeof what === 'string' ? shelfPick(what) : what;
+    pickNow = {
+      cfg: cfg,
+      chosen: cfg.multi ? (cfg.selected || []).slice() : (cfg.selected || '')
+    };
 
-    pickNow = { kind: kind, chosen: list.now() };
-
-    // У отбора значок подарка, у порядка — полоски
-    const scope = kind === 'scope';
     const icon = document.getElementById('pick-icon');
-    icon.setAttribute('viewBox', scope ? '0 0 14 16' : '0 0 18 11');
-    icon.querySelector('use').setAttribute('href', scope ? '#task-gift' : '#sort-lines');
-    icon.classList.toggle('pick__icon--sort', !scope);
+    icon.setAttribute('viewBox', cfg.icon.box);
+    icon.querySelector('use').setAttribute('href', cfg.icon.href);
+    icon.classList.toggle('pick__icon--sort', Boolean(cfg.icon.sort));
 
-    document.getElementById('pick-title-text').textContent = t(list.title);
+    document.getElementById('pick-title-text').textContent = cfg.title;
 
     const box = document.getElementById('pick-list');
+    releaseArt(box);
     box.textContent = '';
+    box.setAttribute('role', cfg.multi ? 'group' : 'radiogroup');
+
+    if (!cfg.items.length) {
+      const none = document.createElement('p');
+      none.className = 'pick__none';
+      none.textContent = t('profile.empty');
+      box.appendChild(none);
+      return;
+    }
 
     const card = document.createElement('div');
     card.className = 'pick__card';
-    list.items().forEach((option) => pickRow(option, card));
+    cfg.items.forEach((option) => pickRow(option, card));
     box.appendChild(card);
 
     paintPick();
@@ -2300,13 +2367,7 @@
 
   function applyPick() {
     haptic('light');
-
-    if (pickNow.kind === 'sort') sortId = pickNow.chosen;
-    else scopeId = pickNow.chosen;
-
-    paintFilters();
-    drawGifts();
-
+    if (pickNow && pickNow.cfg.onApply) pickNow.cfg.onApply(pickNow.chosen);
     pickSheet.close();
   }
 
@@ -2465,12 +2526,19 @@
 
   let ownSort = '';
   let ownColl = [];
+  let ownSymbols = [];
+  let ownBackdrops = [];
   let ownView = 'blocks';
 
   function sortOwned(items) {
     // Счёт хранит подарки по порядку прихода, значит свежие — в конце
     let list = ownSort === 'oldest' ? items.slice() : items.slice().reverse();
     if (ownColl.length) list = list.filter((gift) => ownColl.indexOf(gift.id) !== -1);
+
+    // Символ и фон бывают только у улучшенных подарков — у нас таких нет,
+    // и отбор по ним честно оставляет пустой список, как у образца
+    if (ownSymbols.length) list = list.filter((gift) => ownSymbols.indexOf(gift.symbol) !== -1);
+    if (ownBackdrops.length) list = list.filter((gift) => ownBackdrops.indexOf(gift.backdrop) !== -1);
 
     if (ownSort === 'on_market' || ownSort === 'upgraded') return [];
     if (ownSort === 'price_low') list.sort((a, b) => a.price - b.price);
@@ -2525,12 +2593,14 @@
     if (!box) return;
 
     box.textContent = '';
-    box.hidden = !ownSort && !ownColl.length;
+    box.hidden = !ownSort && !ownColl.length && !ownSymbols.length && !ownBackdrops.length;
     if (box.hidden) return;
 
     box.appendChild(cheap(t('profile.clearAll'), '', () => {
       ownSort = '';
       ownColl = [];
+      ownSymbols = [];
+      ownBackdrops = [];
     }, true));
 
     if (ownColl.length) {
@@ -2539,6 +2609,23 @@
         one ? one.name : t('profile.collections', { n: ownColl.length }),
         '<svg viewBox="0 0 28 28" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#blocks"></use></svg>',
         () => { ownColl = []; }
+      ));
+    }
+
+    // Подписи как у memgift: «Symbol: Pizza» или «3 Symbols»
+    if (ownSymbols.length) {
+      box.appendChild(cheap(
+        ownSymbols.length === 1 ? 'Symbol: ' + ownSymbols[0] : ownSymbols.length + ' Symbols',
+        '<svg viewBox="0 0 18 18" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#symbol-mark"></use></svg>',
+        () => { ownSymbols = []; }
+      ));
+    }
+
+    if (ownBackdrops.length) {
+      box.appendChild(cheap(
+        ownBackdrops.length === 1 ? 'Backdrop: ' + ownBackdrops[0] : ownBackdrops.length + ' Backdrops',
+        '<svg viewBox="0 0 18 18" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#backdrop"></use></svg>',
+        () => { ownBackdrops = []; }
       ));
     }
 
@@ -2603,6 +2690,10 @@
     if (dot) dot.hidden = !ownSort;
     const collDot = document.getElementById('prf-coll-dot');
     if (collDot) collDot.hidden = !ownColl.length;
+    const symbolDot = document.getElementById('prf-symbol-dot');
+    if (symbolDot) symbolDot.hidden = !ownSymbols.length;
+    const backdropDot = document.getElementById('prf-backdrop-dot');
+    if (backdropDot) backdropDot.hidden = !ownBackdrops.length;
 
     // Значок показывает, во что переключит нажатие
     const view = document.querySelector('#prf-view use');
@@ -2644,151 +2735,59 @@
     }
   }
 
-  // --- Окно выбора memgift ---
+  /* Символы и фоны — те же, что у memgift: список и картинки символов
+     сняты с их маркета и лежат у нас. Грузим один раз, при первом окне */
+  const ATTRS = 'gifts/attributes.json';
+  let attrs = null;
 
-  /* Одно окно на все отборы профиля. Наполняется заново при каждом
-     открытии: значок и заголовок, строки (с картинкой или без), кружок
-     для одного выбора или галочки для нескольких */
-  const mm = (() => {
-    const root = document.getElementById('mm');
-    const overlay = document.getElementById('mm-overlay');
-    if (!root || !overlay) return null;
-
-    const box = document.getElementById('mm-items');
-    let now = null;
-    let chosen = null;
-
-    function isOpen() {
-      return root.classList.contains('is-open');
+  function withAttrs(run) {
+    if (attrs) {
+      run(attrs);
+      return;
     }
-
-    function paint() {
-      box.querySelectorAll('.mm__item').forEach((row) => {
-        const on = now.multi ? chosen.indexOf(row.dataset.id) !== -1 : chosen === row.dataset.id;
-        row.querySelector('.mm__select, .mm__check').classList.toggle('is-on', on);
-        row.setAttribute('aria-checked', String(on));
-      });
-    }
-
-    function open(config) {
-      now = config;
-      chosen = config.multi ? (config.selected || []).slice() : (config.selected || '');
-
-      const icon = document.getElementById('mm-icon');
-      icon.setAttribute('viewBox', config.icon.box);
-      icon.querySelector('use').setAttribute('href', config.icon.href);
-      icon.setAttribute('class', 'mm__icon mm__icon--' + (config.icon.stroke ? 'stroke' : 'fill'));
-      document.getElementById('mm-title').textContent = config.title;
-
-      releaseArt(box);
-      box.textContent = '';
-      config.items.forEach((item) => {
-        const row = document.createElement('div');
-        row.className = 'mm__item';
-        row.dataset.id = item.id;
-        row.setAttribute('role', config.multi ? 'checkbox' : 'radio');
-
-        const left = document.createElement('div');
-        left.className = 'mm__left';
-        if (item.gift) {
-          const art = document.createElement('div');
-          art.className = 'mm__art';
-          left.appendChild(art);
-          showShot(art, item.gift);
-        }
-        const title = document.createElement('h5');
-        title.textContent = item.title;
-        left.appendChild(title);
-
-        const mark = document.createElement('div');
-        if (config.multi) {
-          mark.className = 'mm__check';
-          mark.innerHTML = '<svg viewBox="0 0 25 18" aria-hidden="true"><path d="M22.83 1.75L8.63 15.96 2.17 9.5"></path></svg>';
-        } else {
-          mark.className = 'mm__select';
-        }
-
-        row.append(left, mark);
-        row.addEventListener('click', () => {
-          haptic('select');
-          if (config.multi) {
-            const at = chosen.indexOf(item.id);
-            if (at === -1) chosen.push(item.id);
-            else chosen.splice(at, 1);
-          } else {
-            chosen = item.id;
-          }
-          paint();
-        });
-        box.appendChild(row);
-      });
-      paint();
-
-      overlay.classList.add('is-open');
-      root.classList.add('is-open');
-      root.setAttribute('aria-hidden', 'false');
-      if (tg && tg.BackButton) tg.BackButton.show();
-    }
-
-    function close() {
-      if (!isOpen()) return;
-      overlay.classList.remove('is-open');
-      root.classList.remove('is-open');
-      root.setAttribute('aria-hidden', 'true');
-      if (tg && tg.BackButton) tg.BackButton.hide();
-    }
-
-    overlay.addEventListener('click', close);
-    document.getElementById('mm-close').addEventListener('click', close);
-    document.getElementById('mm-cancel').addEventListener('click', () => {
-      haptic('light');
-      close();
-    });
-    document.getElementById('mm-apply').addEventListener('click', () => {
-      haptic('light');
-      if (now && now.onApply) now.onApply(chosen);
-      close();
-    });
-
-    // В общем списке с листами: системная «назад» и Esc закрывают и его
-    sheets.push({ open: open, close: close, isOpen: isOpen });
-
-    return { open: open, close: close };
-  })();
+    fetch(ATTRS)
+      .then((response) => response.json())
+      .then((data) => {
+        attrs = { symbols: data.symbols || [], backdrops: data.backdrops || [] };
+        run(attrs);
+      })
+      .catch(() => toast(t('pay.off')));
+  }
 
   function initOwnFilters() {
-    if (!mm) return;
+    if (!pickSheet) return;
 
     const reload = () => {
       ownShown = PAGE;
       renderOwned(prfTab);
     };
 
-    document.getElementById('prf-sort').addEventListener('click', () => {
+    const open = (cfg) => {
       haptic('light');
-      mm.open({
-        icon: { href: '#sort-lines', box: '0 0 18 11', stroke: true },
-        title: t('osort.title'),
-        items: OWN_SORTS.map((id) => ({ id: id, title: t('osort.' + id) })),
-        selected: ownSort,
-        onApply: (id) => { ownSort = id || ''; reload(); }
-      });
-    });
+      pickSheet.open(cfg);
+    };
+
+    document.getElementById('prf-sort').addEventListener('click', () => open({
+      title: t('osort.title'),
+      icon: { href: '#sort-lines', box: '0 0 18 11', sort: true },
+      items: OWN_SORTS.map((id) => ({ id: id, label: t('osort.' + id) })),
+      selected: ownSort,
+      onApply: (id) => { ownSort = id || ''; reload(); }
+    }));
 
     // Коллекции — те подарки, что лежат у человека, без повторов
     document.getElementById('prf-coll').addEventListener('click', () => {
-      haptic('light');
       const seen = new Set();
       const items = [];
       (OWNED[prfTab] || []).forEach((gift) => {
         if (seen.has(gift.id)) return;
         seen.add(gift.id);
-        items.push({ id: gift.id, title: gift.name, gift: gift });
+        items.push({ id: gift.id, label: gift.name, media: { type: 'gift', gift: gift } });
       });
 
-      mm.open({
-        icon: { href: '#task-gift', box: '0 0 14 16' },
+      open({
         title: t('profile.modelTitle'),
+        icon: { href: '#task-gift', box: '0 0 14 16' },
         items: items,
         multi: true,
         selected: ownColl,
@@ -2796,16 +2795,35 @@
       });
     });
 
-    // Символы и фоны бывают только у улучшенных подарков — список пуст
-    document.getElementById('prf-symbol').addEventListener('click', () => {
-      haptic('light');
-      mm.open({ icon: { href: '#task-gift', box: '0 0 14 16' }, title: t('profile.symbol'), items: [], multi: true, selected: [] });
-    });
+    const rate = (value) => String(value).replace('.', window.I18N.lang() === 'ru' ? ',' : '.') + '%';
 
-    document.getElementById('prf-backdrop').addEventListener('click', () => {
-      haptic('light');
-      mm.open({ icon: { href: '#task-gift', box: '0 0 14 16' }, title: t('profile.backdrop'), items: [], multi: true, selected: [] });
-    });
+    document.getElementById('prf-symbol').addEventListener('click', () => withAttrs((all) => open({
+      title: t('profile.symbol'),
+      icon: { href: '#symbol-mark', box: '0 0 18 18' },
+      items: all.symbols.map((one) => ({
+        id: one.name,
+        label: one.name,
+        rate: rate(one.rate),
+        media: { type: 'img', src: one.image }
+      })),
+      multi: true,
+      selected: ownSymbols,
+      onApply: (ids) => { ownSymbols = ids.slice(); reload(); }
+    })));
+
+    document.getElementById('prf-backdrop').addEventListener('click', () => withAttrs((all) => open({
+      title: t('profile.backdrop'),
+      icon: { href: '#backdrop', box: '0 0 18 18' },
+      items: all.backdrops.map((one) => ({
+        id: one.name,
+        label: one.name,
+        rate: rate(one.rate),
+        media: { type: 'color', center: one.center, around: one.around }
+      })),
+      multi: true,
+      selected: ownBackdrops,
+      onApply: (ids) => { ownBackdrops = ids.slice(); reload(); }
+    })));
 
     document.getElementById('prf-view').addEventListener('click', () => {
       haptic('select');
@@ -2813,6 +2831,7 @@
       renderOwned(prfTab);
     });
   }
+
 
   // Запасной путь: Clipboard API есть не везде и падает вне защищённого контекста
   function legacyCopy(value) {
