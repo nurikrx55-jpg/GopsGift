@@ -69,8 +69,8 @@ export function newId(prefix) {
 }
 
 const KINDS = ['blood', 'legend', 'premium', 'epic', 'rare', 'time', 'sold', 'default'];
-// Редкость — цвет карточки на странице подарка, как у memgift. Пусто —
-// приложение выведет её из цвета ленты
+// Редкость — цвет карточки на витрине и странице подарка, как у memgift.
+// Пусто — карточки красятся тоном самого подарка
 const RARITIES = ['rare', 'veryrare', 'epic', 'legend', 'author'];
 
 // Свой цвет ленты. Пусто — лента возьмёт цвет редкости

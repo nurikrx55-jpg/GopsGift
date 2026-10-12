@@ -31,8 +31,8 @@
     { id: 'default', name: 'Графит', from: '#364b5c', to: '#172d42' }
   ];
 
-  // Редкость — цвет карточки на странице подарка, ровно как у memgift
-  // (`._gift ._item.rare` и т.д.). «Авто» — выводится из цвета ленты
+  // Редкость — цвет карточки на витрине и на странице подарка, градиенты
+  // memgift (`._gift.rare` и т.д.). «Авто» — тон самого подарка
   const RARITIES = [
     { id: '', name: 'Авто', from: '#1e1e1e', to: '#191919' },
     { id: 'rare', name: 'Rare', from: '#282867', to: '#131328' },
@@ -559,6 +559,10 @@
       else badge.style.removeProperty('--ribbon-fill');
       amount.textContent = num(next.price);
 
+      // Выбранная редкость красит карточку так же, как в приложении
+      if (next.rarity) card.dataset.rarity = next.rarity;
+      else delete card.dataset.rarity;
+
       // Фон: выбранный — тоном из него, не выбранный — нейтральный. В
       // приложении без выбора цвет снимается с самого подарка, а в админке
       // этого не посчитать, поэтому здесь он серый
@@ -1025,7 +1029,7 @@
 
       // Редкость: красит карточку на странице подарка
       const rarityWrap = el('div', 'ad-field');
-      rarityWrap.appendChild(el('span', null, 'Редкость — цвет на странице подарка'));
+      rarityWrap.appendChild(el('span', null, 'Редкость — цвет карточки'));
       const rarities = el('div', 'ad-swatches');
       RARITIES.forEach((rarity) => {
         const swatch = el('button', 'ad-swatch');
@@ -1037,6 +1041,7 @@
         swatch.addEventListener('click', () => {
           draft.rarity = rarity.id;
           rarities.querySelectorAll('.ad-swatch').forEach((one) => one.setAttribute('aria-pressed', String(one === swatch)));
+          card.paint(draft);
           haptic('pick');
         });
         rarities.appendChild(swatch);

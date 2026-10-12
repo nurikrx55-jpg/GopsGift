@@ -72,6 +72,15 @@
     linear-gradient(180deg, hsl(var(--tint-h), var(--tint-s), var(--tint-top)) 0%, hsl(var(--tint-h), var(--tint-s), var(--tint-bottom)) 100%);
 }
 
+/* Редкость, выбранная в админке, перебивает тон подарка — градиенты
+   memgift (`._gift.rare` и т.д.). Одно правило на витрину, страницу
+   подарка, купленный подарок и превью в админке */
+.tint-face[data-rarity="rare"] { background: linear-gradient(180deg, #282867, #131328); }
+.tint-face[data-rarity="veryrare"] { background: linear-gradient(180deg, #1d6132, #0b2211); }
+.tint-face[data-rarity="epic"] { background: linear-gradient(180deg, #632475, #19101d); }
+.tint-face[data-rarity="legend"] { background: linear-gradient(180deg, #6f480e, #1d1710); }
+.tint-face[data-rarity="author"] { background: linear-gradient(180deg, #762121, #221111); }
+
 *,
 ::before,
 ::after {
@@ -1246,23 +1255,20 @@ body {
   }
 }
 
-/* Карточка: цвет по редкости, как `._gift ._item` у memgift. Без
-   редкости — их же тёмный графит */
+/* Карточка страницы красится ровно как карточка на витрине: выбрана
+   редкость — её градиентом, «Авто» — тоном самого подарка (.tint-face).
+   Светлота та же, что на витрине, иначе один подарок был бы двух цветов */
 .gp-card {
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 0.95;
   border-radius: 29px;
   overflow: hidden;
-  background: linear-gradient(180deg, #1e1e1e 40%, #191919);
   box-shadow: var(--glass-edge-tight);
+  --tint-glow: 44%;
+  --tint-top: 22%;
+  --tint-bottom: 11%;
 }
-
-.gp-card[data-rarity="rare"] { background: linear-gradient(180deg, #282867, #131328); }
-.gp-card[data-rarity="veryrare"] { background: linear-gradient(180deg, #1d6132, #0b2211); }
-.gp-card[data-rarity="epic"] { background: linear-gradient(180deg, #632475, #19101d); }
-.gp-card[data-rarity="legend"] { background: linear-gradient(180deg, #6f480e, #1d1710); }
-.gp-card[data-rarity="author"] { background: linear-gradient(180deg, #762121, #221111); }
 
 /* Узор под подарком: у образца он глушится до .22 и берёт тон подложки */
 .gp-card::before {

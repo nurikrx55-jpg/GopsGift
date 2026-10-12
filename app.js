@@ -463,6 +463,7 @@
   function buildGift(gift, onPick, withPrice) {
     const card = document.createElement('article');
     card.className = 'gift tint-face';
+    paintRarity(card, gift);
 
     // Подложка карточки — того же цвета, что и сам подарок. Готовый берём
     // сразу, иначе карточка перекрашивалась бы на глазах
@@ -1004,24 +1005,28 @@
     document.getElementById('sheet-buy-price').textContent = formatPrice(full - cut);
   }
 
-  // Редкость по образцу memgift. Не выбрана в админке — выводим из цвета
-  // ленты: у каждой ленты своя ближайшая по цвету редкость
-  const RARITY_OF_KIND = {
-    blood: 'author',
-    legend: 'legend',
-    premium: 'legend',
-    epic: 'epic',
-    rare: 'veryrare',
-    time: 'rare'
-  };
-
+  // Редкость из админки. Пусто («Авто») — карточки красятся тоном самого
+  // подарка, и на витрине, и на странице одинаково
   function rarityOf(gift) {
-    return (gift && (gift.rarity || RARITY_OF_KIND[gift.kind])) || '';
+    return (gift && gift.rarity) || '';
+  }
+
+  function paintRarity(card, gift) {
+    const rarity = rarityOf(gift);
+    if (rarity) card.dataset.rarity = rarity;
+    else delete card.dataset.rarity;
   }
 
   function fillSheet(gift) {
+    // Тот же цвет, что у карточки на витрине: редкость или тон подарка
     const card = sheet.querySelector('.gp-card');
-    card.dataset.rarity = rarityOf(gift);
+    paintRarity(card, gift);
+    applyTint(card, tintOf(gift));
+    if (!tints.has(gift.art)) {
+      warmTint(gift, (tint) => {
+        if (tint && sheetGift === gift) applyTint(card, tint);
+      });
+    }
     document.getElementById('sheet-art').classList.toggle('is-still', isStill(gift));
 
     document.getElementById('sheet-title').textContent = gift.name;
@@ -1332,6 +1337,7 @@
     ownGift = gift;
 
     const card = owned.querySelector('.own-card');
+    paintRarity(card, gift);
     // Готовый цвет — сразу; иначе подложка остаётся запасной, пока не
     // досчитается, и перекрашивается уже под закрытым листом
     applyTint(card, tintOf(gift));
