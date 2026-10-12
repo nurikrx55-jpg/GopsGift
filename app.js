@@ -1785,8 +1785,7 @@
      она стоит и в каком порядке стоят свои подарки в профиле */
   const PICKS = {
     scope: { title: 'pick.scope', items: () => SCOPES, now: () => scopeId },
-    sort: { title: 'pick.sort', items: () => SORTS, now: () => sortId },
-    own: { title: 'pick.sort', items: () => OWN_SORTS, now: () => ownSortId }
+    sort: { title: 'pick.sort', items: () => SORTS, now: () => sortId }
   };
 
   function fillPick(what) {
@@ -1818,17 +1817,11 @@
   function applyPick() {
     haptic('light');
 
-    if (pickNow.kind === 'own') {
-      ownSortId = pickNow.chosen;
-      ownShown = PAGE;
-      renderOwned(prfTab);
-    } else {
-      if (pickNow.kind === 'sort') sortId = pickNow.chosen;
-      else scopeId = pickNow.chosen;
+    if (pickNow.kind === 'sort') sortId = pickNow.chosen;
+    else scopeId = pickNow.chosen;
 
-      paintFilters();
-      drawGifts();
-    }
+    paintFilters();
+    drawGifts();
 
     pickSheet.close();
   }
@@ -1845,27 +1838,24 @@
     if (!giftsGrid) return;
 
     pickSheet = createSheet(document.getElementById('pick'), {
-      fill: fillPick,
-      // Список длиннее листа — открываем его на выбранной строке, иначе
-      // пришлось бы искать её прокруткой
-      opened: () => {
-        const on = document.querySelector('.pick__row.is-on');
-        if (on) on.scrollIntoView({ block: 'nearest' });
-      }
+    fill: fillPick,
+    // Список длиннее листа — открываем его на выбранной строке, иначе
+    // пришлось бы искать её прокруткой
+    opened: () => {
+      const on = document.querySelector('.pick__row.is-on');
+      if (on) on.scrollIntoView({ block: 'nearest' });
+    }
     });
 
     const open = (what) => () => {
-      haptic('light');
-      pickSheet.open(what);
+    haptic('light');
+    pickSheet.open(what);
     };
 
     const scope = document.getElementById('filter-scope');
     const sort = document.getElementById('filter-sort');
     if (scope) scope.addEventListener('click', open('scope'));
     if (sort) sort.addEventListener('click', open('sort'));
-
-    const own = document.getElementById('prf-sort');
-    if (own) own.addEventListener('click', open('own'));
 
     const apply = document.getElementById('pick-apply');
     if (apply) apply.addEventListener('click', applyPick);
@@ -1917,21 +1907,21 @@
     if (!root) return;
 
     TASK_BLOCKS.forEach((group) => {
-      const block = document.createElement('section');
-      block.className = 'tasks__block';
+    const block = document.createElement('section');
+    block.className = 'tasks__block';
 
-      const head = document.createElement('div');
-      head.className = 'tasks__head';
-      const title = document.createElement('h4');
-      title.textContent = group.title;
-      head.appendChild(title);
+    const head = document.createElement('div');
+    head.className = 'tasks__head';
+    const title = document.createElement('h4');
+    title.textContent = group.title;
+    head.appendChild(title);
 
-      const list = document.createElement('div');
-      list.className = 'tasks__list';
-      group.items.forEach((task) => list.appendChild(buildTask(task)));
+    const list = document.createElement('div');
+    list.className = 'tasks__list';
+    group.items.forEach((task) => list.appendChild(buildTask(task)));
 
-      block.append(head, list);
-      root.appendChild(block);
+    block.append(head, list);
+    root.appendChild(block);
     });
   }
 
@@ -1949,73 +1939,58 @@
   }
 
 
-  /* Пусто в подарках — зовём на свою витрину, пусто в NFT — в GetGems.
-     Мешать одно с другим нельзя: подарки у нас и продаются, а NFT живут не
-     у нас, и звать за ними к себе было бы обманом. */
-  function emptyState(kind) {
-    const nft = kind === 'nft';
-
+  /* Пусто — как у memgift в обеих вкладках: картинка, «Нет подарков(» и
+     «Подарки можно покупать в [Market]», плашка ведёт на витрину */
+  function emptyState() {
     const box = document.createElement('div');
     box.className = 'prf__empty';
 
     const art = document.createElement('div');
     art.className = 'prf__empty-art';
+    art.innerHTML = '<img src="gifts/profile-empty.svg" alt="" draggable="false">';
 
     const title = document.createElement('b');
-    title.textContent = t(nft ? 'profile.emptyNft' : 'profile.empty');
+    title.textContent = t('profile.empty');
 
     const line = document.createElement('p');
-    line.append(t(nft ? 'profile.nftNote' : 'profile.emptyNote'));
+    line.append(t('profile.emptyNote'));
 
     const market = document.createElement('button');
     market.type = 'button';
-    market.className = 'prf__market glass';
-    market.innerHTML = nft
-      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#gems"></use></svg>'
-      : '<svg viewBox="0 0 643 617" aria-hidden="true"><use href="#logo"></use></svg>';
-    market.append(nft ? 'GetGems' : t('profile.market'));
-
+    market.className = 'prf__market';
+    market.innerHTML = '<svg viewBox="0 0 9 9" aria-hidden="true"><use href="#store"></use></svg>';
+    market.append('Market');
     market.addEventListener('click', () => {
       haptic('select');
-      // GetGems ещё не подключён, а на свою витрину уводим сразу
-      if (nft) toast(t('soon.gems'));
-      else selectTab(0);
+      selectTab(0);
     });
 
     line.appendChild(market);
     box.append(art, title, line);
-
-    playWhenSeen(art, 'gifts/empty.json');
-
     return box;
   }
 
   // Какая вкладка профиля открыта сейчас
   let prfTab = 'gifts';
 
-  /* Порядок в профиле. Витринный сюда не годится: «скоро закончатся» про
-     свои подарки ничего не говорит, зато редкость — говорит. «Новые» —
-     те, что пришли последними, поэтому список разворачиваем. */
-  const RARITY = { legend: 3, blood: 3, epic: 2, rare: 1 };
+  /* Отбор в профиле — как у memgift: порядок одним выбором, коллекции
+     галочками, вид сеткой или строками. Пока ничего не выбрано, свежие
+     идут первыми. «На продаже» и «Улучшенные» честно пусты: у нас нет ни
+     маркета, ни улучшений */
+  const OWN_SORTS = ['latest', 'oldest', 'on_market', 'price_low', 'price_high', 'upgraded', 'not_upgraded'];
 
-  const OWN_SORTS = [
-    { id: 'new', key: 'sort.new', order: null },
-    { id: 'dear', key: 'sort.dear', order: (a, b) => b.price - a.price },
-    { id: 'cheap', key: 'sort.cheap', order: (a, b) => a.price - b.price },
-    { id: 'rare', key: 'sort.rare', order: (a, b) => (RARITY[b.kind] || 0) - (RARITY[a.kind] || 0) }
-  ];
-
-  let ownSortId = 'new';
-
-  function pickedOwnSort() {
-    return OWN_SORTS.find((one) => one.id === ownSortId) || OWN_SORTS[0];
-  }
+  let ownSort = '';
+  let ownColl = [];
+  let ownView = 'blocks';
 
   function sortOwned(items) {
-    const sort = pickedOwnSort();
     // Счёт хранит подарки по порядку прихода, значит свежие — в конце
-    const list = sort.id === 'new' ? items.slice().reverse() : items.slice();
-    if (sort.order) list.sort(sort.order);
+    let list = ownSort === 'oldest' ? items.slice() : items.slice().reverse();
+    if (ownColl.length) list = list.filter((gift) => ownColl.indexOf(gift.id) !== -1);
+
+    if (ownSort === 'on_market' || ownSort === 'upgraded') return [];
+    if (ownSort === 'price_low') list.sort((a, b) => a.price - b.price);
+    if (ownSort === 'price_high') list.sort((a, b) => b.price - a.price);
     return list;
   }
 
@@ -2031,8 +2006,8 @@
     more.textContent = t('gifts.more') + ' · ' + formatPrice(left);
 
     more.addEventListener('click', () => {
-      haptic('light');
-      onMore();
+    haptic('light');
+    onMore();
     });
 
     return more;
@@ -2040,15 +2015,116 @@
 
   let ownShown = PAGE;
 
+  const CROSS = '<svg viewBox="0 0 11 11" aria-hidden="true"><path d="M1 1L10 10M1 10L10 1"></path></svg>';
+
+  function cheap(text, icon, onClear, clear) {
+    const node = document.createElement('button');
+    node.type = 'button';
+    node.className = 'prf-cheap' + (clear ? ' prf-cheap--clear' : '');
+    if (icon) node.insertAdjacentHTML('beforeend', icon);
+    const label = document.createElement('h4');
+    label.textContent = text;
+    node.appendChild(label);
+    node.insertAdjacentHTML('beforeend', CROSS);
+    node.addEventListener('click', () => {
+      haptic('select');
+      onClear();
+      ownShown = PAGE;
+      renderOwned(prfTab);
+    });
+    return node;
+  }
+
+  // Ряд под счётчиком: «Очистить» и по плашке на отбор, как у образца
+  function paintCheaps() {
+    const box = document.getElementById('prf-cheaps');
+    if (!box) return;
+
+    box.textContent = '';
+    box.hidden = !ownSort && !ownColl.length;
+    if (box.hidden) return;
+
+    box.appendChild(cheap(t('profile.clearAll'), '', () => {
+      ownSort = '';
+      ownColl = [];
+    }, true));
+
+    if (ownColl.length) {
+      const one = ownColl.length === 1 && giftById(ownColl[0]);
+      box.appendChild(cheap(
+        one ? one.name : t('profile.collections', { n: ownColl.length }),
+        '<svg viewBox="0 0 28 28" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#blocks"></use></svg>',
+        () => { ownColl = []; }
+      ));
+    }
+
+    if (ownSort) {
+      box.appendChild(cheap(
+        t('osort.' + ownSort),
+        '<svg viewBox="0 0 18 11" aria-hidden="true" style="stroke:#f5f5f7"><use href="#sort-lines"></use></svg>',
+        () => { ownSort = ''; }
+      ));
+    }
+  }
+
+  // Строка списка: квадрат с подарком, имя и цена, стрелка справа
+  function ownRow(gift) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'prf-row';
+
+    const nft = document.createElement('div');
+    nft.className = 'prf-row__nft tint-face';
+    paintRarity(nft, gift);
+    applyTint(nft, tintOf(gift));
+
+    const art = document.createElement('div');
+    art.className = 'prf-row__art';
+    nft.appendChild(art);
+    showShot(art, gift);
+
+    const content = document.createElement('div');
+    content.className = 'prf-row__content';
+    const name = document.createElement('h4');
+    name.textContent = gift.name;
+    const price = document.createElement('div');
+    price.className = 'prf-row__price';
+    const amount = document.createElement('p');
+    amount.textContent = formatPrice(gift.price || 0);
+    const star = document.createElement('img');
+    star.src = 'gifts/star.png';
+    star.alt = '';
+    price.append(amount, star);
+    content.append(name, price);
+
+    const go = document.createElement('span');
+    go.className = 'prf-row__go';
+    go.innerHTML = '<svg viewBox="0 0 8 14" aria-hidden="true"><path d="M1 1.5L6.5 7 1 12.5"></path></svg>';
+
+    row.append(nft, content, go);
+    row.addEventListener('click', () => {
+      haptic('light');
+      ownSheet.open(gift);
+    });
+    return row;
+  }
+
   function renderOwned(kind) {
     const list = document.getElementById('prf-list');
     const total = document.getElementById('prf-total');
     const items = sortOwned(OWNED[kind] || []);
 
-    // Кнопка отбора видна всегда, как у образца; что порядок изменён,
-    // говорит синяя точка на ней
+    // Кнопки отбора видны всегда; что отбор задан, говорит синяя точка
     const dot = document.getElementById('prf-sort-dot');
-    if (dot) dot.hidden = ownSortId === 'new';
+    if (dot) dot.hidden = !ownSort;
+    const collDot = document.getElementById('prf-coll-dot');
+    if (collDot) collDot.hidden = !ownColl.length;
+
+    // Значок показывает, во что переключит нажатие
+    const view = document.querySelector('#prf-view use');
+    if (view) view.setAttribute('href', ownView === 'blocks' ? '#view-list' : '#blocks');
+
+    paintCheaps();
 
     releaseArt(list);
     list.textContent = '';
@@ -2063,11 +2139,18 @@
 
     const page = items.slice(0, ownShown);
 
-    const grid = document.createElement('div');
-    grid.className = 'gifts';
-    // Из профиля открывается карточка уже купленного подарка, а не покупка
-    page.forEach((gift) => grid.appendChild(buildGift(gift, (one) => ownSheet.open(one))));
-    list.appendChild(grid);
+    if (ownView === 'lists') {
+      const rows = document.createElement('div');
+      rows.className = 'prf-rows';
+      page.forEach((gift) => rows.appendChild(ownRow(gift)));
+      list.appendChild(rows);
+    } else {
+      const grid = document.createElement('div');
+      grid.className = 'gifts';
+      // Из профиля открывается карточка уже купленного подарка, а не покупка
+      page.forEach((gift) => grid.appendChild(buildGift(gift, (one) => ownSheet.open(one))));
+      list.appendChild(grid);
+    }
 
     if (items.length > page.length) {
       list.appendChild(moreButton(items.length - page.length, () => {
@@ -2075,6 +2158,176 @@
         renderOwned(kind);
       }));
     }
+  }
+
+  // --- Окно выбора memgift ---
+
+  /* Одно окно на все отборы профиля. Наполняется заново при каждом
+     открытии: значок и заголовок, строки (с картинкой или без), кружок
+     для одного выбора или галочки для нескольких */
+  const mm = (() => {
+    const root = document.getElementById('mm');
+    const overlay = document.getElementById('mm-overlay');
+    if (!root || !overlay) return null;
+
+    const box = document.getElementById('mm-items');
+    let now = null;
+    let chosen = null;
+
+    function isOpen() {
+      return root.classList.contains('is-open');
+    }
+
+    function paint() {
+      box.querySelectorAll('.mm__item').forEach((row) => {
+        const on = now.multi ? chosen.indexOf(row.dataset.id) !== -1 : chosen === row.dataset.id;
+        row.querySelector('.mm__select, .mm__check').classList.toggle('is-on', on);
+        row.setAttribute('aria-checked', String(on));
+      });
+    }
+
+    function open(config) {
+      now = config;
+      chosen = config.multi ? (config.selected || []).slice() : (config.selected || '');
+
+      const icon = document.getElementById('mm-icon');
+      icon.setAttribute('viewBox', config.icon.box);
+      icon.querySelector('use').setAttribute('href', config.icon.href);
+      icon.setAttribute('class', 'mm__icon mm__icon--' + (config.icon.stroke ? 'stroke' : 'fill'));
+      document.getElementById('mm-title').textContent = config.title;
+
+      releaseArt(box);
+      box.textContent = '';
+      config.items.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'mm__item';
+        row.dataset.id = item.id;
+        row.setAttribute('role', config.multi ? 'checkbox' : 'radio');
+
+        const left = document.createElement('div');
+        left.className = 'mm__left';
+        if (item.gift) {
+          const art = document.createElement('div');
+          art.className = 'mm__art';
+          left.appendChild(art);
+          showShot(art, item.gift);
+        }
+        const title = document.createElement('h5');
+        title.textContent = item.title;
+        left.appendChild(title);
+
+        const mark = document.createElement('div');
+        if (config.multi) {
+          mark.className = 'mm__check';
+          mark.innerHTML = '<svg viewBox="0 0 25 18" aria-hidden="true"><path d="M22.83 1.75L8.63 15.96 2.17 9.5"></path></svg>';
+        } else {
+          mark.className = 'mm__select';
+        }
+
+        row.append(left, mark);
+        row.addEventListener('click', () => {
+          haptic('select');
+          if (config.multi) {
+            const at = chosen.indexOf(item.id);
+            if (at === -1) chosen.push(item.id);
+            else chosen.splice(at, 1);
+          } else {
+            chosen = item.id;
+          }
+          paint();
+        });
+        box.appendChild(row);
+      });
+      paint();
+
+      overlay.classList.add('is-open');
+      root.classList.add('is-open');
+      root.setAttribute('aria-hidden', 'false');
+      if (tg && tg.BackButton) tg.BackButton.show();
+    }
+
+    function close() {
+      if (!isOpen()) return;
+      overlay.classList.remove('is-open');
+      root.classList.remove('is-open');
+      root.setAttribute('aria-hidden', 'true');
+      if (tg && tg.BackButton) tg.BackButton.hide();
+    }
+
+    overlay.addEventListener('click', close);
+    document.getElementById('mm-close').addEventListener('click', close);
+    document.getElementById('mm-cancel').addEventListener('click', () => {
+      haptic('light');
+      close();
+    });
+    document.getElementById('mm-apply').addEventListener('click', () => {
+      haptic('light');
+      if (now && now.onApply) now.onApply(chosen);
+      close();
+    });
+
+    // В общем списке с листами: системная «назад» и Esc закрывают и его
+    sheets.push({ open: open, close: close, isOpen: isOpen });
+
+    return { open: open, close: close };
+  })();
+
+  function initOwnFilters() {
+    if (!mm) return;
+
+    const reload = () => {
+      ownShown = PAGE;
+      renderOwned(prfTab);
+    };
+
+    document.getElementById('prf-sort').addEventListener('click', () => {
+      haptic('light');
+      mm.open({
+        icon: { href: '#sort-lines', box: '0 0 18 11', stroke: true },
+        title: t('osort.title'),
+        items: OWN_SORTS.map((id) => ({ id: id, title: t('osort.' + id) })),
+        selected: ownSort,
+        onApply: (id) => { ownSort = id || ''; reload(); }
+      });
+    });
+
+    // Коллекции — те подарки, что лежат у человека, без повторов
+    document.getElementById('prf-coll').addEventListener('click', () => {
+      haptic('light');
+      const seen = new Set();
+      const items = [];
+      (OWNED[prfTab] || []).forEach((gift) => {
+        if (seen.has(gift.id)) return;
+        seen.add(gift.id);
+        items.push({ id: gift.id, title: gift.name, gift: gift });
+      });
+
+      mm.open({
+        icon: { href: '#task-gift', box: '0 0 14 16' },
+        title: t('profile.modelTitle'),
+        items: items,
+        multi: true,
+        selected: ownColl,
+        onApply: (ids) => { ownColl = ids.slice(); reload(); }
+      });
+    });
+
+    // Символы и фоны бывают только у улучшенных подарков — список пуст
+    document.getElementById('prf-symbol').addEventListener('click', () => {
+      haptic('light');
+      mm.open({ icon: { href: '#task-gift', box: '0 0 14 16' }, title: t('profile.symbol'), items: [], multi: true, selected: [] });
+    });
+
+    document.getElementById('prf-backdrop').addEventListener('click', () => {
+      haptic('light');
+      mm.open({ icon: { href: '#task-gift', box: '0 0 14 16' }, title: t('profile.backdrop'), items: [], multi: true, selected: [] });
+    });
+
+    document.getElementById('prf-view').addEventListener('click', () => {
+      haptic('select');
+      ownView = ownView === 'blocks' ? 'lists' : 'blocks';
+      renderOwned(prfTab);
+    });
   }
 
   // Запасной путь: Clipboard API есть не везде и падает вне защищённого контекста
@@ -2120,7 +2373,10 @@
     const owned = OWNED.gifts.length + OWNED.nft.length;
 
     const name = document.getElementById('prf-name');
-    name.textContent = userTitle(user);
+    // Как у memgift: в профиле имя из Telegram, ник — только если имени нет
+    name.textContent = user
+      ? [user.first_name, user.last_name].filter(Boolean).join(' ') || userTitle(user)
+      : userTitle(user);
 
     document.getElementById('prf-count').textContent =
       formatPrice(owned) + ' ' + countOf(owned, 'gift.count');
@@ -2848,6 +3104,7 @@
       initSheet();
       initHeader();
       initProfile();
+      initOwnFilters();
       initStaking();
       initLang();
 
