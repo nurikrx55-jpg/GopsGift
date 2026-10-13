@@ -12,7 +12,8 @@
 import { configured } from './_lib/db.js';
 import { verify, isAdmin } from './_lib/telegram.js';
 import {
-  readContent, publicContent, createOrder, readOrder, getUser, settleOrder, tonPrice, InputError
+  readContent, publicContent, createOrder, readOrder, getUser, settleOrder, tonPrice, InputError,
+  canUpgrade, upgradeNow, stillOwns
 } from './_lib/data.js';
 import { call, hasBot, BotError } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
@@ -134,6 +135,46 @@ async function start(input, user) {
   return { order: order.id, link: link, amount: amount, coupons: coupons };
 }
 
+/* Улучшение подарка — как у memgift: цена в звёздах у каждого подарка
+   своя, счёт выставляет бот. Цена ноль и админ — улучшаем сразу. Что
+   выпало, решает только сервер */
+async function upgrade(input, user) {
+  const content = await readContent(true);
+  const gift = (content.gifts || []).find((one) => one.id === String(input.giftId || ''));
+
+  if (!canUpgrade(gift)) throw refuse('upg.no', 'Этот подарок не поддерживает улучшение');
+  if (!(await stillOwns(user.id, gift.id))) throw refuse('upg.gone', 'Этого подарка у вас нет');
+
+  const price = gift.upgradePrice || 0;
+  if (!price || isAdmin(user.id)) {
+    const nft = await upgradeNow(user.id, gift.id, content);
+    return { status: 'paid', nft: nft, me: await getUser(user.id) };
+  }
+
+  if (!hasBot()) throw refuse('pay.off', 'Оплата не настроена');
+  if (!process.env.WEBHOOK_SECRET) throw refuse('pay.nohook', 'Оплата на сервере ещё не включена');
+
+  const order = await createOrder({
+    userId: user.id,
+    giftId: gift.id,
+    qty: 1,
+    price: price,
+    amount: price,
+    coupons: 0,
+    kind: 'upgrade'
+  });
+
+  const link = await call('createInvoiceLink', {
+    title: ('Upgrade ' + gift.name).slice(0, 32),
+    description: 'Улучшение «' + gift.name + '»: случайные модель, фон и символ.',
+    payload: order.id,
+    currency: 'XTR',
+    prices: [{ label: ('Upgrade ' + gift.name).slice(0, 32), amount: price }]
+  });
+
+  return { order: order.id, link: link, amount: price };
+}
+
 // Оплату засчитывает webhook, и приходит он своим ходом. Приложение
 // переспрашивает, пока заказ не станет оплаченным, и забирает сразу и счёт,
 // и витрину: остаток подарка после покупки тоже другой
@@ -146,6 +187,10 @@ async function check(input, user) {
   if (order.status === 'paid') {
     out.me = await getUser(user.id);
     out.content = publicContent(await readContent(true));
+    // Улучшение: отдаём, что выпало
+    if (order.kind === 'upgrade') {
+      out.nft = (out.me && out.me.nfts || []).find((one) => one.id === order.nftId) || null;
+    }
   }
 
   return out;
@@ -163,7 +208,8 @@ export default {
     try {
       const result = input.action === 'check'
         ? await check(input, user)
-        : input.action === 'ton' ? await payTon(input, user) : await start(input, user);
+        : input.action === 'upgrade' ? await upgrade(input, user)
+          : input.action === 'ton' ? await payTon(input, user) : await start(input, user);
       return json(result);
     } catch (error) {
       // Понятные человеку отказы — отдельно от поломок: их приложение

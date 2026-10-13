@@ -12,7 +12,7 @@
 
 import crypto from 'node:crypto';
 import { configured } from './_lib/db.js';
-import { readContent, readOrder, settleOrder } from './_lib/data.js';
+import { readContent, readOrder, settleOrder, canUpgrade, stillOwns } from './_lib/data.js';
 import { call, hasBot } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
 
@@ -54,7 +54,12 @@ async function precheck(query) {
   else if (String(query.from && query.from.id) !== order.userId) problem = 'Счёт выставлен другому человеку';
   else if (!gift) problem = 'Подарка больше нет на витрине';
   else if (query.total_amount !== order.amount) problem = 'Цена изменилась — начните покупку заново';
-  else if (typeof gift.left === 'number' && gift.left < order.qty) problem = 'Подарок разобрали, пока вы платили';
+  else if (order.kind === 'upgrade') {
+    // Улучшают уже купленный: остаток витрины тут ни при чём, а вот сам
+    // подарок за время оплаты могли отправить или поставить в стейкинг
+    if (!canUpgrade(gift)) problem = 'Этот подарок больше не улучшается';
+    else if (!(await stillOwns(order.userId, order.giftId))) problem = 'Этого подарка у вас больше нет';
+  } else if (typeof gift.left === 'number' && gift.left < order.qty) problem = 'Подарок разобрали, пока вы платили';
 
   await call('answerPreCheckoutQuery', {
     pre_checkout_query_id: query.id,

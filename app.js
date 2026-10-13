@@ -30,7 +30,8 @@
   // (data/content.json плюс правки из админки). Здесь только то, что
   // хранилище наполняет на старте.
   let GIFTS = [];
-  let OWNED = { gifts: [], nft: [] };
+  // gifts — обычные подарки, upg — улучшенные, nft — выведенные в блокчейн
+  let OWNED = { gifts: [], nft: [], upg: [] };
   let TASK_BLOCKS = [];
   let ME = null;
 
@@ -538,6 +539,129 @@
     }
 
     return card;
+  }
+
+  // --- Улучшенные подарки ---
+
+  /* Улучшенный подарок, как у memgift: свой фон (круг из двух цветов),
+     узор символа поверх и модель вместо самого подарка. В профиле он лежит
+     тем же подарком витрины, к которому приложено, что выпало (gift.nft) */
+
+  function backdropOf(name) {
+    return attrs && attrs.backdrops.find((one) => one.name === name) || null;
+  }
+
+  function symbolOf(name) {
+    return attrs && attrs.symbols.find((one) => one.name === name) || null;
+  }
+
+  function nftView(nft) {
+    const base = giftById(nft.gift);
+    return Object.assign({}, base || { id: nft.gift, name: nft.model.name, price: 0 }, {
+      nft: nft,
+      symbol: nft.symbol,
+      backdrop: nft.backdrop
+    });
+  }
+
+  // Что рисовать: у улучшенного — модель, у обычного — сам подарок
+  function artOf(gift) {
+    if (!gift || !gift.nft) return gift;
+    return { id: gift.id, name: gift.name, art: gift.nft.model.art, artType: gift.nft.model.artType };
+  }
+
+  // Осветление цвета к белому — `boostColor` memgift
+  function boostColor(hex, part) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+    if (!m) return hex || '#666';
+    const v = parseInt(m[1], 16);
+    const up = (c) => Math.min(255, Math.round(c + (255 - c) * part));
+    const r = up((v >> 16) & 255);
+    const g = up((v >> 8) & 255);
+    const b = up(v & 255);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  function backdropColors(gift) {
+    const one = backdropOf(gift.nft && gift.nft.backdrop);
+    return { center: one ? one.center : '#666', around: one ? one.around : '#1a1a1a' };
+  }
+
+  // Карточка улучшенного в профиле — `.item._gift.is-upgraded` memgift
+  function nftCard(gift, onPick) {
+    const card = document.createElement('article');
+    card.className = 'gift gift--upg';
+    const colors = backdropColors(gift);
+    card.style.background = 'radial-gradient(circle at 50% 40%, ' + boostColor(colors.center, 0.28) +
+      ' 0%, ' + colors.center + ' 45%, ' + colors.around + ' 100%)';
+
+    const symbol = symbolOf(gift.nft.symbol);
+    if (symbol) {
+      const box = document.createElement('div');
+      box.className = 'gift__symbols';
+      const img = document.createElement('img');
+      img.src = symbol.image;
+      img.alt = '';
+      img.draggable = false;
+      box.appendChild(img);
+      card.appendChild(box);
+    }
+
+    const num = document.createElement('span');
+    num.className = 'gift__num';
+    num.textContent = '#' + gift.nft.num;
+    card.appendChild(num);
+
+    const art = document.createElement('div');
+    art.className = 'gift__art';
+    art.setAttribute('aria-label', gift.name);
+    card.appendChild(art);
+    showShot(art, artOf(gift));
+
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    const show = () => {
+      haptic('light');
+      if (onPick) onPick(gift);
+    };
+    card.addEventListener('click', show);
+    card.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      show();
+    });
+    return card;
+  }
+
+  /* Шапка окна: у улучшенного — фон `.is-upg`, узор его символа и номер,
+     у обычного — тон подарка и общий узор, как было */
+  function paintHead(head, gift, symbolImg, mark) {
+    const upg = Boolean(gift && gift.nft);
+    head.classList.toggle('is-upg', upg);
+
+    if (upg) {
+      const colors = backdropColors(gift);
+      head.style.setProperty('--center-color', colors.center);
+      head.style.setProperty('--around-color', colors.around);
+      const symbol = symbolOf(gift.nft.symbol);
+      if (symbolImg) symbolImg.src = symbol ? symbol.image : 'gifts/pattern.png';
+    } else {
+      head.style.removeProperty('--center-color');
+      head.style.removeProperty('--around-color');
+      if (symbolImg) symbolImg.src = 'gifts/pattern.png';
+    }
+
+    if (mark) {
+      mark.hidden = !upg;
+      if (upg) mark.querySelector('p').textContent = '#' + gift.nft.num;
+    }
+  }
+
+  // Шанс как у memgift: «1.2%», запятая — по языку
+  function pct(value) {
+    const n = Number(value) || 0;
+    if (!n) return '';
+    return String(n).replace('.', window.I18N.lang() === 'ru' ? ',' : '.') + '%';
   }
 
   // Подарок рисует либо анимация lottie, либо картинка .svg
@@ -1117,6 +1241,17 @@
     count.appendChild(n);
 
     row.append(ava, name, count);
+
+    // Как у memgift: по строке топа открывается профиль этого человека
+    if (person.id) {
+      row.classList.add('is-link');
+      row.setAttribute('role', 'button');
+      row.tabIndex = 0;
+      row.addEventListener('click', () => {
+        haptic('light');
+        openView(person);
+      });
+    }
     return row;
   }
 
@@ -1210,6 +1345,10 @@
   // блокировка прокрутки сцены. Чем лист наполнен — забота вызывающего,
   // он передаёт это крючками fill/opened/closed.
   const sheets = [];
+  // Порядок открытия: «назад» закрывает то окно, что открыли последним, а
+  // не то, что раньше завели. Иначе страница человека из топа закрывалась
+  // бы под открытым поверх неё окном подарка
+  let openSeq = 0;
 
   function createSheet(root, hooks) {
     if (!root) return null;
@@ -1225,6 +1364,7 @@
 
     function open(payload) {
       if (isOpen()) return;
+      api.at = ++openSeq;
       if (on.fill) on.fill(payload);
 
       root.hidden = false;
@@ -1386,12 +1526,11 @@
   // «Назад» и Esc закрывают верхнее окно: окно отправки встаёт поверх
   // окна подарка и уходит первым
   function closeOpenSheet() {
-    for (let i = sheets.length - 1; i >= 0; i -= 1) {
-      if (sheets[i].isOpen()) {
-        sheets[i].close();
-        return;
-      }
+    let top = null;
+    for (let i = 0; i < sheets.length; i += 1) {
+      if (sheets[i].isOpen() && (!top || (sheets[i].at || 0) >= (top.at || 0))) top = sheets[i];
     }
+    if (top) top.close();
   }
 
   // Системная «назад» видна, пока открыто хоть одно окно
@@ -1417,6 +1556,7 @@
 
     function open(payload) {
       if (isOpen()) return;
+      api.at = ++openSeq;
       clearTimeout(timer);
       if (on.fill) on.fill(payload);
 
@@ -1489,6 +1629,8 @@
   // Подарок лежит у того, кто смотрит, поэтому владелец — он сам.
   // Собачку убираем: в поле стоит ник, а не упоминание.
   function ownerName(gift) {
+    // Подарок из чужого профиля — владелец тот, чей это профиль
+    if (gift && gift.ownerName) return gift.ownerName;
     const user = tgUser();
     // Как у memgift: имя из Telegram, ник — если имени нет
     if (user) return [user.first_name, user.last_name].filter(Boolean).join(' ') || userTitle(user).replace(/^@/, '');
@@ -1497,8 +1639,33 @@
 
   function fillOwned(gift) {
     ownGift = gift;
+    // Чужой подарок только смотрят: кнопки улучшения и отправки убираем
+    owned.classList.toggle('is-foreign', Boolean(gift.ownerName));
 
     const card = document.getElementById('owned-head');
+    paintHead(card, gift, document.getElementById('owned-symbol'), document.getElementById('owned-mark'));
+    paintUpgrade(gift);
+
+    // Улучшенный: вместо владельца — модель, символ и фон с шансами
+    const upg = Boolean(gift.nft);
+    document.getElementById('owned-owner-row').hidden = upg;
+    owned.querySelectorAll('[data-upg]').forEach((row) => { row.hidden = !upg; });
+    if (upg) {
+      const symbol = symbolOf(gift.nft.symbol);
+      const backdrop = backdropOf(gift.nft.backdrop);
+      const put = (id, text) => {
+        const node = document.getElementById(id);
+        node.textContent = text;
+        node.hidden = !text;
+      };
+      put('owned-model', gift.nft.model.name);
+      put('owned-model-pct', pct(gift.nft.model.rate));
+      put('owned-sym', gift.nft.symbol || '—');
+      put('owned-sym-pct', pct(symbol && symbol.rate));
+      put('owned-bd', gift.nft.backdrop || '—');
+      put('owned-bd-pct', pct(backdrop && backdrop.rate));
+    }
+
     paintRarity(card, gift);
     // Готовый цвет — сразу; иначе подложка остаётся запасной, пока не
     // досчитается, и перекрашивается уже под закрытым листом
@@ -1518,6 +1685,126 @@
       : '—';
   }
 
+  // --- Улучшение ---
+
+  /* Как у memgift: «Улучшить» на карточке купленного подарка. Цена в
+     звёздах — у каждого подарка своя, счёт выставляет бот прямо поверх
+     приложения. Что выпало, решает сервер; окно тут же перерисовывается
+     улучшенным, и снизу летит конфетти */
+
+  let upgrading = false;
+
+  function canUpgradeGift(gift) {
+    return Boolean(gift) && !gift.nft && Array.isArray(gift.models) && gift.models.length > 0;
+  }
+
+  // У улучшенного кнопки нет вовсе; у подарка без моделей она приглушена
+  function paintUpgrade(gift) {
+    const button = document.getElementById('owned-upgrade');
+    if (!button) return;
+    button.hidden = Boolean(gift && gift.nft);
+    button.classList.toggle('disabled', !canUpgradeGift(gift) && !upgrading);
+    button.classList.toggle('loading', upgrading);
+    document.getElementById('owned-upgrade-text').textContent = upgrading ? '...' : t('gift.upgrade');
+  }
+
+  // Конфетти memgift (`fireFromBottom`): сотня бирюзовых кружков снизу
+  let confettiReady = null;
+
+  function fireFromBottom() {
+    if (!confettiReady) {
+      confettiReady = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.js';
+        script.onload = () => resolve(window.confetti);
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    confettiReady.then((confetti) => {
+      if (!confetti || prefersStill()) return;
+      confetti({
+        particleCount: 100,
+        angle: 90,
+        spread: 90,
+        startVelocity: 45,
+        gravity: 0.6,
+        decay: 0.9,
+        scalar: 1,
+        origin: { x: 0.5, y: 1 },
+        colors: ['#00FFFF', '#7FFFD4', '#00CED1', '#40E0D0', '#5F9EA0'],
+        shapes: ['circle'],
+        zIndex: 2000
+      });
+    }).catch(() => {});
+  }
+
+  function upgradeOwned() {
+    const gift = ownGift;
+    if (upgrading || !gift || gift.nft) return;
+    haptic('light');
+
+    if (!canUpgradeGift(gift)) {
+      toast(t('upg.no'));
+      return;
+    }
+    if (!Store.live()) {
+      toast(t('pay.noDb'));
+      return;
+    }
+
+    upgrading = true;
+    paintUpgrade(gift);
+
+    payPost({ action: 'upgrade', giftId: gift.id })
+      .then((data) => {
+        // Бесплатно — уже улучшено, счёт не нужен
+        if (data.status === 'paid') return data;
+        if (!tg || !tg.openInvoice) throw new Error(t('pay.oldApp'));
+
+        return new Promise((done) => {
+          tg.openInvoice(data.link, (status) => done({ status: status, order: data.order }));
+        }).then((result) => {
+          if (result.status === 'cancelled') return null;
+          if (result.status === 'failed') throw new Error(t('pay.failed'));
+          return waitPaid(result.order, PAY_TRIES);
+        });
+      })
+      .then((paid) => {
+        if (!paid) return;
+        if (paid.status !== 'paid' || !paid.me || !paid.nft) {
+          toast(t('pay.slow'));
+          return;
+        }
+
+        Store.apply(paid.content || null, paid.me);
+        fillFromStore();
+        initHeader();
+        paintProfile();
+        renderStake();
+
+        // Окно остаётся открытым и становится улучшенным — как у memgift
+        const fresh = OWNED.upg.find((one) => one.nft.id === paid.nft.id);
+        if (fresh && ownSheet && ownGift === gift) {
+          upgrading = false;
+          fillOwned(fresh);
+          closeArt(document.getElementById('owned-art'), ownPlayer);
+          ownPlayer = openArt(document.getElementById('owned-art'), artOf(fresh));
+        }
+
+        haptic('success');
+        fireFromBottom();
+      })
+      .catch((error) => {
+        toast(error && error.message ? error.message : t('pay.sorry'));
+      })
+      .then(() => {
+        upgrading = false;
+        if (ownGift) paintUpgrade(ownGift);
+      });
+  }
+
   function initOwnedTools() {
     if (!owned) return;
 
@@ -1531,6 +1818,8 @@
       haptic('light');
       sendSheet.open(ownGift);
     });
+
+    document.getElementById('owned-upgrade').addEventListener('click', upgradeOwned);
     document.getElementById('owned-share').addEventListener('click', soon('soon.share'));
 
     document.getElementById('owned-copy').addEventListener('click', () => {
@@ -1779,7 +2068,10 @@
     return document.getElementById('wmod').classList.contains('is-open');
   }
 
+  let wmodEntry = null;
+
   function wmodOpen(kind) {
+    if (wmodEntry) wmodEntry.at = ++openSeq;
     haptic('light');
     wmodKind = kind;
     wmodAmount = '';
@@ -1997,7 +2289,8 @@
     });
 
     // В общем списке окон: «назад» и Esc закрывают и его
-    sheets.push({ open: wmodOpen, close: wmodClose, isOpen: wmodIsOpen });
+    wmodEntry = { open: wmodOpen, close: wmodClose, isOpen: wmodIsOpen };
+    sheets.push(wmodEntry);
 
     paintWallet();
     initTon();
@@ -2316,7 +2609,7 @@
     const to = sendTo;
     const gift = sendGift;
 
-    transferPost({ action: 'send', gift: gift.id, to: to.user_id })
+    transferPost({ action: 'send', gift: gift.id, nft: gift.nft ? gift.nft.id : undefined, to: to.user_id })
       .then((data) => {
         // Сервер отдаёт счёт без ставок и признака админа — их берём свои
         Store.apply(null, Object.assign({}, Store.me(), data.me));
@@ -2344,13 +2637,14 @@
       fill: (gift) => {
         sendGift = gift;
         const head = document.getElementById('send-head');
+        paintHead(head, gift, document.getElementById('send-symbol'), null);
         paintRarity(head, gift);
         applyTint(head, tintOf(gift));
         document.getElementById('send-title').textContent = gift.name;
         sendReset();
       },
       opened: (gift) => {
-        sendPlayer = openArt(document.getElementById('send-art'), gift);
+        sendPlayer = openArt(document.getElementById('send-art'), artOf(gift));
       },
       closed: () => {
         closeArt(document.getElementById('send-art'), sendPlayer);
@@ -2393,7 +2687,10 @@
   let wonPlayer = null;
   let wonConfetti = null;
 
+  let wonEntry = null;
+
   function wonOpen(gift, many) {
+    if (wonEntry) wonEntry.at = ++openSeq;
     const root = document.getElementById('won');
     if (!root || !root.hidden) return;
 
@@ -2456,11 +2753,12 @@
     if (!root) return;
 
     // В общем списке с листами: системная «назад» и Esc закрывают и его
-    sheets.push({
+    wonEntry = {
       open: wonOpen,
       close: wonClose,
       isOpen: () => !root.hidden
-    });
+    };
+    sheets.push(wonEntry);
 
     document.getElementById('won-go').addEventListener('click', () => {
       haptic('light');
@@ -2622,7 +2920,7 @@
     ownSheet = createDock(owned, document.getElementById('owned-ov'), {
       fill: fillOwned,
       opened: (gift) => {
-        ownPlayer = openArt(document.getElementById('owned-art'), gift);
+        ownPlayer = openArt(document.getElementById('owned-art'), artOf(gift));
       },
       closed: () => {
         closeArt(document.getElementById('owned-art'), ownPlayer);
@@ -2721,6 +3019,11 @@
   let scopeId = 'all';
   let sortId = 'new';
 
+  // «Скрыть проданные» — как у memgift: включено, пока человек сам не снимет
+  const HIDE_SOLD = 'gg:hideSold';
+  let hideSold = true;
+  try { hideSold = localStorage.getItem(HIDE_SOLD) !== '0'; } catch (_) {}
+
   function pickedScope() {
     return SCOPES.find((one) => one.id === scopeId) || SCOPES[0];
   }
@@ -2734,7 +3037,9 @@
 
     const keep = pickedScope().keep;
     const order = pickedSort().order;
-    const list = keep ? GIFTS.filter(keep) : GIFTS.slice();
+    let list = keep ? GIFTS.filter(keep) : GIFTS.slice();
+    // Отбор «Распроданные» просит именно их — галочка ему не мешает
+    if (hideSold && scopeId !== 'out') list = list.filter((gift) => gift.left !== 0);
     if (order) list.sort(order);
 
     releaseArt(giftsGrid);
@@ -2939,6 +3244,17 @@
     const apply = document.getElementById('pick-apply');
     if (apply) apply.addEventListener('click', applyPick);
 
+    const sold = document.getElementById('hide-sold');
+    if (sold) {
+      sold.checked = hideSold;
+      sold.addEventListener('change', () => {
+        hideSold = sold.checked;
+        try { localStorage.setItem(HIDE_SOLD, hideSold ? '1' : '0'); } catch (_) {}
+        haptic('select');
+        drawGifts();
+      });
+    }
+
     paintFilters();
     drawGifts();
   }
@@ -3049,34 +3365,33 @@
     return box;
   }
 
-  // Какая вкладка профиля открыта сейчас
-  let prfTab = 'gifts';
-
   /* Отбор в профиле — как у memgift: порядок одним выбором, коллекции
      галочками, вид сеткой или строками. Пока ничего не выбрано, свежие
      идут первыми. «На продаже» и «Улучшенные» честно пусты: у нас нет ни
      маркета, ни улучшений */
   const OWN_SORTS = ['latest', 'oldest', 'on_market', 'price_low', 'price_high', 'upgraded', 'not_upgraded'];
 
-  let ownSort = '';
-  let ownColl = [];
-  let ownSymbols = [];
-  let ownBackdrops = [];
-  let ownView = 'blocks';
 
-  function sortOwned(items) {
+  // Во вкладке «Подарки» лежат и обычные, и улучшенные — как у memgift
+  function ownedOf(kind) {
+    if (kind === 'gifts') return OWNED.gifts.concat(OWNED.upg);
+    return OWNED[kind] || [];
+  }
+
+  function sortOwned(c, items) {
     // Счёт хранит подарки по порядку прихода, значит свежие — в конце
-    let list = ownSort === 'oldest' ? items.slice() : items.slice().reverse();
-    if (ownColl.length) list = list.filter((gift) => ownColl.indexOf(gift.id) !== -1);
+    let list = c.sort === 'oldest' ? items.slice() : items.slice().reverse();
+    if (c.coll.length) list = list.filter((gift) => c.coll.indexOf(gift.id) !== -1);
 
-    // Символ и фон бывают только у улучшенных подарков — у нас таких нет,
-    // и отбор по ним честно оставляет пустой список, как у образца
-    if (ownSymbols.length) list = list.filter((gift) => ownSymbols.indexOf(gift.symbol) !== -1);
-    if (ownBackdrops.length) list = list.filter((gift) => ownBackdrops.indexOf(gift.backdrop) !== -1);
+    // Символ и фон бывают только у улучшенных подарков
+    if (c.symbols.length) list = list.filter((gift) => c.symbols.indexOf(gift.symbol) !== -1);
+    if (c.backdrops.length) list = list.filter((gift) => c.backdrops.indexOf(gift.backdrop) !== -1);
 
-    if (ownSort === 'on_market' || ownSort === 'upgraded') return [];
-    if (ownSort === 'price_low') list.sort((a, b) => a.price - b.price);
-    if (ownSort === 'price_high') list.sort((a, b) => b.price - a.price);
+    if (c.sort === 'on_market') return [];
+    if (c.sort === 'upgraded') list = list.filter((gift) => gift.nft);
+    if (c.sort === 'not_upgraded') list = list.filter((gift) => !gift.nft);
+    if (c.sort === 'price_low') list.sort((a, b) => a.price - b.price);
+    if (c.sort === 'price_high') list.sort((a, b) => b.price - a.price);
     return list;
   }
 
@@ -3099,11 +3414,30 @@
     return more;
   }
 
-  let ownShown = PAGE;
+  /* Список подарков с отбором живёт в двух местах: в своём профиле и в
+     чужом (страница человека из топа покупателей, как /view/:id у memgift).
+     Разметка у них одна, различаются приставкой id, а что выбрано в
+     отборе, каждый помнит сам */
+  function ownedList(id, source, open) {
+    return {
+      id: id,
+      tab: 'gifts',
+      sort: '',
+      coll: [],
+      symbols: [],
+      backdrops: [],
+      view: 'blocks',
+      shown: PAGE,
+      source: source,
+      open: open
+    };
+  }
+
+  const ownList = ownedList('prf', ownedOf, (gift) => ownSheet.open(gift));
 
   const CROSS = '<svg viewBox="0 0 11 11" aria-hidden="true"><path d="M1 1L10 10M1 10L10 1"></path></svg>';
 
-  function cheap(text, icon, onClear, clear) {
+  function cheap(c, text, icon, onClear, clear) {
     const node = document.createElement('button');
     node.type = 'button';
     node.className = 'prf-cheap' + (clear ? ' prf-cheap--clear' : '');
@@ -3115,83 +3449,90 @@
     node.addEventListener('click', () => {
       haptic('select');
       onClear();
-      ownShown = PAGE;
-      renderOwned(prfTab);
+      c.shown = PAGE;
+      renderOwned(c);
     });
     return node;
   }
 
   // Ряд под счётчиком: «Очистить» и по плашке на отбор, как у образца
-  function paintCheaps() {
-    const box = document.getElementById('prf-cheaps');
+  function paintCheaps(c) {
+    const box = document.getElementById(c.id + '-cheaps');
     if (!box) return;
 
     box.textContent = '';
-    box.hidden = !ownSort && !ownColl.length && !ownSymbols.length && !ownBackdrops.length;
+    box.hidden = !c.sort && !c.coll.length && !c.symbols.length && !c.backdrops.length;
     if (box.hidden) return;
 
-    box.appendChild(cheap(t('profile.clearAll'), '', () => {
-      ownSort = '';
-      ownColl = [];
-      ownSymbols = [];
-      ownBackdrops = [];
+    box.appendChild(cheap(c, t('profile.clearAll'), '', () => {
+      c.sort = '';
+      c.coll = [];
+      c.symbols = [];
+      c.backdrops = [];
     }, true));
 
-    if (ownColl.length) {
-      const one = ownColl.length === 1 && giftById(ownColl[0]);
-      box.appendChild(cheap(
-        one ? one.name : t('profile.collections', { n: ownColl.length }),
+    if (c.coll.length) {
+      const one = c.coll.length === 1 && giftById(c.coll[0]);
+      box.appendChild(cheap(c, 
+        one ? one.name : t('profile.collections', { n: c.coll.length }),
         '<svg viewBox="0 0 28 28" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#blocks"></use></svg>',
-        () => { ownColl = []; }
+        () => { c.coll = []; }
       ));
     }
 
     // Подписи как у memgift: «Symbol: Pizza» или «3 Symbols»
-    if (ownSymbols.length) {
-      box.appendChild(cheap(
-        ownSymbols.length === 1 ? 'Symbol: ' + ownSymbols[0] : ownSymbols.length + ' Symbols',
+    if (c.symbols.length) {
+      box.appendChild(cheap(c, 
+        c.symbols.length === 1 ? 'Symbol: ' + c.symbols[0] : c.symbols.length + ' Symbols',
         '<svg viewBox="0 0 18 18" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#symbol-mark"></use></svg>',
-        () => { ownSymbols = []; }
+        () => { c.symbols = []; }
       ));
     }
 
-    if (ownBackdrops.length) {
-      box.appendChild(cheap(
-        ownBackdrops.length === 1 ? 'Backdrop: ' + ownBackdrops[0] : ownBackdrops.length + ' Backdrops',
+    if (c.backdrops.length) {
+      box.appendChild(cheap(c, 
+        c.backdrops.length === 1 ? 'Backdrop: ' + c.backdrops[0] : c.backdrops.length + ' Backdrops',
         '<svg viewBox="0 0 18 18" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#backdrop"></use></svg>',
-        () => { ownBackdrops = []; }
+        () => { c.backdrops = []; }
       ));
     }
 
-    if (ownSort) {
-      box.appendChild(cheap(
-        t('osort.' + ownSort),
+    if (c.sort) {
+      box.appendChild(cheap(c, 
+        t('osort.' + c.sort),
         '<svg viewBox="0 0 18 11" aria-hidden="true" style="stroke:#f5f5f7"><use href="#sort-lines"></use></svg>',
-        () => { ownSort = ''; }
+        () => { c.sort = ''; }
       ));
     }
   }
 
   // Строка списка: квадрат с подарком, имя и цена, стрелка справа
-  function ownRow(gift) {
+  function ownRow(c, gift) {
     const row = document.createElement('button');
     row.type = 'button';
     row.className = 'prf-row';
 
     const nft = document.createElement('div');
-    nft.className = 'prf-row__nft tint-face';
-    paintRarity(nft, gift);
-    applyTint(nft, tintOf(gift));
+    if (gift.nft) {
+      const colors = backdropColors(gift);
+      nft.className = 'prf-row__nft';
+      nft.style.background = 'radial-gradient(circle at 50% 40%, ' + boostColor(colors.center, 0.28) +
+        ' 0%, ' + colors.center + ' 45%, ' + colors.around + ' 100%)';
+    } else {
+      nft.className = 'prf-row__nft tint-face';
+      paintRarity(nft, gift);
+      applyTint(nft, tintOf(gift));
+    }
 
     const art = document.createElement('div');
     art.className = 'prf-row__art';
     nft.appendChild(art);
-    showShot(art, gift);
+    showShot(art, artOf(gift));
 
     const content = document.createElement('div');
     content.className = 'prf-row__content';
     const name = document.createElement('h4');
-    name.textContent = gift.name;
+    name.textContent = gift.nft ? gift.name + ' #' + gift.nft.num : gift.name;
     const price = document.createElement('div');
     price.className = 'prf-row__price';
     const amount = document.createElement('p');
@@ -3209,62 +3550,64 @@
     row.append(nft, content, go);
     row.addEventListener('click', () => {
       haptic('light');
-      ownSheet.open(gift);
+      c.open(gift);
     });
     return row;
   }
 
-  function renderOwned(kind) {
-    const list = document.getElementById('prf-list');
-    const total = document.getElementById('prf-total');
-    const items = sortOwned(OWNED[kind] || []);
+  function renderOwned(c) {
+    const list = document.getElementById(c.id + '-list');
+    const total = document.getElementById(c.id + '-total');
+    const items = sortOwned(c, c.source(c.tab));
 
     // Кнопки отбора видны всегда; что отбор задан, говорит синяя точка
-    const dot = document.getElementById('prf-sort-dot');
-    if (dot) dot.hidden = !ownSort;
-    const collDot = document.getElementById('prf-coll-dot');
-    if (collDot) collDot.hidden = !ownColl.length;
-    const symbolDot = document.getElementById('prf-symbol-dot');
-    if (symbolDot) symbolDot.hidden = !ownSymbols.length;
-    const backdropDot = document.getElementById('prf-backdrop-dot');
-    if (backdropDot) backdropDot.hidden = !ownBackdrops.length;
+    const dot = document.getElementById(c.id + '-sort-dot');
+    if (dot) dot.hidden = !c.sort;
+    const collDot = document.getElementById(c.id + '-coll-dot');
+    if (collDot) collDot.hidden = !c.coll.length;
+    const symbolDot = document.getElementById(c.id + '-symbol-dot');
+    if (symbolDot) symbolDot.hidden = !c.symbols.length;
+    const backdropDot = document.getElementById(c.id + '-backdrop-dot');
+    if (backdropDot) backdropDot.hidden = !c.backdrops.length;
 
     // Значок показывает, во что переключит нажатие
-    const view = document.querySelector('#prf-view use');
-    if (view) view.setAttribute('href', ownView === 'blocks' ? '#view-list' : '#blocks');
+    const view = document.querySelector('#' + c.id + '-view use');
+    if (view) view.setAttribute('href', c.view === 'blocks' ? '#view-list' : '#blocks');
 
-    paintCheaps();
+    paintCheaps(c);
 
     releaseArt(list);
     list.textContent = '';
     // В NFT слово не склоняется: «0 NFT», а не «0 подарков»
     total.textContent = formatPrice(items.length) + ' ' +
-      (kind === 'nft' ? 'NFT' : countOf(items.length, 'gift.count'));
+      (c.tab === 'nft' ? 'NFT' : countOf(items.length, 'gift.count'));
 
     if (!items.length) {
-      list.appendChild(emptyState(kind));
+      list.appendChild(emptyState(c.tab));
       return;
     }
 
-    const page = items.slice(0, ownShown);
+    const page = items.slice(0, c.shown);
 
-    if (ownView === 'lists') {
+    if (c.view === 'lists') {
       const rows = document.createElement('div');
       rows.className = 'prf-rows';
-      page.forEach((gift) => rows.appendChild(ownRow(gift)));
+      page.forEach((gift) => rows.appendChild(ownRow(c, gift)));
       list.appendChild(rows);
     } else {
       const grid = document.createElement('div');
       grid.className = 'gifts';
       // Из профиля открывается карточка уже купленного подарка, а не покупка
-      page.forEach((gift) => grid.appendChild(buildGift(gift, (one) => ownSheet.open(one))));
+      page.forEach((gift) => grid.appendChild(gift.nft
+        ? nftCard(gift, c.open)
+        : buildGift(gift, c.open)));
       list.appendChild(grid);
     }
 
     if (items.length > page.length) {
       list.appendChild(moreButton(items.length - page.length, () => {
-        ownShown += PAGE;
-        renderOwned(kind);
+        c.shown += PAGE;
+        renderOwned(c);
       }));
     }
   }
@@ -3288,12 +3631,12 @@
       .catch(() => toast(t('pay.off')));
   }
 
-  function initOwnFilters() {
+  function initOwnFilters(c) {
     if (!pickSheet) return;
 
     const reload = () => {
-      ownShown = PAGE;
-      renderOwned(prfTab);
+      c.shown = PAGE;
+      renderOwned(c);
     };
 
     const open = (cfg) => {
@@ -3301,19 +3644,19 @@
       pickSheet.open(cfg);
     };
 
-    document.getElementById('prf-sort').addEventListener('click', () => open({
+    document.getElementById(c.id + '-sort').addEventListener('click', () => open({
       title: t('osort.title'),
       icon: { href: '#sort-lines', box: '0 0 18 11', sort: true },
       items: OWN_SORTS.map((id) => ({ id: id, label: t('osort.' + id) })),
-      selected: ownSort,
-      onApply: (id) => { ownSort = id || ''; reload(); }
+      selected: c.sort,
+      onApply: (id) => { c.sort = id || ''; reload(); }
     }));
 
     // Коллекции — те подарки, что лежат у человека, без повторов
-    document.getElementById('prf-coll').addEventListener('click', () => {
+    document.getElementById(c.id + '-coll').addEventListener('click', () => {
       const seen = new Set();
       const items = [];
-      (OWNED[prfTab] || []).forEach((gift) => {
+      c.source(c.tab).forEach((gift) => {
         if (seen.has(gift.id)) return;
         seen.add(gift.id);
         items.push({ id: gift.id, label: gift.name, media: { type: 'gift', gift: gift } });
@@ -3324,14 +3667,14 @@
         icon: { href: '#task-gift', box: '0 0 14 16' },
         items: items,
         multi: true,
-        selected: ownColl,
-        onApply: (ids) => { ownColl = ids.slice(); reload(); }
+        selected: c.coll,
+        onApply: (ids) => { c.coll = ids.slice(); reload(); }
       });
     });
 
     const rate = (value) => String(value).replace('.', window.I18N.lang() === 'ru' ? ',' : '.') + '%';
 
-    document.getElementById('prf-symbol').addEventListener('click', () => withAttrs((all) => open({
+    document.getElementById(c.id + '-symbol').addEventListener('click', () => withAttrs((all) => open({
       title: t('profile.symbol'),
       icon: { href: '#symbol-mark', box: '0 0 18 18' },
       items: all.symbols.map((one) => ({
@@ -3341,11 +3684,11 @@
         media: { type: 'img', src: one.image }
       })),
       multi: true,
-      selected: ownSymbols,
-      onApply: (ids) => { ownSymbols = ids.slice(); reload(); }
+      selected: c.symbols,
+      onApply: (ids) => { c.symbols = ids.slice(); reload(); }
     })));
 
-    document.getElementById('prf-backdrop').addEventListener('click', () => withAttrs((all) => open({
+    document.getElementById(c.id + '-backdrop').addEventListener('click', () => withAttrs((all) => open({
       title: t('profile.backdrop'),
       icon: { href: '#backdrop', box: '0 0 18 18' },
       items: all.backdrops.map((one) => ({
@@ -3355,14 +3698,14 @@
         media: { type: 'color', center: one.center, around: one.around }
       })),
       multi: true,
-      selected: ownBackdrops,
-      onApply: (ids) => { ownBackdrops = ids.slice(); reload(); }
+      selected: c.backdrops,
+      onApply: (ids) => { c.backdrops = ids.slice(); reload(); }
     })));
 
-    document.getElementById('prf-view').addEventListener('click', () => {
+    document.getElementById(c.id + '-view').addEventListener('click', () => {
       haptic('select');
-      ownView = ownView === 'blocks' ? 'lists' : 'blocks';
-      renderOwned(prfTab);
+      c.view = c.view === 'blocks' ? 'lists' : 'blocks';
+      renderOwned(c);
     });
   }
 
@@ -3407,7 +3750,7 @@
     if (!tabs) return;
 
     const user = tgUser();
-    const owned = OWNED.gifts.length + OWNED.nft.length;
+    const owned = OWNED.gifts.length + OWNED.nft.length + OWNED.upg.length;
 
     const name = document.getElementById('prf-name');
     // Как у memgift: в профиле имя из Telegram, ник — только если имени нет
@@ -3495,26 +3838,141 @@
         haptic('select');
         buttons.forEach((other) => other.classList.toggle('is-active', other === button));
         tabs.style.setProperty('--prf-index', String(index));
-        prfTab = button.dataset.prfTab;
-        ownShown = PAGE;
-        renderOwned(prfTab);
+        ownList.tab = button.dataset.prfTab;
+        ownList.shown = PAGE;
+        renderOwned(ownList);
       });
     });
 
-    renderOwned(prfTab);
+    renderOwned(ownList);
   }
 
   // Счётчик в шапке профиля и список под вкладкой — после покупки их
   // приходится перерисовывать, а не собирать профиль заново
   function paintProfile() {
-    const owned = OWNED.gifts.length + OWNED.nft.length;
+    const owned = OWNED.gifts.length + OWNED.nft.length + OWNED.upg.length;
     const count = document.getElementById('prf-count');
 
     if (count) {
       count.textContent = formatPrice(owned) + ' ' + countOf(owned, 'gift.count');
     }
 
-    renderOwned(prfTab);
+    renderOwned(ownList);
+  }
+
+  // --- Чужой профиль ---
+
+  /* Страница /view/:id memgift: аватар, имя, «N подарков · id», ниже те
+     же вкладки, отбор и сетка, что в своём профиле. Подарки открываются в
+     том же окне, но только посмотреть */
+
+  const VIEW_API = '/api/profile';
+  let viewSheet = null;
+  let VIEWED = { name: '', gifts: [], upg: [] };
+  let viewAsk = 0;
+
+  const viewList = ownedList('vw', (kind) => (kind === 'gifts' ? VIEWED.gifts.concat(VIEWED.upg) : []),
+    (gift) => ownSheet.open(gift));
+
+  function personName(person) {
+    return [person.firstName, person.lastName].filter(Boolean).join(' ') ||
+      (person.username ? '@' + person.username : person.name || '—');
+  }
+
+  function paintViewHead(name, photo, id, count) {
+    const avatar = document.getElementById('vw-avatar');
+    avatar.textContent = '';
+    avatar.style.backgroundImage = '';
+    if (photo) avatar.style.backgroundImage = 'url("' + photo + '")';
+    else avatar.textContent = String(name || '?').replace('@', '').charAt(0).toUpperCase();
+
+    document.getElementById('vw-name').textContent = name || '—';
+    document.getElementById('vw-id').textContent = id || '—';
+    document.getElementById('vw-count').textContent = count === null
+      ? '…'
+      : formatPrice(count) + ' ' + countOf(count, 'gift.count');
+  }
+
+  function openView(person) {
+    if (!viewSheet || !person || !person.id) return;
+    viewSheet.open(person);
+  }
+
+  function fillView(person) {
+    const ask = ++viewAsk;
+    VIEWED = { id: String(person.id), name: person.name || '', gifts: [], upg: [] };
+
+    // Что известно из топа, показываем сразу; остальное догрузится
+    paintViewHead(person.name, person.photo, VIEWED.id, null);
+    viewList.tab = 'gifts';
+    viewList.shown = PAGE;
+    const tabs = document.getElementById('vw-tabs');
+    tabs.style.setProperty('--prf-index', '0');
+    tabs.querySelectorAll('.prf-tabs__tab').forEach((one, index) => one.classList.toggle('is-active', index === 0));
+    renderOwned(viewList);
+
+    fetch(VIEW_API + '?id=' + encodeURIComponent(VIEWED.id))
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (ask !== viewAsk || !data || !data.user) return;
+        const user = data.user;
+        const name = personName(user);
+        const mark = (gift) => Object.assign({}, gift, { ownerName: name });
+
+        VIEWED = {
+          id: user.id,
+          name: name,
+          gifts: (user.gifts || []).map(giftById).filter(Boolean).map(mark),
+          upg: (user.nfts || []).slice().sort((a, b) => a.at - b.at).map(nftView).map(mark)
+        };
+
+        paintViewHead(name, user.photo, user.id, VIEWED.gifts.length + VIEWED.upg.length);
+        renderOwned(viewList);
+      })
+      .catch(() => {});
+  }
+
+  function initView() {
+    const root = document.getElementById('view');
+    if (!root) return;
+
+    viewSheet = createSheet(root, {
+      fill: fillView,
+      closed: () => {
+        releaseArt(document.getElementById('vw-list'));
+        document.getElementById('vw-list').textContent = '';
+        viewAsk += 1;
+        // Под страницей могла остаться страница подарка — её «назад» нужен
+        syncBack();
+      }
+    });
+
+    const tabs = document.getElementById('vw-tabs');
+    const buttons = Array.from(tabs.querySelectorAll('.prf-tabs__tab'));
+    buttons.forEach((button, index) => {
+      button.addEventListener('click', () => {
+        if (button.classList.contains('is-active') || button.hasAttribute('data-soon')) return;
+        haptic('select');
+        buttons.forEach((other) => other.classList.toggle('is-active', other === button));
+        tabs.style.setProperty('--prf-index', String(index));
+        viewList.tab = button.dataset.prfTab;
+        viewList.shown = PAGE;
+        renderOwned(viewList);
+      });
+    });
+
+    const copy = document.getElementById('vw-copy');
+    const copyId = () => {
+      if (VIEWED.id) copyText(String(VIEWED.id), 'profile.idCopied');
+    };
+    copy.addEventListener('click', copyId);
+    copy.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      copyId();
+    });
+
+    initOwnFilters(viewList);
   }
 
   // --- Стейкинг ---
@@ -4119,7 +4577,8 @@
     // у купленного подарка разошлась бы с витринной
     OWNED = {
       gifts: (ME.gifts || []).map(giftById).filter(Boolean),
-      nft: []
+      nft: [],
+      upg: (ME.nfts || []).slice().sort((a, b) => a.at - b.at).map(nftView)
     };
 
     TASK_BLOCKS = (state.tasks || []).map((group) => ({
@@ -4132,7 +4591,26 @@
   initNav();
   initSplash();
 
+  // Фоны и символы нужны до первой отрисовки: из них собраны улучшенные
+  // подарки в профиле. Не загрузились — профиль всё равно откроется
+  function loadAttrs() {
+    return new Promise((resolve) => {
+      if (attrs) {
+        resolve(attrs);
+        return;
+      }
+      fetch(ATTRS)
+        .then((response) => response.json())
+        .then((data) => {
+          attrs = { symbols: data.symbols || [], backdrops: data.backdrops || [] };
+        })
+        .catch(() => {})
+        .then(() => resolve(attrs));
+    });
+  }
+
   Store.load()
+    .then(loadAttrs)
     .then(() => {
       fillFromStore();
 
@@ -4142,7 +4620,8 @@
       initSheet();
       initHeader();
       initProfile();
-      initOwnFilters();
+      initOwnFilters(ownList);
+      initView();
       initStaking();
       initLang();
 

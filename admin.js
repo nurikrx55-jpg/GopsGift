@@ -763,7 +763,9 @@
   }
 
   function giftSheet(gift) {
-    const draft = Object.assign({ name: '', price: 299, badge: '', kind: 'blood', total: 1000, left: 1000, status: 'Non-Unique', artType: 'lottie' }, gift || {});
+    const draft = Object.assign({ name: '', price: 299, badge: '', kind: 'blood', total: 1000, left: 1000, status: 'Non-Unique', artType: 'lottie', upgradePrice: 0 }, gift || {});
+    // Модели улучшения правим в копии: «закрыть без сохранения» не должно их трогать
+    draft.models = ((gift && gift.models) || []).map((one) => Object.assign({}, one));
     let upload = null;
     let previewUrl = '';
 
@@ -927,6 +929,80 @@
 
       body.appendChild(group('Карточка', field('Редкость', rarities), field('Фон', backs)));
 
+      /* Улучшение, как у memgift: модели — варианты подарка (.svg или
+         .tgs), из них при улучшении выпадает одна, с учётом шанса. Фон и
+         символ выпадают из общих наборов memgift. Пока моделей нет, кнопка
+         «Улучшить» у людей приглушена */
+      const upPrice = input(draft.upgradePrice || 0, { type: 'number' });
+      const models = el('div', 'ad-models');
+
+      const drawModels = () => {
+        release(models);
+        models.textContent = '';
+        draft.models.forEach((model, index) => {
+          const row = el('div', 'ad-model');
+          const thumb = el('span', 'ad-thumb');
+          showArt(thumb, model, true);
+
+          const nameIn = input(model.name, { placeholder: 'Название', max: 32 });
+          nameIn.addEventListener('input', () => { model.name = nameIn.value; });
+
+          const rateIn = input(model.rate || '', { placeholder: '%' });
+          rateIn.inputMode = 'decimal';
+          rateIn.classList.add('ad-model__rate');
+          rateIn.addEventListener('input', () => {
+            model.rate = Number(String(rateIn.value).replace(',', '.')) || 0;
+          });
+
+          row.append(thumb, nameIn, rateIn, iconButton('trash', 'Убрать модель', () => {
+            draft.models.splice(index, 1);
+            haptic('pick');
+            drawModels();
+          }, 'ad-icon--danger'));
+          models.appendChild(row);
+        });
+      };
+      drawModels();
+
+      const addModel = el('button', 'ad-dashed');
+      addModel.type = 'button';
+      addModel.append(icon('plus'), el('span', null, 'Добавить модель'));
+      addModel.addEventListener('click', async () => {
+        const file = await pickFile('.tgs,.json,.svg,application/json,image/svg+xml');
+        if (!file) return;
+        const svg = /\.svg$/i.test(file.name) || file.type === 'image/svg+xml';
+
+        let read;
+        try {
+          read = svg ? await readSvg(file) : await readTgs(file);
+        } catch (_) {
+          toast(svg ? 'Это не картинка .svg' : 'Это не .tgs и не анимация', 'bad');
+          return;
+        }
+        if (read.url) URL.revokeObjectURL(read.url);
+
+        // Файл уходит на сервер сразу; в подарок он попадёт при сохранении
+        const data = await run(addModel, 'model.upload', { file: read.base64, kind: svg ? 'svg' : 'lottie' });
+        if (!data) return;
+        draft.models.push({
+          name: file.name.replace(/\.[^.]+$/, '').slice(0, 32),
+          art: data.art,
+          artType: data.artType,
+          rate: 0
+        });
+        haptic('ok');
+        drawModels();
+      });
+
+      const upForm = el('div', 'ad-form');
+      upForm.append(field('Цена улучшения', affix(upPrice, 'star-img'), true));
+      body.appendChild(group('Улучшение',
+        upForm,
+        models,
+        addModel,
+        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное.')
+      ));
+
       const sync = () => {
         draft.name = name.value;
         draft.price = Number(price.value) || 0;
@@ -978,7 +1054,11 @@
               bg: draft.bg || '',
               total: Number(total.value) || 0,
               left: Number(left.value) || 0,
-              status: status.value.trim()
+              status: status.value.trim(),
+              upgradePrice: Number(upPrice.value) || 0,
+              models: draft.models
+                .filter((one) => one.art)
+                .map((one) => ({ id: one.id, name: String(one.name || '').trim() || 'Model', art: one.art, artType: one.artType, rate: one.rate || 0 }))
             },
             file: upload ? upload.base64 : undefined,
             kind: upload ? upload.kind : undefined

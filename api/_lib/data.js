@@ -14,6 +14,7 @@
    gg:refs:<id>       — кого человек привёл своей ссылкой, по времени прихода
    gg:tonlog:<id>     — история кошелька: пополнения TON и покупки с баланса
    gg:tontx:<hash>    — отметка, что этот перевод TON уже зачислен
+   gg:upgseq          — сколько раз улучшали каждый подарок: отсюда номер #N
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -23,6 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { command, pipeline } from './db.js';
 import presets from './presets.js';
 
@@ -40,6 +42,7 @@ const K = {
   refs: (id) => 'gg:refs:' + id,
   tonlog: (id) => 'gg:tonlog:' + id,
   tontx: (hash) => 'gg:tontx:' + hash,
+  upgseq: 'gg:upgseq',
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -93,6 +96,24 @@ function assetRef(value) {
   return '';
 }
 
+// Модель улучшенного подарка: имя, картинка или анимация и шанс выпасть, %
+function cleanModels(input) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+
+  return input.slice(0, 60).map((one) => ({
+    id: slug(one && one.id) || newId('m'),
+    name: str(one && one.name, 32),
+    art: assetRef(one && one.art),
+    artType: one && one.artType === 'svg' ? 'svg' : 'lottie',
+    rate: Math.round(Math.min(Math.max(Number(one && one.rate) || 0, 0), 100) * 10) / 10
+  })).filter((one) => {
+    if (!one.name || !one.art || seen.has(one.id)) return false;
+    seen.add(one.id);
+    return true;
+  });
+}
+
 export function cleanGift(input) {
   const gift = {
     id: slug(input.id) || newId('gift'),
@@ -110,7 +131,11 @@ export function cleanGift(input) {
     bg: tone(input.bg),
     total: int(input.total, 0, 100000000),
     left: int(input.left, 0, 100000000),
-    status: str(input.status, 24) || 'Non-Unique'
+    status: str(input.status, 24) || 'Non-Unique',
+    // Улучшение, как у memgift: модели подарка и цена в звёздах. Пока
+    // моделей нет, кнопка «Улучшить» в профиле приглушена
+    models: cleanModels(input.models),
+    upgradePrice: int(input.upgradePrice, 0, 100000)
   };
 
   if (!gift.name) throw new InputError('Без названия подарок не сохранить');
@@ -280,7 +305,29 @@ export function publicContent(content) {
 
 // Новичок начинает с нуля: ни звёзд, ни купонов, ни подарков
 function emptyAccount() {
-  return { stars: 0, coupons: 0, gifts: [], tonNano: 0 };
+  return { stars: 0, coupons: 0, gifts: [], nfts: [], tonNano: 0 };
+}
+
+// Улучшенный подарок: из какого подарка, что выпало и его номер
+function cleanNft(one) {
+  if (!one || typeof one !== 'object') return null;
+  const nft = {
+    id: str(one.id, 32),
+    gift: str(one.gift, 48),
+    // Модель записана целиком: админ может убрать её из подарка, а у
+    // того, кому она выпала, картинка и шанс должны остаться
+    model: {
+      name: str(one.model && one.model.name, 32),
+      art: assetRef(one.model && one.model.art),
+      artType: one.model && one.model.artType === 'svg' ? 'svg' : 'lottie',
+      rate: Number(one.model && one.model.rate) || 0
+    },
+    backdrop: str(one.backdrop, 32),
+    symbol: str(one.symbol, 32),
+    num: int(one.num, 0, 1e9),
+    at: int(one.at, 0, 1e15)
+  };
+  return nft.id && nft.gift ? nft : null;
 }
 
 function normalAccount(raw) {
@@ -289,6 +336,7 @@ function normalAccount(raw) {
     stars: int(acct.stars, 0, 1e9),
     coupons: int(acct.coupons, 0, 1e9),
     gifts: Array.isArray(acct.gifts) ? acct.gifts : [],
+    nfts: Array.isArray(acct.nfts) ? acct.nfts.map(cleanNft).filter(Boolean) : [],
     // Баланс TON в нанотонах — целым числом, чтобы не терять копейки
     tonNano: int(acct.tonNano, 0, 1e15)
   };
@@ -419,6 +467,8 @@ export async function saveAccount(id, input, content) {
     stars: int(input.stars, 0, 1e9),
     coupons: int(input.coupons, 0, 1e9),
     gifts: cleanGiftList(input.gifts, known),
+    // Улучшенные подарки админка не правит — они живут своей жизнью
+    nfts: before.nfts,
     tonNano: before.tonNano
   };
 
@@ -464,6 +514,8 @@ export async function createOrder(input) {
     amount: int(input.amount, 1, 100000000),
     // Сколько купонов уходит в скидку: списываем их вместе с оплатой
     coupons: int(input.coupons, 0, 100000000),
+    // 'gift' — покупка подарка, 'upgrade' — улучшение уже купленного
+    kind: input.kind === 'upgrade' ? 'upgrade' : 'gift',
     status: 'new',
     createdAt: Date.now()
   };
@@ -498,6 +550,8 @@ export async function settleOrder(id, payment, ton) {
   const charge = str(payment && payment.telegram_payment_charge_id, 128) || order.id;
   const first = await command('SET', K.charge(charge), order.id, 'NX');
   if (!first) return await readOrder(order.id);
+
+  if (order.kind === 'upgrade') return settleUpgrade(order, charge);
 
   const rawAcct = await command('GET', K.acct(order.userId));
   const acct = normalAccount(rawAcct);
@@ -536,6 +590,144 @@ export async function settleOrder(id, payment, ton) {
   }
 
   return done;
+}
+
+// --- Улучшение подарка ---
+
+/* Как у memgift: подарок из профиля превращается в уникальный — со
+   случайной моделью, фоном и символом. Модели у каждого подарка свои, их
+   кладёт админка. Фоны и символы общие, это наборы memgift из
+   gifts/attributes.json. Шанс выпасть у каждого свой, в процентах. */
+
+const ATTRS_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'gifts', 'attributes.json');
+let attrsCache = null;
+
+export function readAttrs() {
+  if (!attrsCache) {
+    try {
+      const data = JSON.parse(fs.readFileSync(ATTRS_FILE, 'utf8'));
+      attrsCache = { symbols: data.symbols || [], backdrops: data.backdrops || [] };
+    } catch (_) {
+      attrsCache = { symbols: [], backdrops: [] };
+    }
+  }
+  return attrsCache;
+}
+
+// Случайный выбор с весами: чем больше шанс, тем чаще выпадает
+function weighted(list) {
+  if (!list.length) return null;
+  const weights = list.map((one) => Math.max(Number(one.rate) || 0, 0.01));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  let roll = (crypto.randomInt(0, 1e9) / 1e9) * sum;
+  for (let i = 0; i < list.length; i += 1) {
+    roll -= weights[i];
+    if (roll < 0) return list[i];
+  }
+  return list[list.length - 1];
+}
+
+export function canUpgrade(gift) {
+  return Boolean(gift) && Array.isArray(gift.models) && gift.models.length > 0;
+}
+
+/* Сам бросок. Подарок уходит из списка обычных и встаёт в список
+   улучшенных; номер — следующий по счёту для этого подарка */
+async function rollUpgrade(userId, giftId, content) {
+  const id = String(userId);
+  const gift = (content.gifts || []).find((one) => one.id === giftId);
+  if (!canUpgrade(gift)) throw new InputError('Этот подарок не поддерживает улучшение');
+
+  const acct = normalAccount(await command('GET', K.acct(id)));
+  const at = acct.gifts.indexOf(giftId);
+  if (at === -1) throw new InputError('Этого подарка у вас нет');
+
+  const attrs = readAttrs();
+  const model = weighted(gift.models);
+  const backdrop = weighted(attrs.backdrops);
+  const symbol = weighted(attrs.symbols);
+  const num = await command('ZINCRBY', K.upgseq, 1, giftId);
+
+  const nft = {
+    id: newId('nft'),
+    gift: giftId,
+    model: { name: model.name, art: model.art, artType: model.artType, rate: model.rate },
+    backdrop: backdrop ? backdrop.name : '',
+    symbol: symbol ? symbol.name : '',
+    num: int(num, 1, 1e9),
+    at: Date.now()
+  };
+
+  acct.gifts.splice(at, 1);
+  acct.nfts.push(nft);
+  await command('SET', K.acct(id), JSON.stringify(acct));
+  return nft;
+}
+
+// Бесплатное улучшение (цена ноль или админ) — сразу, без счёта
+export async function upgradeNow(userId, giftId, content) {
+  return rollUpgrade(userId, slug(giftId), content);
+}
+
+// Платное — после оплаты, тем же путём, что и покупка
+async function settleUpgrade(order, charge) {
+  const content = await readContent(true);
+  let nft = null;
+  let problem = '';
+
+  try {
+    nft = await rollUpgrade(order.userId, order.giftId, content);
+  } catch (error) {
+    // Деньги уже пришли, а подарка нет — не роняем обработку платежа,
+    // а записываем, что случилось: разбираться будет админ
+    problem = error.message;
+    console.error('upgrade: оплачено, но не улучшено —', order.id, problem);
+  }
+
+  const done = Object.assign({}, order, {
+    status: 'paid',
+    charge: charge,
+    paidAt: Date.now(),
+    nftId: nft ? nft.id : '',
+    problem: problem
+  });
+  await command('SET', K.order(order.id), JSON.stringify(done));
+  return done;
+}
+
+// Можно ли ещё улучшать этот подарок этому человеку — последняя проверка
+// перед списанием звёзд
+export async function stillOwns(userId, giftId) {
+  const acct = normalAccount(await command('GET', K.acct(String(userId))));
+  return acct.gifts.indexOf(String(giftId)) !== -1;
+}
+
+// --- Чужой профиль ---
+
+/* Как у memgift (страница /view/:id): имя, фото, id и что у человека
+   лежит — обычные подарки и улучшенные. Звёзды, купоны, TON и кошелёк
+   сюда не попадают: это не для чужих глаз */
+export async function publicProfile(userId) {
+  const id = str(userId, 20);
+  if (!/^\d{1,20}$/.test(id)) return null;
+
+  const [rawProfile, rawAcct] = await pipeline([
+    ['GET', K.user(id)],
+    ['GET', K.acct(id)]
+  ]);
+  if (!rawProfile) return null;
+
+  const person = JSON.parse(rawProfile);
+  const acct = normalAccount(rawAcct);
+  return {
+    id: id,
+    firstName: person.firstName || '',
+    lastName: person.lastName || '',
+    username: person.username || '',
+    photo: person.photo || '',
+    gifts: acct.gifts,
+    nfts: acct.nfts
+  };
 }
 
 // --- TON-кошелёк ---
@@ -672,10 +864,11 @@ export async function findRecipients(query, selfId) {
 /* Один подарок уходит со счёта отправителя на счёт получателя. Счета
    читаем и пишем одной пачкой — между чтением и записью второй передаче
    того же подарка просто не из чего будет взять */
-export async function transferGift(fromId, toId, giftId) {
+export async function transferGift(fromId, toId, giftId, nftId) {
   const from = String(fromId);
   const to = String(toId);
   const gift = slug(giftId);
+  const nft = str(nftId, 32);
 
   if (!to || to === from) throw new InputError('Вы не можете отправить самому себе.');
 
@@ -687,12 +880,19 @@ export async function transferGift(fromId, toId, giftId) {
   if (!rawUser) throw new InputError('Пользователь не найден');
 
   const sender = normalAccount(rawFrom);
-  const at = sender.gifts.indexOf(gift);
-  if (at === -1) throw new InputError('Подарок вам больше не принадлежит');
-
   const recipient = normalAccount(rawTo);
-  sender.gifts.splice(at, 1);
-  recipient.gifts.push(gift);
+
+  // Улучшенный уходит целиком, со своей моделью, фоном и номером
+  if (nft) {
+    const at = sender.nfts.findIndex((one) => one.id === nft);
+    if (at === -1) throw new InputError('Подарок вам больше не принадлежит');
+    recipient.nfts.push(sender.nfts.splice(at, 1)[0]);
+  } else {
+    const at = sender.gifts.indexOf(gift);
+    if (at === -1) throw new InputError('Подарок вам больше не принадлежит');
+    sender.gifts.splice(at, 1);
+    recipient.gifts.push(gift);
+  }
 
   await pipeline([
     ['SET', K.acct(from), JSON.stringify(sender)],
@@ -772,10 +972,11 @@ export async function topBuyers(giftId, limit) {
   const profiles = ids.length ? await mgetJson(ids.map(K.user)) : [];
   const top = ids.map((id, index) => {
     const person = profiles[index] ? JSON.parse(profiles[index]) : {};
-    // Наружу — только то, что и так видно в Telegram: имя и фото
+    // Наружу — только то, что и так видно в Telegram: имя, фото и id
     const name = [person.firstName, person.lastName].filter(Boolean).join(' ') ||
       (person.username ? '@' + person.username : '');
-    return { name: name, photo: person.photo || '', count: counts[index] };
+    // id — чтобы по строке топа открыть профиль человека, как у memgift
+    return { id: id, name: name, photo: person.photo || '', count: counts[index] };
   });
 
   const value = { total: Number(total) || 0, top: top };

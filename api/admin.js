@@ -59,6 +59,14 @@ const actions = {
 
   // --- Подарки ---
 
+  // Модель для улучшения: файл грузим сразу, как только его выбрали, а в
+  // подарок он попадёт ссылкой при сохранении
+  async 'model.upload'(payload) {
+    const svg = payload.kind === 'svg';
+    const art = svg ? await saveSvg(payload.file) : await saveLottie(payload.file);
+    return { art: art, artType: svg ? 'svg' : 'lottie' };
+  },
+
   async 'gift.save'(payload) {
     const input = payload.gift || {};
     const svg = payload.kind === 'svg';
@@ -88,6 +96,7 @@ const actions = {
     });
 
     if (stale) await dropFile(stale);
+    // Файлы убранных моделей не трогаем: на них ссылаются уже улучшенные
     return { content: content };
   },
 

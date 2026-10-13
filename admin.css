@@ -1822,3 +1822,30 @@
   line-height: 1.4;
   word-break: break-all;
 }
+
+/* Модели улучшения: картинка, название, шанс и «убрать» в одну строку */
+.ad-models {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-models:empty {
+  display: none;
+}
+
+.ad-model {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) 72px 40px;
+  align-items: center;
+  gap: 10px;
+}
+
+.ad-model .ad-thumb {
+  width: 50px;
+  height: 50px;
+}
+
+.ad-model__rate {
+  padding: 0 10px;
+  text-align: center;
+}

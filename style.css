@@ -488,9 +488,10 @@ body {
   pointer-events: none;
 }
 
-/* Отбор и порядок витрины — две кнопки под каруселью */
+/* Отбор и порядок витрины — две кнопки под каруселью, под ними галочка */
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 18px;
   padding: 0 16px;
@@ -5816,4 +5817,205 @@ body {
    что приложение зависло */
 #unlink.sheet {
   z-index: 1300;
+}
+
+/* «Скрыть проданные подарки» — `.hide-sold-control` memgift: своя строка
+   под кнопками отбора, квадратик 19px, отмеченный — синий с галочкой */
+.hide-sold {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  margin-top: 2px;
+  color: #f5f5f7;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hide-sold input {
+  position: relative;
+  flex: none;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  border-radius: 6px;
+  background: #252528;
+  box-shadow: var(--glass-edge-tight);
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.hide-sold input:checked {
+  background: #0083fd;
+}
+
+.hide-sold input:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  font-size: 14px;
+  line-height: 19px;
+  text-align: center;
+}
+
+/* --- Улучшенный подарок --- */
+
+/* Окно: фон `.is-upg` memgift — круг из двух цветов фона подарка. У
+   обычного подарка слой пустой, и видна подложка тоном самого подарка */
+.mgm-card__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.mgm-card__head.is-upg .mgm-card__bg {
+  background: radial-gradient(circle, var(--center-color, #666), var(--around-color, #1a1a1a));
+}
+
+/* Номер #N в углу карточки — плашка из того же стекла */
+.mgm-card__mark {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 5;
+  min-width: 54px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 50px;
+  background: linear-gradient(180deg, rgba(30, 30, 30, 0.35), rgba(25, 25, 25, 0.35));
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  backdrop-filter: blur(28px) saturate(140%);
+  box-shadow: var(--glass-edge-tight), 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.mgm-card__mark p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: #f5f5f7;
+}
+
+.mgm-card__tickers-i[hidden] {
+  display: none;
+}
+
+.mgm-card__tickers-i.loading {
+  pointer-events: none;
+}
+
+/* Шанс выпасть — синяя плашка справа от значения, `.mgm-info__pct` memgift */
+.mgm-info__pct {
+  flex-shrink: 0;
+  padding: 5px 7px;
+  border-radius: 99px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #5b9bf6;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.mgm-info__pct[hidden] {
+  display: none;
+}
+
+/* Карточка в профиле — `.item._gift.is-upgraded`: фон вместо тона,
+   узор символа на .38, номер в углу, без общего узора и ленты */
+.gift--upg::before {
+  display: none;
+}
+
+.gift__symbols {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: inherit;
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+.gift__symbols img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 110%;
+  height: 110%;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+}
+
+.gift__num {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 7;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 50px;
+  background: rgba(0, 0, 0, 0.34);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #f5f5f7;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.15px;
+}
+
+.gift--upg .gift__art {
+  z-index: 5;
+  top: 50%;
+  width: 74%;
+  height: 74%;
+  transform: translate(-50%, -50%);
+}
+
+/* Строки и плашки, которые бывают только у улучшенного, у обычного
+   подарка прячутся: их display иначе перебил бы атрибут hidden */
+.mgm-info__row[hidden],
+.mgm-card__mark[hidden] {
+  display: none;
+}
+
+/* --- Чужой профиль (`/view/:id` memgift) --- */
+
+/* Та же страница на весь экран, что и у подарка, но фон — как у раздела
+   профиля, а боковые отступы держат сами блоки профиля */
+.sheet--view .sheet__panel,
+.sheet--view.is-open .sheet__panel {
+  background:
+    radial-gradient(145.36% 31.28% at 81.92% -7%, rgba(255, 255, 255, 0.2), rgba(58, 58, 62, 0.2), rgba(28, 28, 30, 0.2)),
+    #0d0d10;
+}
+
+.sheet--view .sheet__scroll {
+  gap: 0;
+  padding: max(24px, calc(var(--safe-area-top) + var(--content-top) + 12px)) 0 calc(48px + var(--safe-area-bottom));
+}
+
+/* Чужим подаркам окно открывается только посмотреть: ни улучшить, ни
+   отправить их нельзя */
+.pgm-own.is-foreign .mgm-card__tickers {
+  display: none;
+}
+
+/* Строка топа покупателей ведёт в профиль человека */
+.gp-top__row.is-link {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gp-top__row.is-link:active {
+  opacity: 0.7;
 }

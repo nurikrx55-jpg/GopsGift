@@ -24,7 +24,7 @@ export default {
       }
 
       if (input.action === 'send') {
-        const done = await transferGift(user.id, input.to, input.gift);
+        const done = await transferGift(user.id, input.to, input.gift, input.nft);
         return json({ name: done.name, me: await getUser(user.id) });
       }
 
