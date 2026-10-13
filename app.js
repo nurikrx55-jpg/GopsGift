@@ -1741,18 +1741,21 @@
   // Конфетти memgift (`fireFromBottom`): сотня бирюзовых кружков снизу
   let confettiReady = null;
 
-  function fireFromBottom() {
+  function loadConfetti() {
     if (!confettiReady) {
       confettiReady = new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.js';
-        script.onload = () => resolve(window.confetti);
+        script.onload = () => resolve(prefersStill() ? null : window.confetti);
         script.onerror = reject;
         document.head.appendChild(script);
       });
     }
+    return confettiReady;
+  }
 
-    confettiReady.then((confetti) => {
+  function fireFromBottom() {
+    loadConfetti().then((confetti) => {
       if (!confetti || prefersStill()) return;
       confetti({
         particleCount: 100,
@@ -1770,140 +1773,356 @@
     }).catch(() => {});
   }
 
-  /* Анимация улучшения — крутится вся большая карточка, а не лента плиток.
-     Пока сервер решает, что выпало, фон карточки быстро меняется. Когда
-     ответ пришёл — фон замедляется и встаёт на выпавший, потом так же
-     узор символа, потом модель. После модели — номер #N и конфетти.
-     Каждая остановка — лёгкий «щелчок» и толчок слоя */
-  const ROLL_FAST = 70;      // мс между сменами, пока ждём сервер
-  const ROLL_STEPS = 12;     // сколько смен на замедление одного слоя
-  const ROLL_END = 360;      // последняя, самая долгая смена перед остановкой
-  const ROLL_PAUSE = 280;    // передышка между слоями
+  /* Анимация улучшения — как у Gates Market (видео ШЕПа, 2026-10-13).
+     Через всю карточку едет лента моделей подарка: слева направо, сначала
+     очень быстро, потом плавно тормозит и ставит выпавшую модель ровно по
+     центру. Фон карточки в это время перетекает из цвета в цвет и встаёт на
+     выпавший. Строки «Модель / Символ / Фон» под карточкой крутятся как
+     барабаны и встают по очереди. После остановки боковые модели
+     размываются и уходят, из центральной вылетает конфетти, а под ней по
+     буквам печатается имя и серым — номер.
+
+     Пока сервер не ответил, что выпало, лента едет полным ходом; ответ
+     пришёл — торможение рассчитывается так, чтобы скорость не дёрнулась */
+  const REEL_ITEM = 0.28;      // ширина модели в ленте, доля ширины карточки
+  const REEL_PITCH = 0.33;     // шаг между моделями
+  const REEL_SPEED = 20;       // моделей в секунду на полном ходу
+  const REEL_MS = 3000;        // торможение от полного хода до остановки, мс
+  const ROW_SPEED = 14;        // строк в секунду у барабанов
+  const ROW_LAND = [0.83, 0.88, 0.93]; // когда встают модель, символ, фон — доли торможения
+  const BG_EVERY = 260;        // фон меняется раз в столько мс
+  const BG_LAND = 0.55;        // и встаёт на выпавший на этой доле торможения
+  const TYPE_MS = 45;          // печать имени — мс на букву
+  const REEL_HOLD = 1300;      // сколько итог стоит, прежде чем карточка станет обычной
   let roll = null;
 
-  function rollDelays() {
-    const out = [];
-    for (let i = 0; i < ROLL_STEPS; i += 1) {
-      out.push(ROLL_FAST + (ROLL_END - ROLL_FAST) * Math.pow(i / (ROLL_STEPS - 1), 2.2));
-    }
-    return out;
+  function easeOut(t) {
+    return 1 - Math.pow(1 - t, 4);
   }
 
   function rollWait(ms) {
     return new Promise((done) => setTimeout(done, ms));
   }
 
-  // Случайный из списка, но не тот же, что сейчас на карточке
-  function rollPick(list, current) {
+  // Случайный из списка, но не такой же, как сосед
+  function rollPick(list, avoid) {
     if (list.length < 2) return list[0];
-    let next = current;
-    while (next === current) next = list[Math.floor(Math.random() * list.length)];
+    let next = avoid;
+    while (next === avoid) next = list[Math.floor(Math.random() * list.length)];
     return next;
   }
 
-  function rollBump(node) {
-    if (!node) return;
-    node.classList.remove('is-landed');
-    void node.offsetWidth;
-    node.classList.add('is-landed');
-  }
-
-  function rollPaintBackdrop(one) {
+  function rollPaintBackdrop(one, symbol) {
     const head = document.getElementById('owned-head');
     head.classList.add('is-upg');
     head.style.setProperty('--center-color', one.center);
     head.style.setProperty('--around-color', one.around);
+    if (symbol) document.getElementById('owned-symbol').src = symbol.image;
   }
 
-  function rollPaintSymbol(one) {
-    document.getElementById('owned-symbol').src = one.image;
-  }
-
-  function rollPaintModel(one) {
-    const img = roll && roll.modelImg;
-    const still = roll && roll.stills.get(one.art);
-    if (img && still) img.src = still;
-  }
-
-  // Начало: карточка становится «улучшаемой» и фон крутится без конца
-  function rollStart(gift) {
-    if (!attrs || !attrs.backdrops.length || prefersStill()) return;
-    const head = document.getElementById('owned-head');
-
-    roll = { gift: gift, token: {}, timer: 0, backdrop: null, modelImg: null, stills: new Map() };
-    owned.classList.add('is-rolling');
-    document.getElementById('owned-mark').hidden = true;
-
-    // Картинки символов и кадры моделей готовим заранее — иначе при
-    // переборе мелькала бы пустота
-    attrs.symbols.forEach((one) => { new Image().src = one.image; });
-    (gift.models || []).forEach((model) => {
-      shotOf(model).then((shot) => {
-        if (roll && shot.still) roll.stills.set(model.art, shot.still);
-      });
-    });
-
-    const spin = () => {
-      roll.backdrop = rollPick(attrs.backdrops, roll.backdrop);
-      rollPaintBackdrop(roll.backdrop);
-    };
-    spin();
-    roll.timer = setInterval(spin, ROLL_FAST);
-    head.classList.add('is-rolling');
-  }
-
-  // Замедлить один слой и поставить на выпавшее
-  async function rollStage(list, paint, target, token, layer) {
-    let current = null;
-    for (const delay of rollDelays()) {
-      if (!roll || roll.token !== token) return false;
-      current = rollPick(list, current);
-      paint(current);
-      haptic('select');
-      await rollWait(delay);
+  // Лента или барабан: что стоит на месте index (любое целое), выбирается
+  // один раз и запоминается
+  function rollItem(track, index) {
+    if (!track.items.has(index)) {
+      track.items.set(index, rollPick(track.list, track.items.get(index - 1)));
     }
-    if (!roll || roll.token !== token) return false;
-    if (target) paint(target);
-    rollBump(layer);
-    haptic('light');
-    await rollWait(ROLL_PAUSE);
-    return Boolean(roll && roll.token === token);
+    return track.items.get(index);
   }
 
-  // Ответ пришёл: по очереди останавливаем фон, символ и модель
-  async function rollLand(nft) {
-    if (!roll) return;
-    const token = roll.token;
-    const gift = roll.gift;
-    clearInterval(roll.timer);
+  // Торможение до места index: путь такой, чтобы начальная скорость
+  // совпала с текущей (у easeOut она в 4 раза больше средней)
+  function rollPlan(track, speed, ms, now, target) {
+    const ahead = Math.max(3, Math.ceil(speed * ms / 4000));
+    const index = Math.ceil(track.pos) + ahead;
+    track.items.set(index, target);
+    track.plan = { from: track.pos, to: index, at: now, ms: ms };
+    return index;
+  }
 
-    const head = document.getElementById('owned-head');
-    const backdrop = backdropOf(nft.backdrop);
-    if (!(await rollStage(attrs.backdrops, rollPaintBackdrop, backdrop, token, head.querySelector('.mgm-card__bg')))) return;
+  function rollMove(track, speed, now, dt) {
+    if (!track.plan) {
+      track.pos += speed * dt;
+      return false;
+    }
+    const t = Math.min(1, (now - track.plan.at) / track.plan.ms);
+    track.pos = track.plan.from + (track.plan.to - track.plan.from) * easeOut(t);
+    return t >= 1;
+  }
 
-    const symbol = symbolOf(nft.symbol);
-    if (attrs.symbols.length && !(await rollStage(attrs.symbols, rollPaintSymbol, symbol, token, head.querySelector('.mgm-card__symbol')))) return;
+  // --- Лента моделей ---
 
-    // Модель: вместо живой анимации — кадры моделей, быстро сменяющие друг друга
-    const box = document.getElementById('owned-art');
-    closeArt(box, ownPlayer);
-    ownPlayer = null;
+  function reelNode(model) {
+    const node = document.createElement('div');
+    node.className = 'reel__item';
     const img = document.createElement('img');
     img.alt = '';
     img.draggable = false;
-    box.appendChild(img);
-    roll.modelImg = img;
+    node.appendChild(img);
+    shotOf(model).then((shot) => {
+      if (shot.still) img.src = shot.still;
+    });
+    return node;
+  }
+
+  function drawReel(r) {
+    const width = r.strip.clientWidth || 1;
+    const pitch = width * REEL_PITCH;
+    const pos = r.reel.pos;
+    // Место 0 стоит по центру, когда пройдено 0; места с большими номерами —
+    // левее. Лента едет вправо: pos растёт, и слева въезжают новые
+    const first = Math.floor(pos - (width / 2 + pitch) / pitch);
+    const last = Math.ceil(pos + (width / 2 + pitch) / pitch);
+    const keep = new Set();
+
+    for (let i = first; i <= last; i += 1) {
+      keep.add(i);
+      let node = r.nodes.get(i);
+      if (!node) {
+        node = reelNode(rollItem(r.reel, i));
+        r.strip.appendChild(node);
+        r.nodes.set(i, node);
+      }
+      const x = width / 2 + (pos - i) * pitch;
+      node.style.transform = 'translate3d(' + (x - width * REEL_ITEM / 2) + 'px, -50%, 0)';
+    }
+
+    r.nodes.forEach((node, i) => {
+      if (keep.has(i)) return;
+      node.remove();
+      r.nodes.delete(i);
+    });
+  }
+
+  // --- Барабаны строк ---
+
+  function slotLine(one) {
+    const line = document.createElement('span');
+    line.className = 'slot__line';
+    const name = document.createElement('span');
+    name.className = 'mgm-info__val';
+    name.textContent = one.name;
+    line.appendChild(name);
+    if (one.rate) {
+      const badge = document.createElement('span');
+      badge.className = 'mgm-info__pct';
+      badge.textContent = pct(one.rate);
+      line.appendChild(badge);
+    }
+    return line;
+  }
+
+  function slotMake(valueId, list) {
+    const right = document.getElementById(valueId).parentNode;
+    right.classList.add('is-slot');
+    const box = document.createElement('div');
+    box.className = 'slot';
+    right.appendChild(box);
+    return { box: box, list: list, items: new Map(), nodes: new Map(), pos: Math.random() * list.length, plan: null };
+  }
+
+  // Барабан едет вверх: строка с большим номером — ниже
+  function drawSlot(slot) {
+    const step = slot.box.clientHeight || 50;
+    const keep = new Set();
+    for (let i = Math.floor(slot.pos) - 1; i <= Math.ceil(slot.pos) + 1; i += 1) {
+      keep.add(i);
+      let node = slot.nodes.get(i);
+      if (!node) {
+        node = slotLine(rollItem(slot, i));
+        slot.box.appendChild(node);
+        slot.nodes.set(i, node);
+      }
+      node.style.transform = 'translate3d(0, ' + ((i - slot.pos) * step) + 'px, 0)';
+    }
+    slot.nodes.forEach((node, i) => {
+      if (keep.has(i)) return;
+      node.remove();
+      slot.nodes.delete(i);
+    });
+  }
+
+  // --- Ход ---
+
+  function rollFrame(now) {
+    const r = roll;
+    if (!r) return;
+    const dt = Math.min(0.05, (now - r.last) / 1000);
+    r.last = now;
+
+    const stopped = rollMove(r.reel, REEL_SPEED, now, dt);
+    drawReel(r);
+    r.slots.forEach((slot) => {
+      rollMove(slot, ROW_SPEED, now, dt);
+      drawSlot(slot);
+    });
+
+    // Щелчок, когда мимо центра проходит модель — но не чаще, чем рука
+    // успевает почувствовать
+    const tick = Math.round(r.reel.pos);
+    if (tick !== r.tick && now - r.tickAt > 55) {
+      r.tick = tick;
+      r.tickAt = now;
+      haptic('select');
+    }
+
+    if (stopped && r.landed) {
+      r.landed();
+      return;
+    }
+    r.raf = requestAnimationFrame(rollFrame);
+  }
+
+  // Начало: лента и барабаны едут полным ходом, фон перетекает
+  function rollStart(gift) {
     const models = (gift.models || []).filter((one) => one.art);
+    if (!attrs || !attrs.backdrops.length || !models.length || prefersStill()) return;
+
+    const head = document.getElementById('owned-head');
+    const stage = document.createElement('div');
+    stage.className = 'reel';
+    const strip = document.createElement('div');
+    strip.className = 'reel__strip';
+    const caption = document.createElement('p');
+    caption.className = 'reel__caption';
+    stage.append(strip, caption);
+    head.appendChild(stage);
+
+    owned.classList.add('is-rolling');
+    document.getElementById('owned-mark').hidden = true;
+    closeArt(document.getElementById('owned-art'), ownPlayer);
+    ownPlayer = null;
+
+    // Вместо владельца — строки модели, символа и фона, они и крутятся
+    document.getElementById('owned-owner-row').hidden = true;
+    owned.querySelectorAll('[data-upg]').forEach((row) => { row.hidden = false; });
+
+    const now = performance.now();
+    roll = {
+      gift: gift,
+      stage: stage,
+      strip: strip,
+      caption: caption,
+      reel: { list: models, items: new Map(), pos: 0, plan: null },
+      nodes: new Map(),
+      slots: [
+        slotMake('owned-model', models),
+        slotMake('owned-sym', attrs.symbols.length ? attrs.symbols : [{ name: '—' }]),
+        slotMake('owned-bd', attrs.backdrops)
+      ],
+      last: now,
+      tick: 0,
+      tickAt: 0,
+      raf: 0,
+      bgTimer: 0,
+      landed: null
+    };
+
+    // Фон и узор символа перетекают из одного в другой
+    let backdrop = null;
+    const shift = () => {
+      backdrop = rollPick(attrs.backdrops, backdrop);
+      rollPaintBackdrop(backdrop, rollPick(attrs.symbols));
+    };
+    shift();
+    roll.bgTimer = setInterval(shift, BG_EVERY);
+
+    roll.raf = requestAnimationFrame(rollFrame);
+  }
+
+  // Конфетти из центральной модели — небольшое, во все стороны вверх
+  function burstFrom(node) {
+    if (!node) return;
+    loadConfetti().then((confetti) => {
+      if (!confetti) return;
+      const rect = node.getBoundingClientRect();
+      confetti({
+        particleCount: 46,
+        spread: 80,
+        startVelocity: 22,
+        gravity: 0.7,
+        decay: 0.92,
+        scalar: 0.55,
+        ticks: 140,
+        origin: {
+          x: (rect.left + rect.width / 2) / window.innerWidth,
+          y: (rect.top + rect.height * 0.25) / window.innerHeight
+        },
+        colors: ['#ff5f5f', '#ffd23f', '#6be36b', '#4fc3ff', '#b06bff', '#ff8ad8'],
+        zIndex: 2000
+      });
+    }).catch(() => {});
+  }
+
+  // Имя по буквам, потом серым номер — как в образце
+  async function typeCaption(r, name, num, token) {
+    const title = document.createElement('span');
+    const tail = document.createElement('span');
+    tail.className = 'reel__num';
+    r.caption.append(title, tail);
+    for (const letter of Array.from(name)) {
+      if (roll !== token) return;
+      title.textContent += letter;
+      await rollWait(TYPE_MS);
+    }
+    for (const letter of Array.from(' #' + num)) {
+      if (roll !== token) return;
+      tail.textContent += letter;
+      await rollWait(TYPE_MS);
+    }
+  }
+
+  // Ответ пришёл: тормозим ленту и барабаны до выпавшего, потом итог
+  async function rollLand(nft) {
+    const r = roll;
+    if (!r) return;
+    const now = performance.now();
+    const models = r.reel.list;
     const target = models.find((one) => one.name === nft.model.name) || nft.model;
-    if (models.length) await rollStage(models, rollPaintModel, target, token, box);
+
+    const ms = REEL_MS;
+    const center = rollPlan(r.reel, REEL_SPEED, ms, now, target);
+
+    const symbol = symbolOf(nft.symbol);
+    const backdrop = backdropOf(nft.backdrop);
+    const finals = [
+      Object.assign({}, target, { name: nft.model.name, rate: nft.model.rate }),
+      symbol || { name: nft.symbol || '—' },
+      backdrop || { name: nft.backdrop || '—' }
+    ];
+    r.slots.forEach((slot, i) => rollPlan(slot, ROW_SPEED, ms * ROW_LAND[i], now, finals[i]));
+
+    // Фон встаёт раньше ленты
+    setTimeout(() => {
+      if (roll !== r) return;
+      clearInterval(r.bgTimer);
+      if (backdrop) rollPaintBackdrop(backdrop, symbol);
+    }, ms * BG_LAND);
+
+    await new Promise((done) => { r.landed = done; });
+    if (roll !== r) return;
+
+    // Итог: боковые размываются и уходят, центральная — в конфетти
+    const centerNode = r.nodes.get(center);
+    if (centerNode) centerNode.classList.add('is-center');
+    r.stage.classList.add('is-done');
+    haptic('success');
+    burstFrom(centerNode);
+    await rollWait(180);
+    await typeCaption(r, (r.gift && r.gift.name) || nft.model.name, nft.num, r);
+    await rollWait(REEL_HOLD);
   }
 
   function rollStop() {
     if (!roll) return;
-    clearInterval(roll.timer);
+    cancelAnimationFrame(roll.raf);
+    clearInterval(roll.bgTimer);
+    roll.stage.remove();
+    roll.slots.forEach((slot) => {
+      slot.box.parentNode.classList.remove('is-slot');
+      slot.box.remove();
+    });
     roll = null;
     owned.classList.remove('is-rolling');
-    document.getElementById('owned-head').classList.remove('is-rolling');
   }
 
   function upgradeOwned() {
@@ -1976,12 +2195,14 @@
           fillOwned(fresh);
           closeArt(document.getElementById('owned-art'), ownPlayer);
           ownPlayer = openArt(document.getElementById('owned-art'), artOf(fresh));
-          rollBump(document.getElementById('owned-mark'));
           playTickerIcons();
         }
 
-        haptic('success');
-        fireFromBottom();
+        // После ленты конфетти уже было — из центральной модели
+        if (!rolled) {
+          haptic('success');
+          fireFromBottom();
+        }
       })
       .catch((error) => {
         const rolled = Boolean(roll);

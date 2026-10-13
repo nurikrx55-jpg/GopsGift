@@ -5924,12 +5924,29 @@ body {
   transform: scale(.96);
 }
 
-/* Улучшение: крутится вся карточка. Пока крутится — кнопки под ней не
-   нажимаются, а каждый слой, вставший на выпавшее, коротко «толкается» */
-.pgm-own.is-rolling .mgm-card__tickers {
+/* Улучшение — лента моделей как у Gates Market. Кнопки под карточкой на
+   это время прячутся, живая модель уступает место ленте */
+@property --center-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #666;
+}
+
+@property --around-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #1a1a1a;
+}
+
+/* Фон перетекает из цвета в цвет, а не прыгает */
+.pgm-own.is-rolling .mgm-card__head {
+  transition: --center-color .24s linear, --around-color .24s linear;
+}
+
+.pgm-own.is-rolling .mgm-card__tickers,
+.pgm-own.is-rolling .mgm-card__model {
+  opacity: 0;
   pointer-events: none;
-  opacity: .5;
-  transition: opacity .2s;
 }
 
 .mgm-card__model img {
@@ -5939,29 +5956,91 @@ body {
   object-fit: contain;
 }
 
-.is-landed {
-  animation: roll-land .42s cubic-bezier(.2, 1.6, .4, 1);
+.reel {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  container-type: inline-size;
 }
 
-.mgm-card__model.is-landed,
-.mgm-card__symbol.is-landed {
-  animation-name: roll-land-centered;
+/* Ось ленты — на высоте модели. Место каждой модели JS ставит сдвигом */
+.reel__strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(35% + 10px);
+  height: 0;
 }
 
-@keyframes roll-land {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.06); }
-  100% { transform: scale(1); }
+.reel__item {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 28%;
+  aspect-ratio: 1;
+  will-change: transform;
+  transition: filter .3s ease, opacity .3s ease;
 }
 
-@keyframes roll-land-centered {
-  0% { transform: translate(-50%, -50%) scale(1); }
-  40% { transform: translate(-50%, -50%) scale(1.12); }
-  100% { transform: translate(-50%, -50%) scale(1); }
+.reel__item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .is-landed {
-    animation: none;
-  }
+/* Встала — боковые размываются и уходят */
+.reel.is-done .reel__item:not(.is-center) {
+  filter: blur(8px);
+  opacity: 0;
+}
+
+/* Под моделью печатается имя и серым номер */
+.reel__caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(35% + 10px + 14cqw + 10px);
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #f5f5f7;
+  white-space: nowrap;
+}
+
+.reel__num {
+  font-weight: 500;
+  color: rgba(245, 245, 247, .5);
+}
+
+/* Барабаны строк: значение с шансом едет вверх, края гаснут */
+.mgm-info__right.is-slot {
+  position: relative;
+}
+
+.mgm-info__right.is-slot > .mgm-info__val,
+.mgm-info__right.is-slot > .mgm-info__pct {
+  visibility: hidden;
+}
+
+.slot {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+}
+
+.slot__line {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  will-change: transform;
 }
