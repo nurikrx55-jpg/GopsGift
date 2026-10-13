@@ -6051,45 +6051,6 @@ body {
   display: block;
 }
 
-.mkt-tabs {
-  margin-top: 6px;
-}
-
-/* Поиск по номеру — `filtersSearch` memgift: «#» и поле в одну плашку */
-.mkt-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 42px;
-  margin: 10px 16px 0;
-  padding: 0 14px;
-  border-radius: 14px;
-  background: #1e1e1e;
-  box-shadow: var(--glass-edge);
-}
-
-.mkt-search__hash {
-  font-size: 16px;
-  font-weight: 600;
-  color: #8e8e93;
-}
-
-.mkt-search input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  border: 0;
-  outline: 0;
-  background: none;
-  color: #f5f5f7;
-  font: inherit;
-  font-size: 15px;
-}
-
-.mkt-search input::placeholder {
-  color: #6b6b70;
-}
-
 .mkt-list {
   padding-bottom: 120px;
 }
@@ -6255,29 +6216,6 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* История маркета — ряды как в истории кошелька */
-.mkt-act {
-  padding: 4px 16px 120px;
-}
-
-.mkt-act__thumb img {
-  width: 80%;
-  height: 80%;
-  object-fit: contain;
-}
-
-.mkt-act__status.is-listed {
-  color: #5b9bf6;
-}
-
-.mkt-act__status.is-sold {
-  color: #34c759;
-}
-
-.mkt-act__status.is-removed {
-  color: #8e8e93;
-}
-
 /* Выставлен на маркете — плашка memgift `.pgm-market` в окне подарка */
 .pgm-market {
   width: calc(100% - 32px);
@@ -6327,47 +6265,9 @@ body {
   height: 14px;
 }
 
-/* «Купить за … TON» — синяя, как у memgift; свой лот — «Снять с продажи» */
-.mkt-buy {
-  background: #3b82f6;
-  color: #fff;
-}
-
-.mkt-buy svg {
-  width: 17px;
-  height: 15px;
-  fill: currentColor;
-}
-
-.mkt-buy.is-mine {
-  background: rgba(255, 95, 95, .14);
-  color: #ff6b63;
-}
-
-.mkt-buy.is-mine svg {
-  display: none;
-}
-
-.mkt-buy.is-busy {
-  opacity: .6;
-  pointer-events: none;
-}
-
 .pgm-footer__btn[hidden],
 .mgm-info__row[hidden] {
   display: none;
-}
-
-.mkt-seller {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: #5b9bf6;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
 }
 
 .mgm-card__market-ico {
@@ -6397,9 +6297,608 @@ body {
   fill: #f5f5f7;
 }
 
-/* На вкладке «Активность» отбора и сетки нет */
-.prf-filter[hidden],
+/* Скрытое на маркете — скрыто, даже если у блока свой display */
 .prf__list[hidden],
-.mkt-act[hidden] {
+.mkt-act[hidden],
+.mkt-search[hidden],
+.prf-filter__item[hidden],
+.mgm-chrome[hidden],
+.mgm-footer[hidden],
+.pgm-footer[hidden],
+.mgm-title__price[hidden] {
+  display: none;
+}
+
+/* Gram в строке профиля — вместо звёзд */
+.pu-ctrl__balance--gram {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pu-ctrl__icon--gram {
+  width: 17px;
+  height: 14px;
+  fill: #f5f5f7;
+}
+
+/* --- Маркет: страница memgift `/m` --- */
+
+/* Своей шапки у маркета нет — как у образца: логотип и вкладки */
+.stage[data-section="market"] .hdr {
+  display: none;
+}
+
+.stage > .pane[data-pane="market"] {
+  padding-top: 16px;
+}
+
+.mkt-display {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.mkt-logotype {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding-left: 16px;
+  opacity: .4;
+}
+
+.mkt-logotype svg {
+  width: 22px;
+  height: 21px;
+  fill: #f5f5f7;
+}
+
+.mkt-logotype span {
+  color: #f5f5f7;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -.4px;
+}
+
+/* Вкладки — крупный текст, неактивная бледная; баланс справа */
+.mkt-tabs {
+  width: 100%;
+  margin-bottom: -3px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mkt-tabs__items {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  min-width: 0;
+}
+
+.mkt-tabs__item {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mkt-tabs__item:active {
+  opacity: .7;
+}
+
+.mkt-tabs__item h4 {
+  margin: 0;
+  color: #f5f5f7;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  white-space: nowrap;
+  opacity: .2;
+  transition: opacity .18s ease;
+}
+
+.mkt-tabs__item.active h4 {
+  opacity: 1;
+}
+
+.mkt-tabs__balance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mkt-tabs__balance:active {
+  transform: scale(.97);
+}
+
+.mkt-tabs__balance svg {
+  width: 17px;
+  height: 15px;
+  fill: #f5f5f7;
+  opacity: .8;
+}
+
+.mkt-tabs__balance span {
+  color: #f5f5f7;
+  font-size: 16px;
+  font-weight: 600;
+  opacity: .85;
+}
+
+/* Ряд отбора — `._filters` memgift: тот же, что в профиле, без счётчика */
+.mkt-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Ряд кнопок прокручивается во всю ширину, отступ — внутри него */
+.mkt-filters .prf-filter__items {
+  margin: 0;
+  padding: 0 16px;
+}
+
+.prf-filter__item.disabled {
+  opacity: .35;
+  pointer-events: none;
+}
+
+.mkt-pen {
+  width: 14px;
+  height: 14px;
+  fill: #f5f5f7;
+  opacity: .5;
+}
+
+.mkt-filters .prf-cheaps {
+  margin: 0;
+  padding: 0 16px;
+}
+
+/* Поиск по номеру — `filtersSearch` memgift */
+.mkt-search {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+}
+
+.mkt-search__number {
+  width: 100%;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  border-radius: 52px;
+  background: #1e1e1e;
+}
+
+.mkt-search__hash {
+  display: flex;
+  align-items: center;
+  margin-left: 18px;
+}
+
+.mkt-search__hash h4 {
+  margin: 0;
+  color: #f5f5f7;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mkt-search__number input {
+  width: 100%;
+  height: 100%;
+  padding: 0 10px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f5f5f7;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.mkt-search__number input::placeholder {
+  color: #f5f5f7;
+  opacity: .3;
+}
+
+.mkt-list {
+  margin-top: 16px;
+}
+
+/* «Активность» — `Listings` memgift */
+.mkt-act {
+  margin-top: 16px;
+  padding: 0 16px 120px;
+}
+
+.listings-card {
+  width: 100%;
+  padding: 2px 14px;
+  border-radius: 22px;
+  background: #171717;
+}
+
+.listings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.listings-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+}
+
+.listings-row:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 66px;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: rgba(245, 245, 247, .06);
+}
+
+.listings-row__thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(245, 245, 247, .06);
+}
+
+.listings-row__bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, var(--center-color), var(--around-color));
+}
+
+.listings-row__symbol {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: .35;
+  mix-blend-mode: luminosity;
+  pointer-events: none;
+}
+
+.listings-row__symbol img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 120%;
+  height: 120%;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+}
+
+.listings-row__model {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.listings-row__model img {
+  display: block;
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+}
+
+.listings-row__mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.listings-row__title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.listings-row__name {
+  overflow: hidden;
+  color: #f5f5f7;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -.2px;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.listings-row__seq {
+  flex-shrink: 0;
+  color: #8e8e93;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.listings-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.listings-row__chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 99em;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.listings-row__chip.is-sold {
+  color: #22c55e;
+  background: rgba(34, 197, 94, .14);
+}
+
+.listings-row__chip.is-listed {
+  color: #7cb3ff;
+  background: rgba(0, 131, 253, .14);
+}
+
+.listings-row__chip.is-removed {
+  color: #8e8e93;
+  background: rgba(245, 245, 247, .06);
+}
+
+.listings-row__price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #f5f5f7;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.listings-row__price.is-sold {
+  color: #22c55e;
+}
+
+.listings-row__price img {
+  display: block;
+  width: 14px;
+  height: 14px;
+  opacity: .9;
+}
+
+.listings-row__side {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-left: auto;
+  padding-top: 2px;
+}
+
+.listings-row__date {
+  color: #8e8e93;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Окно лота: баланс над окном — `.mgm-chrome` и `.mgm-balance` memgift */
+.mgm-chrome {
+  position: relative;
+  width: 100%;
+  height: 44px;
+  margin-bottom: 10px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.mgm-balance {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 99em;
+  background: linear-gradient(180deg, #1e1e1e, #191919);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  backdrop-filter: blur(28px) saturate(140%);
+  box-shadow: var(--glass-edge), 0 8px 24px rgba(0, 0, 0, .35);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.mgm-balance:active {
+  transform: scale(.96);
+}
+
+.mgm-balance svg {
+  width: 16px;
+  height: 14px;
+  fill: #f5f5f7;
+}
+
+.mgm-balance span {
+  color: #f5f5f7;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.2px;
+  line-height: 1;
+}
+
+/* Цена под названием */
+.mgm-title__left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mgm-title__price {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mgm-title__price svg {
+  width: 16px;
+  height: 14px;
+  fill: #f5f5f7;
+  opacity: .9;
+}
+
+.mgm-title__price span {
+  color: #f5f5f7;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -.3px;
+}
+
+/* «Купить ◆ 2» — синяя `.mgm-footer__buy` memgift */
+#owned-lotfoot .mgm-footer__buy {
+  background: #0083fd;
+}
+
+#owned-lotfoot .mgm-footer__buy:disabled {
+  opacity: .4;
+  pointer-events: none;
+}
+
+#owned-lotfoot .mgm-footer__buy.is-mine {
+  background: rgba(255, 95, 95, .16);
+}
+
+#owned-lotfoot .mgm-footer__buy.is-mine span {
+  color: #ff6b63;
+}
+
+.mkt-buy__gram {
+  width: 17px;
+  height: 15px;
+  margin-top: 2px;
+  fill: #f5f5f7;
+}
+
+/* Окно продажи — `SellModal` memgift */
+.pgm-sell-form {
+  width: calc(100% - 32px);
+  margin: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pgm-sell-input {
+  padding: 0 8px 0 18px;
+}
+
+.pgm-sell-input input {
+  text-align: left;
+}
+
+.pgm-sell-input__unit {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 4px;
+  color: #f5f5f7;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pgm-sell-input__unit img {
+  width: 18px;
+  height: 18px;
+}
+
+.pgm-sell-input__unit span {
+  opacity: .8;
+}
+
+.pgm-sell-summary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #191919;
+}
+
+.pgm-sell-summary__row {
+  position: relative;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.pgm-sell-summary__row:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 1px;
+  background: rgba(245, 245, 247, .08);
+}
+
+.pgm-sell-summary__label {
+  color: #8e8e93;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pgm-sell-summary__value {
+  color: #f5f5f7;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pgm-sell-error {
+  margin: 0;
+  padding: 0 4px;
+  color: #ff6b63;
+  font-size: 13px;
+}
+
+.pgm-sell-error[hidden] {
   display: none;
 }

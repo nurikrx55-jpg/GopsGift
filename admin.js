@@ -449,6 +449,69 @@
   }
 
   // − значение + с быстрыми надбавками под ним
+  // Gram — баланс TON: дробное число, хранится в нанотонах
+  function tonText(nano) {
+    return String(Math.round((Number(nano) || 0) / 1e5) / 1e4).replace('.', ',');
+  }
+
+  function gramIcon() {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'i i--gram');
+    svg.setAttribute('viewBox', '0 0 19 16');
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#gram');
+    svg.appendChild(use);
+    return svg;
+  }
+
+  function gramStepper(nano) {
+    const wrap = el('div');
+    wrap.style.display = 'grid';
+    wrap.style.gap = '8px';
+
+    const box = el('div', 'ad-stepper');
+    const minus = el('button', null, '−');
+    minus.type = 'button';
+    const plus = el('button', null, '+');
+    plus.type = 'button';
+    const field = el('input');
+    field.type = 'text';
+    field.inputMode = 'decimal';
+    field.value = tonText(nano);
+
+    const read = () => {
+      const value = Number(String(field.value).replace(/\s/g, '').replace(',', '.'));
+      return Math.max(0, Math.round((Number.isFinite(value) ? value : 0) * 1e9));
+    };
+    const set = (next) => {
+      field.value = tonText(Math.max(0, next));
+      haptic('pick');
+    };
+
+    minus.addEventListener('click', () => set(read() - 1e9));
+    plus.addEventListener('click', () => set(read() + 1e9));
+    field.addEventListener('blur', () => { field.value = tonText(read()); });
+    box.append(minus, field, plus);
+    wrap.appendChild(box);
+
+    const quick = el('div', 'ad-quick');
+    [10, 50, 100].forEach((step) => {
+      const chip = el('button', 'ad-chip', '+' + step);
+      chip.type = 'button';
+      chip.addEventListener('click', () => set(read() + step * 1e9));
+      quick.appendChild(chip);
+    });
+    const zero = el('button', 'ad-chip', 'Обнулить');
+    zero.type = 'button';
+    zero.addEventListener('click', () => set(0));
+    quick.appendChild(zero);
+    wrap.appendChild(quick);
+
+    wrap.read = read;
+    return wrap;
+  }
+
   function stepper(value, steps) {
     const wrap = el('div');
     wrap.style.display = 'grid';
@@ -1499,9 +1562,9 @@
     );
 
     const side = el('span', 'ad-person__side');
-    const stars = el('b');
-    stars.append(icon('star'), document.createTextNode(num(person.stars)));
-    side.append(stars, el('span', null, ago(person.lastSeen)));
+    const gram = el('b');
+    gram.append(gramIcon(), document.createTextNode(tonText(person.tonNano)));
+    side.append(gram, el('span', null, ago(person.lastSeen)));
 
     row.append(avatar(person), body, side);
     row.addEventListener('click', () => userSheet(person.id, (fresh) => {
@@ -1674,10 +1737,10 @@
       // Баланс
       const money = el('section', 'ad-card');
       money.appendChild(el('h3', null, 'Баланс'));
-      const stars = stepper(person.stars, [1, 100, 500, 1000]);
+      const gram = gramStepper(person.tonNano);
       const coupons = stepper(person.coupons, [1, 5, 10, 50]);
       const grid = el('div', 'ad-form');
-      grid.append(field('Звёзды', stars, true), field('Купоны', coupons, true));
+      grid.append(field('Gram (TON)', gram, true), field('Купоны', coupons, true));
       money.appendChild(grid);
       body.appendChild(money);
 
@@ -1846,7 +1909,7 @@
           await run(event.currentTarget, 'user.save', {
             id: person.id,
             account: {
-              stars: stars.read(),
+              tonNano: gram.read(),
               coupons: coupons.read(),
               gifts: gifts,
               nfts: nfts.map((one) => one.id),

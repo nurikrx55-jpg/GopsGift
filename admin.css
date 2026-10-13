@@ -2065,3 +2065,11 @@
 .ad-wd__state--bad {
   color: var(--hint);
 }
+
+/* Значок Gram — заливкой, а не линией, как остальные */
+.i.i--gram {
+  width: 15px;
+  height: 13px;
+  fill: currentColor;
+  stroke: none;
+}

@@ -196,70 +196,85 @@
       <div class="tasks" id="tasks"></div>
     </section>
 
-    <!-- Маркет — как у memgift (`/m`): вкладки «Подарки» и «Активность»,
-         тот же ряд отбора, что в профиле, и поиск по номеру. Лоты и
-         историю ставит app.js -->
+    <!-- Маркет — страница memgift `/m` блок в блок: бледный логотип,
+         вкладки крупным текстом с балансом Gram справа, ряд отбора
+         (`._filters`), поиск по номеру и сетка лотов или «Активность».
+         Карточка лота своя. Содержимое ставит app.js -->
     <section class="pane" data-pane="market">
-      <div class="prf-tabs mkt-tabs" id="mkt-tabs" style="--prf-index: 0">
-        <span class="prf-tabs__thumb" aria-hidden="true"></span>
-        <button class="prf-tabs__tab is-active" type="button" data-mkt-tab="gifts">
-          <span data-i18n="market.gifts">Подарки</span>
-        </button>
-        <button class="prf-tabs__tab" type="button" data-mkt-tab="activity">
-          <span data-i18n="market.activity">Активность</span>
-        </button>
-      </div>
+      <div class="mkt-display">
+        <div class="mkt-logotype" aria-hidden="true">
+          <svg viewBox="0 0 643 617"><use href="#logo"></use></svg>
+          <span>GapsGift</span>
+        </div>
 
-      <div class="prf-filter" id="mkt-filter">
-        <div class="prf-filter__items">
-          <button class="prf-filter__item" type="button" id="mkt-sort">
-            <i class="prf-filter__dot" id="mkt-sort-dot" aria-hidden="true" hidden></i>
-            <span class="prf-filter__title" data-i18n="profile.filter">Фильтр</span>
-            <i class="prf-filter__border" aria-hidden="true"></i>
-            <svg class="prf-filter__icon" viewBox="0 0 18 11" aria-hidden="true"><use href="#sort-lines"></use></svg>
-          </button>
-          <button class="prf-filter__item" type="button" id="mkt-coll">
-            <i class="prf-filter__dot" id="mkt-coll-dot" aria-hidden="true" hidden></i>
-            <span class="prf-filter__title" data-i18n="profile.collection">Коллекция</span>
-            <i class="prf-filter__border" aria-hidden="true"></i>
-            <svg class="prf-filter__icon" viewBox="0 0 28 28" aria-hidden="true"><use href="#blocks"></use></svg>
-          </button>
-          <button class="prf-filter__item" type="button" id="mkt-model">
-            <i class="prf-filter__dot" id="mkt-model-dot" aria-hidden="true" hidden></i>
-            <span class="prf-filter__title" data-i18n="profile.model">Модель</span>
-            <i class="prf-filter__border" aria-hidden="true"></i>
-            <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#gift-oth"></use></svg>
-          </button>
-          <button class="prf-filter__item" type="button" id="mkt-symbol">
-            <i class="prf-filter__dot" id="mkt-symbol-dot" aria-hidden="true" hidden></i>
-            <span class="prf-filter__title" data-i18n="profile.symbol">Символ</span>
-            <i class="prf-filter__border" aria-hidden="true"></i>
-            <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#symbol-mark"></use></svg>
-          </button>
-          <button class="prf-filter__item" type="button" id="mkt-backdrop">
-            <i class="prf-filter__dot" id="mkt-backdrop-dot" aria-hidden="true" hidden></i>
-            <span class="prf-filter__title" data-i18n="profile.backdrop">Фон</span>
-            <i class="prf-filter__border" aria-hidden="true"></i>
-            <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#backdrop"></use></svg>
+        <div class="mkt-tabs" id="mkt-tabs">
+          <div class="mkt-tabs__items">
+            <button class="mkt-tabs__item active" type="button" data-mkt-tab="gifts"><h4 data-i18n="market.gifts">Подарки</h4></button>
+            <button class="mkt-tabs__item" type="button" data-mkt-tab="activity"><h4 data-i18n="market.activity">Активность</h4></button>
+          </div>
+          <button class="mkt-tabs__balance" type="button" id="mkt-gram-btn" aria-label="Кошелёк" data-i18n-aria="profile.wallet">
+            <svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
+            <span id="mkt-gram">0</span>
           </button>
         </div>
 
-        <!-- Поиск по номеру — `filtersSearch` memgift -->
-        <label class="mkt-search">
-          <span class="mkt-search__hash" aria-hidden="true">#</span>
-          <input type="text" id="mkt-num" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
-                 placeholder="Поиск по номеру" data-i18n-placeholder="market.searchNumber">
-        </label>
+        <div class="mkt-filters" id="mkt-filter">
+          <div class="prf-filter__items">
+            <button class="prf-filter__item" type="button" id="mkt-sort">
+              <i class="prf-filter__dot" id="mkt-sort-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.filter">Фильтр</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 18 11" aria-hidden="true"><use href="#sort-lines"></use></svg>
+            </button>
+            <!-- «Статус» — только на «Активности», как у memgift -->
+            <button class="prf-filter__item" type="button" id="mkt-status" hidden>
+              <i class="prf-filter__dot" id="mkt-status-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="market.status">Статус</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon mkt-pen" viewBox="0 0 23 23" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M21.0031 1.13182C19.4941 -0.377273 17.0473 -0.377273 15.5382 1.13182L1.78921 14.8808C1.26954 15.4005 0.908836 16.0576 0.74941 16.775L0.0631543 19.8631C-0.345891 21.7038 1.29616 23.3458 3.13683 22.9369L6.22497 22.2506C6.94241 22.0911 7.59947 21.7304 8.11921 21.2108L21.8681 7.46176C23.3773 5.95267 23.3773 3.50596 21.8681 1.99686L21.0031 1.13182ZM17.3598 2.95345C17.8628 2.45042 18.6784 2.45042 19.1814 2.95345L20.0465 3.8185C20.5495 4.32152 20.5495 5.1371 20.0465 5.64013L17.5713 8.11529L14.8846 5.42862L17.3598 2.95345ZM13.063 7.25025L3.61083 16.7025C3.43761 16.8756 3.31738 17.0947 3.26424 17.3338L2.57798 20.422L5.66612 19.7357C5.90527 19.6826 6.12429 19.5623 6.29752 19.3891L15.7497 9.93693L13.063 7.25025Z"/></svg>
+            </button>
+            <button class="prf-filter__item" type="button" id="mkt-coll">
+              <i class="prf-filter__dot" id="mkt-coll-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.collection">Коллекция</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 28 28" aria-hidden="true"><use href="#blocks"></use></svg>
+            </button>
+            <!-- Модель выбирают внутри коллекции: без неё кнопка приглушена -->
+            <button class="prf-filter__item" type="button" id="mkt-model">
+              <i class="prf-filter__dot" id="mkt-model-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.model">Модель</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#gift-oth"></use></svg>
+            </button>
+            <button class="prf-filter__item" type="button" id="mkt-symbol">
+              <i class="prf-filter__dot" id="mkt-symbol-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.symbol">Символ</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#symbol-mark"></use></svg>
+            </button>
+            <button class="prf-filter__item" type="button" id="mkt-backdrop">
+              <i class="prf-filter__dot" id="mkt-backdrop-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.backdrop">Фон</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#backdrop"></use></svg>
+            </button>
+          </div>
 
-        <div class="prf-info">
-          <h5 class="prf-info__total" id="mkt-total"></h5>
+          <!-- Поиск по номеру — `filtersSearch` memgift, только у «Подарков» -->
+          <div class="mkt-search" id="mkt-search">
+            <div class="mkt-search__number">
+              <div class="mkt-search__hash"><h4>#</h4></div>
+              <input type="text" id="mkt-num" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+                     placeholder="Поиск по номеру" data-i18n-placeholder="market.searchNumber">
+            </div>
+          </div>
+
+          <div class="prf-cheaps" id="mkt-cheaps" hidden></div>
         </div>
-
-        <div class="prf-cheaps" id="mkt-cheaps" hidden></div>
       </div>
 
       <div class="prf__list mkt-list" id="mkt-list"></div>
-      <div class="wl-list mkt-act" id="mkt-activity" hidden></div>
+      <div class="mkt-act" id="mkt-activity" hidden></div>
     </section>
 
     <section class="pane" data-pane="profile">
@@ -286,10 +301,11 @@
               <svg class="pu-ctrl__icon pu-ctrl__icon--ticket" viewBox="0 0 18 18" aria-hidden="true"><use href="#coupon"></use></svg>
               <span id="prf-coupons">0</span>
             </span>
-            <span class="pu-ctrl__balance">
-              <img class="pu-ctrl__icon" src="gifts/star-white.png" alt="звёзд" data-i18n-alt="hdr.stars" draggable="false">
-              <span id="prf-stars">0</span>
-            </span>
+            <!-- Баланс Gram — как в шапке; нажатие ведёт в кошелёк -->
+            <button class="pu-ctrl__balance pu-ctrl__balance--gram" type="button" id="prf-gram-btn" aria-label="Кошелёк" data-i18n-aria="profile.wallet">
+              <svg class="pu-ctrl__icon pu-ctrl__icon--gram" viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
+              <span id="prf-gram">0</span>
+            </button>
           </span>
         </div>
 
@@ -745,6 +761,13 @@
        инструментами, таблица и «Закрыть». Содержимое ставит app.js -->
   <div class="mgo" id="owned-ov"></div>
   <div class="mgm-dock pgm-own" id="owned">
+    <!-- Баланс над окном лота — `.mgm-chrome` memgift -->
+    <div class="mgm-chrome" id="owned-chrome" hidden>
+      <button class="mgm-balance" type="button" id="owned-balance-btn" aria-label="Кошелёк" data-i18n-aria="profile.wallet">
+        <svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
+        <span id="owned-balance">0</span>
+      </button>
+    </div>
     <div class="mgm-sheet" role="dialog" aria-modal="true" aria-labelledby="owned-title">
       <button class="mgm-close" type="button" data-dock-close aria-label="Закрыть" data-i18n-aria="gift.close"><svg viewBox="0 0 11 11" aria-hidden="true"><path d="M1 1L10 10M1 10L10 1"></path></svg></button>
 
@@ -783,7 +806,14 @@
         </div>
 
         <div class="mgm-title">
-          <div class="mgm-title__left"><h3 id="owned-title"></h3></div>
+          <div class="mgm-title__left">
+            <h3 id="owned-title"></h3>
+            <!-- Цена лота — под названием, как у memgift -->
+            <div class="mgm-title__price" id="owned-price" hidden>
+              <svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
+              <span id="owned-price-text"></span>
+            </div>
+          </div>
           <div class="mgm-title__tools">
             <button class="mgm-tool" type="button" id="owned-share" aria-label="Поделиться" data-i18n-aria="gift.share">
               <svg viewBox="0 0 21 21" aria-hidden="true">
@@ -807,11 +837,6 @@
         </button>
 
         <div class="mgm-info">
-          <!-- Лот маркета: продавец вместо владельца -->
-          <div class="mgm-info__row" id="owned-seller-row" hidden>
-            <span class="mgm-info__label" data-i18n="market.seller">Продавец</span>
-            <div class="mgm-info__right"><button class="mgm-info__val mkt-seller" type="button" id="owned-seller"></button></div>
-          </div>
           <div class="mgm-info__row" id="owned-owner-row">
             <span class="mgm-info__label" data-i18n="gift.owner">Владелец</span>
             <div class="mgm-info__right"><span class="mgm-info__val" id="owned-owner"></span></div>
@@ -844,10 +869,19 @@
           <button class="pgm-footer__btn pgm-footer__btn--close" type="button" data-dock-close id="owned-close">
             <span data-i18n="gift.close">Закрыть</span>
           </button>
-          <!-- Лот маркета: «Купить за … TON» или «Снять с продажи», если свой -->
-          <button class="pgm-footer__btn mkt-buy" type="button" id="owned-buy" hidden>
-            <svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
-            <span id="owned-buy-text"></span>
+        </div>
+
+        <!-- Лот маркета — `.mgm-footer.market` memgift: «Купить ◆ 2»; свой лот — «Снять с продажи» -->
+        <div class="mgm-footer market" id="owned-lotfoot" hidden>
+          <button class="mgm-footer__buy" type="button" id="owned-buy">
+            <span class="pgm-send-button__content">
+              <span id="owned-buy-label" data-i18n="market.buy">Купить</span>
+              <svg class="mkt-buy__gram" id="owned-buy-gram" viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>
+              <span id="owned-buy-price"></span>
+            </span>
+            <span class="pgm-send-button__loading">
+              <span class="mgm-footer__spin" aria-hidden="true"></span>
+            </span>
           </button>
         </div>
       </div>
@@ -899,6 +933,61 @@
             <span class="pgm-send-button__loading">
               <span class="mgm-footer__spin" aria-hidden="true"></span>
               <span data-i18n="send.sending">Отправляем…</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Продажа — окно memgift `SellModal` (`.pgm-sell-*`): карточка, цена
+       в TON, минимальная цена и сколько дойдёт после комиссии -->
+  <div class="mgo" id="sell-ov"></div>
+  <div class="mgm-dock pgm-transfer" id="sell">
+    <div class="mgm-sheet" role="dialog" aria-modal="true" aria-labelledby="sell-title">
+      <button class="mgm-close" type="button" data-dock-close aria-label="Закрыть" data-i18n-aria="gift.close"><svg viewBox="0 0 11 11" aria-hidden="true"><path d="M1 1L10 10M1 10L10 1"></path></svg></button>
+
+      <div class="mgm-body">
+        <div class="mgm-card market">
+          <div class="mgm-card__head tint-face" id="sell-head">
+            <div class="mgm-card__bg"></div>
+            <div class="mgm-card__symbol"><img id="sell-symbol" src="gifts/pattern.png" alt="" draggable="false"></div>
+            <div class="mgm-card__mark" id="sell-mark"><p id="sell-num"></p></div>
+            <div class="mgm-card__model" id="sell-art"></div>
+          </div>
+        </div>
+
+        <div class="mgm-title">
+          <div class="mgm-title__left"><h3 id="sell-title"></h3></div>
+        </div>
+
+        <div class="pgm-sell-form">
+          <div class="pgm-recipient-search pgm-sell-input" id="sell-box">
+            <input type="text" id="sell-price" inputmode="decimal" autocomplete="off" placeholder="0">
+            <div class="pgm-sell-input__unit"><img src="gifts/ton.svg" alt="TON" draggable="false"><span>TON</span></div>
+          </div>
+          <div class="pgm-sell-summary">
+            <div class="pgm-sell-summary__row">
+              <span class="pgm-sell-summary__label" data-i18n="market.minimum">Минимальная цена</span>
+              <span class="pgm-sell-summary__value" id="sell-min"></span>
+            </div>
+            <div class="pgm-sell-summary__row">
+              <span class="pgm-sell-summary__label" data-i18n="market.total">Вы получите после комиссии</span>
+              <span class="pgm-sell-summary__value" id="sell-total"></span>
+            </div>
+          </div>
+          <p class="pgm-sell-error" id="sell-error" hidden></p>
+        </div>
+
+        <div class="mgm-footer market pgm-transfer-footer">
+          <button class="mgm-footer__buy" type="button" id="sell-go" disabled>
+            <span class="pgm-send-button__content">
+              <span data-i18n="market.sellFor">Продать за</span>
+              <span class="pgm-transfer-cost"><img src="gifts/ton-white.svg" alt="" draggable="false"><span id="sell-go-price">0</span></span>
+            </span>
+            <span class="pgm-send-button__loading">
+              <span class="mgm-footer__spin" aria-hidden="true"></span>
+              <span data-i18n="market.listing">Выставляем…</span>
             </span>
           </button>
         </div>

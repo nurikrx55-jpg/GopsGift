@@ -2323,8 +2323,8 @@
   }
 
   /* Маркет в окне подарка. Свой улучшенный: «Продать», а если уже
-     выставлен — «Снять» и плашка «Выставлен на маркете». Лот из маркета:
-     продавец, а внизу «Купить за … TON» или «Снять с продажи», если свой */
+     выставлен — «Снять» и плашка «Выставлен на маркете». Лот из маркета —
+     окно memgift: баланс над окном, цена под названием, «Купить ◆ 2» */
   function paintOwnedMarket(gift) {
     const upg = Boolean(gift && gift.nft);
     const lot = gift && gift.lot;
@@ -2344,18 +2344,22 @@
         t('market.onMarket', { n: formatTon(gift.nft.lotNano) });
     }
 
-    document.getElementById('owned-seller-row').hidden = !lot;
-    if (lot) document.getElementById('owned-seller').textContent = lot.seller.name;
+    document.getElementById('owned-chrome').hidden = !lot;
+    document.getElementById('owned-price').hidden = !lot;
+    document.getElementById('owned-lotfoot').hidden = !lot;
+    document.getElementById('owned-close').parentNode.hidden = Boolean(lot);
+    if (!lot) return;
 
+    paintGram();
+    document.getElementById('owned-price-text').textContent = formatTon(lot.nano);
+    const mine = isMine(lot);
     const buy = document.getElementById('owned-buy');
-    buy.hidden = !lot;
-    document.getElementById('owned-close').hidden = Boolean(lot);
-    if (lot) {
-      buy.classList.toggle('is-mine', isMine(lot));
-      document.getElementById('owned-buy-text').textContent = isMine(lot)
-        ? t('market.unlistLot')
-        : t('market.buyFor', { n: formatTon(lot.nano) });
-    }
+    buy.classList.toggle('is-mine', mine);
+    document.getElementById('owned-buy-label').textContent = t(mine ? 'market.unlistLot' : 'market.buy');
+    document.getElementById('owned-buy-gram').style.display = mine ? 'none' : '';
+    document.getElementById('owned-buy-price').textContent = mine ? '' : formatTon(lot.nano);
+    // Не хватает на балансе — кнопка гаснет, как `checkBalanceAndPrice` memgift
+    buy.disabled = !mine && (Number(ME && ME.tonNano) || 0) < lot.nano;
   }
 
   function initOwnedTools() {
@@ -2378,13 +2382,6 @@
       if (ownGift) buyLot(ownGift);
     });
 
-    // Продавец лота — его профиль, как строка топа покупателей
-    document.getElementById('owned-seller').addEventListener('click', () => {
-      if (!ownGift || !ownGift.lot) return;
-      haptic('light');
-      const seller = ownGift.lot.seller;
-      openView({ id: seller.id, name: seller.name, photo: seller.photo });
-    });
 
     const soon = (key) => () => {
       haptic('light');
@@ -2537,10 +2534,8 @@
 
     const modal = document.getElementById('wmod-wallet');
     if (modal) {
-      // Продаже кошелёк не нужен: деньги придут на баланс
-      const selling = wmodKind === 'sell';
-      modal.hidden = !on || selling;
-      document.getElementById('wmod-connect').hidden = on || selling;
+      modal.hidden = !on;
+      document.getElementById('wmod-connect').hidden = on;
       document.getElementById('wmod-addr').textContent = shortAddr(walletAddr);
       paintWmod();
     }
@@ -2655,22 +2650,6 @@
     const amount = wmodNumber();
     document.getElementById('wmod-amount').textContent = wmodAmount || '0';
 
-    // Продажа: минимум, комиссия и сколько дойдёт до продавца — как у memgift
-    if (wmodKind === 'sell') {
-      const market = marketSettings();
-      const nano = Math.round(sellPayout(amount) * NANO);
-      document.getElementById('wmod-balance').textContent = t('market.sellInfo', {
-        min: formatTon(Math.round(market.min * NANO)),
-        fee: String(market.fee).replace('.', window.I18N.lang() === 'ru' ? ',' : '.'),
-        get: formatTon(nano)
-      });
-      document.getElementById('wmod-submit-text').textContent = amount > 0
-        ? t('market.sellBtn', { n: wmodAmount })
-        : t('market.sell');
-      document.getElementById('wmod-submit').disabled = wmodBusy || amount < market.min;
-      return;
-    }
-
     // Баланс мог обновиться, пока окно открыто: пришло пополнение
     document.getElementById('wmod-balance').textContent =
       t('wallet.balance') + ' · ' + formatTon(Number(ME && ME.tonNano) || 0) + ' TON';
@@ -2712,11 +2691,9 @@
     wmodKind = kind;
     wmodAmount = '';
     const deposit = kind === 'deposit';
-    document.getElementById('wmod-title').textContent = kind === 'sell'
-      ? t('market.sellTitle')
-      : t(deposit ? 'wallet.depositTitle' : 'wallet.withdrawTitle');
+    document.getElementById('wmod-title').textContent = t(deposit ? 'wallet.depositTitle' : 'wallet.withdrawTitle');
     document.getElementById('wmod-balance').hidden = deposit;
-    document.getElementById('wmod-info').hidden = deposit || kind === 'sell';
+    document.getElementById('wmod-info').hidden = deposit;
     paintWallet();
 
     document.getElementById('wmod-overlay').classList.add('is-open');
@@ -2916,8 +2893,10 @@
     unlinkSheet = createSheet(document.getElementById('unlink'));
 
     document.getElementById('prf-walletpage').addEventListener('click', openWalletPage);
-    const gram = document.getElementById('hdr-gram-btn');
-    if (gram) gram.addEventListener('click', openWalletPage);
+    ['hdr-gram-btn', 'prf-gram-btn', 'mkt-gram-btn', 'owned-balance-btn'].forEach((id) => {
+      const node = document.getElementById(id);
+      if (node) node.addEventListener('click', openWalletPage);
+    });
 
     document.getElementById('prf-wallet').addEventListener('click', () => {
       if (walletAddr) {
@@ -2958,10 +2937,6 @@
       haptic('light');
       if (wmodKind === 'deposit') {
         sendDeposit();
-        return;
-      }
-      if (wmodKind === 'sell') {
-        sendSell();
         return;
       }
       sendWithdraw();
@@ -4261,7 +4236,7 @@
       haptic('select');
       onClear();
       c.shown = PAGE;
-      renderOwned(c);
+      (c.repaint || renderOwned)(c);
     });
     return node;
   }
@@ -4272,11 +4247,12 @@
     if (!box) return;
 
     box.textContent = '';
-    box.hidden = !c.sort && !c.coll.length && !c.models.length && !c.symbols.length && !c.backdrops.length;
+    box.hidden = !c.sort && !c.status && !c.coll.length && !c.models.length && !c.symbols.length && !c.backdrops.length;
     if (box.hidden) return;
 
     box.appendChild(cheap(c, t('profile.clearAll'), '', () => {
       c.sort = '';
+      if (c.statuses) c.status = '';
       c.coll = [];
       c.models = [];
       c.symbols = [];
@@ -4314,6 +4290,15 @@
         c.backdrops.length === 1 ? 'Backdrop: ' + c.backdrops[0] : c.backdrops.length + ' Backdrops',
         '<svg viewBox="0 0 18 18" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#backdrop"></use></svg>',
         () => { c.backdrops = []; }
+      ));
+    }
+
+    // Статус — у «Активности» маркета, значок-карандаш memgift
+    if (c.status) {
+      box.appendChild(cheap(c,
+        t('market.st.' + c.status),
+        '<svg viewBox="0 0 23 23" aria-hidden="true" style="fill:#f5f5f7;stroke:none;width:11px;height:11px"><path d="M21 1.13a3.9 3.9 0 0 0-5.46 0L1.79 14.88a3.9 3.9 0 0 0-1.04 1.9L.06 19.86a2.6 2.6 0 0 0 3.08 3.08l3.09-.69a3.9 3.9 0 0 0 1.89-1.04L21.87 7.46a3.9 3.9 0 0 0 0-5.46Z"/></svg>',
+        () => { c.status = ''; }
       ));
     }
 
@@ -4414,8 +4399,10 @@
     releaseArt(list);
     list.textContent = '';
     // В NFT слово не склоняется: «0 NFT», а не «0 подарков»
-    total.textContent = formatPrice(items.length) + ' ' +
-      (c.tab === 'nft' ? 'NFT' : countOf(items.length, 'gift.count'));
+    if (total) {
+      total.textContent = formatPrice(items.length) + ' ' +
+        (c.tab === 'nft' ? 'NFT' : countOf(items.length, 'gift.count'));
+    }
 
     // Во вкладке NFT своего профиля — что продажа на GetGems скоро будет
     if (c.tab === 'nft' && c.id === 'prf') list.appendChild(gemsSoon());
@@ -4475,7 +4462,7 @@
 
     const reload = () => {
       c.shown = PAGE;
-      renderOwned(c);
+      (c.repaint || renderOwned)(c);
     };
 
     // Кнопок отбора у чужого профиля меньше, как у memgift: вешаем на те, что есть
@@ -4500,8 +4487,9 @@
     // Коллекции — те подарки, что лежат у человека, без повторов
     on('coll', () => {
       const seen = new Set();
-      const items = [];
-      c.source(c.tab).forEach((gift) => {
+      let items = [];
+      if (c.collItems) items = c.collItems();
+      else c.source(c.tab).forEach((gift) => {
         if (seen.has(gift.id)) return;
         seen.add(gift.id);
         items.push({ id: gift.id, label: gift.name, media: { type: 'gift', gift: gift } });
@@ -4513,7 +4501,12 @@
         items: items,
         multi: true,
         selected: c.coll,
-        onApply: (ids) => { c.coll = ids.slice(); reload(); }
+        onApply: (ids) => {
+          c.coll = ids.slice();
+          // Модели — внутри коллекций: сменили коллекции — модели заново
+          if (c.modelItems) c.models = [];
+          reload();
+        }
       });
     });
 
@@ -4522,8 +4515,8 @@
     // Модели — что выпало у улучшенных подарков этого человека, без повторов
     on('model', () => {
       const seen = new Set();
-      const items = [];
-      c.source(c.tab).forEach((gift) => {
+      const items = c.modelItems ? c.modelItems(c) : [];
+      if (!c.modelItems) c.source(c.tab).forEach((gift) => {
         if (!gift.nft || seen.has(gift.nft.model.name)) return;
         seen.add(gift.nft.model.name);
         items.push({
@@ -4607,18 +4600,18 @@
     coupons.textContent = formatPrice(ME ? ME.coupons : 0);
     paintGram();
 
-    // В профиле своей шапки нет — балансы стоят в его строке с языком.
-    // Там остаются звёзды: на главной их место занял Gram
-    const prfStars = document.getElementById('prf-stars');
+    // В профиле своей шапки нет — балансы стоят в его строке с языком
     const prfCoupons = document.getElementById('prf-coupons');
-    if (prfStars) prfStars.textContent = formatPrice(ME ? ME.stars : 0);
     if (prfCoupons) prfCoupons.textContent = coupons.textContent;
   }
 
   // Баланс Gram в шапке — TON на счёте, как на странице кошелька
   function paintGram() {
-    const gram = document.getElementById('hdr-gram');
-    if (gram) gram.textContent = formatTon(Number(ME && ME.tonNano) || 0);
+    const text = formatTon(Number(ME && ME.tonNano) || 0);
+    ['hdr-gram', 'prf-gram', 'mkt-gram', 'owned-balance'].forEach((id) => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = text;
+    });
   }
 
   function initProfile() {
@@ -4740,13 +4733,15 @@
 
   // --- Маркет ---
 
-  /* Как у memgift (`/m`): вкладки «Подарки» и «Активность», тот же ряд
-     отбора, что в профиле, и поиск по номеру. Продают только улучшенные
-     подарки, цена в TON, платят с баланса. Карточка лота своя — у memgift
-     она тесная и пёстрая: здесь фон подарка во всю карточку, номер на
-     стекле, имя с моделью и цена отдельной кнопкой снизу */
+  /* Страница memgift `/m` блок в блок: бледный логотип, вкладки крупным
+     текстом с балансом Gram справа, ряд отбора с «Статусом» на
+     «Активности», поиск по номеру у «Подарков». Модель выбирают внутри
+     коллекции. Продают только улучшенные подарки, цена в TON, платят с
+     баланса. Своя у нас только карточка лота: фон подарка во всю
+     карточку, номер на стекле, имя с моделью и цена кнопкой снизу */
   const MARKET_API = '/api/market';
   const MARKET_SORTS = ['latest', 'oldest', 'price_low', 'price_high'];
+  const MARKET_STATUSES = ['sold', 'listed', 'removed'];
   let LOTS = [];
   let MKT_LOG = [];
   let marketTab = 'gifts';
@@ -4866,79 +4861,172 @@
     return box;
   }
 
+  // Коллекции — все подарки, которые улучшаются, как `marketGiftCatalog` memgift
+  function marketCollections() {
+    return GIFTS.filter((gift) => Array.isArray(gift.models) && gift.models.length)
+      .map((gift) => ({ id: gift.id, label: gift.name, media: { type: 'gift', gift: gift } }));
+  }
+
+  // Модели — у выбранных коллекций, с шансом выпасть
+  function marketModels(c) {
+    const items = [];
+    const seen = new Set();
+    c.coll.forEach((id) => {
+      const gift = giftById(id);
+      (gift && gift.models || []).forEach((model) => {
+        if (seen.has(model.name)) return;
+        seen.add(model.name);
+        items.push({ id: model.name, label: model.name, rate: pct(model.rate), media: { type: 'gift', gift: model } });
+      });
+    });
+    return items;
+  }
+
   const mktList = Object.assign(ownedList('mkt', () => LOTS.map(lotView), (gift) => ownSheet.open(gift), marketCard), {
     sorts: MARKET_SORTS,
     grid: 'mkt-grid',
     empty: marketEmpty,
-    num: ''
+    collItems: marketCollections,
+    modelItems: marketModels,
+    statuses: MARKET_STATUSES,
+    status: '',
+    num: '',
+    repaint: () => paintMarket()
   });
 
-  // История: выставлен, продан, снят — как вкладка «Активность» memgift
+  // «5 минут назад» — `unixToRelative` memgift
+  function relativeTime(at) {
+    const ru = window.I18N.lang() === 'ru';
+    const s = Math.max(0, Math.round((Date.now() - at) / 1000));
+    const unit = (n, one, few, many, en) => (ru
+      ? n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many) + ' назад'
+      : n + ' ' + en + (n === 1 ? '' : 's') + ' ago');
+    if (s < 45) return ru ? 'несколько секунд назад' : 'a few seconds ago';
+    if (s < 3600) return unit(Math.max(1, Math.round(s / 60)), 'минуту', 'минуты', 'минут', 'minute');
+    if (s < 86400) return unit(Math.round(s / 3600), 'час', 'часа', 'часов', 'hour');
+    if (s < 2592000) return unit(Math.round(s / 86400), 'день', 'дня', 'дней', 'day');
+    return unit(Math.round(s / 2592000), 'месяц', 'месяца', 'месяцев', 'month');
+  }
+
+  // «Активность» с тем же отбором, что у лотов, плюс статус
+  function activityItems(c) {
+    let list = MKT_LOG.slice();
+    if (c.sort === 'oldest') list.reverse();
+    if (c.status) list = list.filter((one) => one.type === c.status);
+    if (c.coll.length) list = list.filter((one) => c.coll.indexOf(one.nft.gift) !== -1);
+    if (c.models.length) list = list.filter((one) => c.models.indexOf(one.nft.model.name) !== -1);
+    if (c.symbols.length) list = list.filter((one) => c.symbols.indexOf(one.nft.symbol) !== -1);
+    if (c.backdrops.length) list = list.filter((one) => c.backdrops.indexOf(one.nft.backdrop) !== -1);
+    if (c.sort === 'price_low') list.sort((a, b) => a.nano - b.nano);
+    if (c.sort === 'price_high') list.sort((a, b) => b.nano - a.nano);
+    return list;
+  }
+
+  // Ряды — `Listings` memgift: квадрат с фоном и моделью, имя с номером,
+  // цветной статус с ценой и «сколько назад» справа
   function renderActivity() {
     const box = document.getElementById('mkt-activity');
     if (!box) return;
     box.textContent = '';
+    const items = activityItems(mktList);
 
-    if (!MKT_LOG.length) {
-      const empty = document.createElement('div');
-      empty.className = 'wl-empty';
-      const text = document.createElement('p');
-      text.textContent = t('market.actEmpty');
-      empty.appendChild(text);
-      box.appendChild(empty);
+    if (!items.length) {
+      box.appendChild(marketEmpty());
       return;
     }
 
-    MKT_LOG.forEach((one) => {
+    const card = document.createElement('div');
+    card.className = 'listings-card';
+    const list = document.createElement('div');
+    list.className = 'listings-list';
+
+    items.forEach((one) => {
       const view = lotView({ nft: one.nft, nano: one.nano, seller: one.seller || { id: '', name: '' } });
       const row = document.createElement('div');
-      row.className = 'item';
+      row.className = 'listings-row is-' + one.type;
 
       const thumb = document.createElement('div');
-      thumb.className = 'nft mkt-act__thumb';
+      thumb.className = 'listings-row__thumb';
+      const bg = document.createElement('div');
+      bg.className = 'listings-row__bg';
       const colors = backdropColors(view);
-      thumb.style.background = 'radial-gradient(circle, ' + colors.center + ', ' + colors.around + ')';
-      showShot(thumb, artOf(view));
+      bg.style.setProperty('--center-color', colors.center);
+      bg.style.setProperty('--around-color', colors.around);
+      thumb.appendChild(bg);
+      const symbol = symbolOf(one.nft.symbol);
+      if (symbol) {
+        const sym = document.createElement('div');
+        sym.className = 'listings-row__symbol';
+        sym.innerHTML = '<img alt="">';
+        sym.firstChild.src = symbol.image;
+        thumb.appendChild(sym);
+      }
+      const model = document.createElement('div');
+      model.className = 'listings-row__model';
+      showShot(model, artOf(view));
+      thumb.appendChild(model);
 
       const mid = document.createElement('div');
-      mid.className = 'mid';
-      const name = document.createElement('h4');
-      name.className = 'name';
-      name.textContent = view.name + ' #' + one.nft.num;
+      mid.className = 'listings-row__mid';
+      const title = document.createElement('div');
+      title.className = 'listings-row__title';
+      const name = document.createElement('span');
+      name.className = 'listings-row__name';
+      name.textContent = view.name;
+      const seq = document.createElement('span');
+      seq.className = 'listings-row__seq';
+      seq.textContent = '#' + one.nft.num;
+      title.append(name, seq);
+
       const meta = document.createElement('div');
-      meta.className = 'meta-row';
-      const time = document.createElement('span');
-      time.textContent = new Date(one.at).toLocaleString(window.I18N.lang() === 'ru' ? 'ru-RU' : 'en-GB', {
-        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-      });
-      const dot = document.createElement('span');
-      dot.className = 'dot';
-      dot.textContent = '·';
-      const price = document.createElement('span');
-      price.className = 'price';
-      price.textContent = formatTon(one.nano) + ' TON';
-      meta.append(time, dot, price);
-      mid.append(name, meta);
+      meta.className = 'listings-row__meta';
+      const chip = document.createElement('span');
+      chip.className = 'listings-row__chip is-' + one.type;
+      chip.textContent = t('market.st.' + one.type);
+      meta.appendChild(chip);
+      if (one.type !== 'removed') {
+        const price = document.createElement('span');
+        price.className = 'listings-row__price is-' + one.type;
+        price.append(formatTon(one.nano) + ' ');
+        const ton = document.createElement('img');
+        ton.src = 'gifts/ton.svg';
+        ton.alt = '';
+        price.appendChild(ton);
+        meta.appendChild(price);
+      }
+      mid.append(title, meta);
 
-      const right = document.createElement('div');
-      right.className = 'right';
-      const status = document.createElement('span');
-      status.className = 'status mkt-act__status is-' + one.type;
-      status.textContent = t('market.st.' + one.type);
-      right.appendChild(status);
+      const side = document.createElement('div');
+      side.className = 'listings-row__side';
+      const date = document.createElement('span');
+      date.className = 'listings-row__date';
+      date.textContent = relativeTime(one.at);
+      side.appendChild(date);
 
-      row.append(thumb, mid, right);
-      box.appendChild(row);
+      row.append(thumb, mid, side);
+      list.appendChild(row);
     });
+
+    card.appendChild(list);
+    box.appendChild(card);
   }
 
   function paintMarket() {
     const gifts = marketTab === 'gifts';
-    document.getElementById('mkt-filter').hidden = !gifts;
+    // Без коллекции и модели не выбрать — как `clearModels` memgift
+    if (!mktList.coll.length) mktList.models = [];
+    document.querySelectorAll('.mkt-tabs__item').forEach((item) => {
+      item.classList.toggle('active', item.dataset.mktTab === marketTab);
+    });
+    document.getElementById('mkt-status').hidden = gifts;
+    document.getElementById('mkt-search').hidden = !gifts;
     document.getElementById('mkt-list').hidden = !gifts;
     document.getElementById('mkt-activity').hidden = gifts;
-    if (gifts) renderOwned(mktList);
-    else renderActivity();
+    // Модель — только внутри выбранной коллекции
+    document.getElementById('mkt-model').classList.toggle('disabled', !mktList.coll.length);
+    document.getElementById('mkt-status-dot').hidden = !mktList.status;
+    renderOwned(mktList);
+    if (!gifts) renderActivity();
   }
 
   function loadMarket() {
@@ -4962,7 +5050,7 @@
       .then(() => { marketBusy = false; });
   }
 
-  // После покупки или продажи: счёт, профиль, шапка — и маркет заново
+  // После покупки или продажи: счёт, профиль, шапка
   function applyMe(me) {
     Store.apply(null, me);
     fillFromStore();
@@ -4975,51 +5063,106 @@
     if (at !== -1) selectTab(at);
   }
 
-  // --- Продажа: окно с клавиатурой, то же, что «Внести» и «Вывести» ---
+  // --- Продажа: окно memgift `SellModal` ---
 
+  let sellSheet = null;
   let sellGift = null;
+  let sellPlayer = null;
+  let selling = false;
 
-  function sellPayout(amount) {
-    const fee = marketSettings().fee;
-    return Math.max(0, amount - amount * fee / 100);
+  function sellAmount() {
+    const value = Number(String(document.getElementById('sell-price').value).replace(',', '.'));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function paintSell() {
+    const market = marketSettings();
+    const amount = sellAmount();
+    const nano = Math.round(amount * NANO);
+    const fee = Math.round(nano * market.fee / 100);
+    document.getElementById('sell-min').textContent = formatTon(Math.round(market.min * NANO)) + ' TON';
+    document.getElementById('sell-total').textContent = formatTon(Math.max(0, nano - fee)) + ' TON';
+    document.getElementById('sell-go-price').textContent = formatTon(nano);
+
+    const low = amount > 0 && amount < market.min;
+    const error = document.getElementById('sell-error');
+    error.hidden = !low;
+    if (low) error.textContent = t('market.minError', { n: formatTon(Math.round(market.min * NANO)) });
+    document.getElementById('sell-box').classList.toggle('is-error', low);
+    document.getElementById('sell-go').disabled = selling || !(amount >= market.min);
   }
 
   function openSell(gift) {
-    if (!gift || !gift.nft) return;
+    if (!gift || !gift.nft || !sellSheet) return;
     if (!Store.live()) {
       toast(t('pay.noDb'));
       return;
     }
-    sellGift = gift;
-    wmodOpen('sell');
+    sellSheet.open(gift);
   }
 
   function sendSell() {
     const gift = sellGift;
-    const amount = wmodNumber();
-    if (!gift || wmodBusy || amount < marketSettings().min) return;
+    const amount = sellAmount();
+    if (!gift || selling || amount < marketSettings().min) return;
 
-    wmodBusy = true;
-    paintWmod();
-    marketPost({ action: 'sell', nft: gift.nft.id, price: wmodAmount })
+    selling = true;
+    const button = document.getElementById('sell-go');
+    button.classList.add('is-loading');
+    paintSell();
+    marketPost({ action: 'sell', nft: gift.nft.id, price: String(amount) })
       .then((data) => {
         applyMe(data.me);
         haptic('success');
         toast(t('market.listed'));
-        wmodClose();
+        sellSheet.close();
         refreshOwned(gift.nft.id);
         marketLoaded = false;
-        if (current === tabs.findIndex((tab) => tab.dataset.section === 'market')) loadMarket();
       })
       .catch((error) => toast(error.message))
       .then(() => {
-        wmodBusy = false;
-        paintWmod();
+        selling = false;
+        button.classList.remove('is-loading');
+        paintSell();
       });
   }
 
+  function initSell() {
+    sellSheet = createDock(document.getElementById('sell'), document.getElementById('sell-ov'), {
+      fill: (gift) => {
+        sellGift = gift;
+        const head = document.getElementById('sell-head');
+        paintHead(head, gift, document.getElementById('sell-symbol'), document.getElementById('sell-mark'));
+        document.getElementById('sell-title').textContent = gift.name;
+        document.getElementById('sell-price').value = '';
+        paintSell();
+      },
+      opened: (gift) => {
+        sellPlayer = openArt(document.getElementById('sell-art'), artOf(gift));
+      },
+      closed: () => {
+        closeArt(document.getElementById('sell-art'), sellPlayer);
+        sellPlayer = null;
+        sellGift = null;
+      }
+    });
+    if (!sellSheet) return;
+
+    const input = document.getElementById('sell-price');
+    input.addEventListener('input', () => {
+      // Только число: точка или запятая и не больше двух знаков после
+      let value = input.value.replace(',', '.').replace(/[^\d.]/g, '');
+      const parts = value.split('.');
+      if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('');
+      const [whole, frac] = value.split('.');
+      input.value = whole.slice(0, 9) + (frac !== undefined ? '.' + frac.slice(0, 2) : '');
+      paintSell();
+    });
+    document.getElementById('sell-go').addEventListener('click', sendSell);
+  }
+
   function unlistOwned(gift) {
-    if (!gift || !gift.nft || !gift.nft.lot || marketBusy) return;
+    if (!gift || !gift.nft || !gift.nft.lot) return;
     const button = document.getElementById('owned-sell');
     button.classList.add('loading');
     marketPost({ action: 'unlist', lot: gift.nft.lot })
@@ -5047,55 +5190,37 @@
   function buyLot(gift) {
     const lot = gift && gift.lot;
     if (!lot || buying) return;
-
-    if (isMine(lot)) {
-      // Свой лот из маркета — снять с продажи
-      buying = true;
-      marketPost({ action: 'unlist', lot: lot.id })
-        .then((data) => {
-          applyMe(data.me);
-          haptic('success');
-          toast(t('market.unlisted'));
-          ownSheet.close();
-          LOTS = LOTS.filter((one) => one.id !== lot.id);
-          paintMarket();
-          loadMarket();
-        })
-        .catch((error) => toast(error.message))
-        .then(() => { buying = false; });
-      return;
-    }
-
-    if ((Number(ME && ME.tonNano) || 0) < lot.nano) {
-      toast(t('market.low'));
-      return;
-    }
-
-    buying = true;
     const button = document.getElementById('owned-buy');
-    button.classList.add('is-busy');
-    marketPost({ action: 'buy', lot: lot.id })
+    buying = true;
+    button.classList.add('is-loading');
+
+    // Свой лот из маркета — снять с продажи
+    const request = isMine(lot)
+      ? marketPost({ action: 'unlist', lot: lot.id })
+      : marketPost({ action: 'buy', lot: lot.id });
+
+    request
       .then((data) => {
         applyMe(data.me);
         LOTS = LOTS.filter((one) => one.id !== lot.id);
+        haptic('success');
+        // Как у memgift: уведомление и окно закрывается
+        toast(t(isMine(lot) ? 'market.unlisted' : 'market.bought'));
         ownSheet.close();
         paintMarket();
-        haptic('success');
-        // Тот же экран, что после покупки на витрине: «Подарок куплен» с конфетти
-        setTimeout(() => wonOpen(artOf(gift), false), 360);
         loadMarket();
       })
       .catch((error) => {
         toast(error.message);
         // Лот ушёл к другому — убираем его и из списка
-        if (!/TON/.test(error.message)) {
+        if (error.code !== 'market.low') {
           ownSheet.close();
           loadMarket();
         }
       })
       .then(() => {
         buying = false;
-        button.classList.remove('is-busy');
+        button.classList.remove('is-loading');
       });
   }
 
@@ -5103,14 +5228,11 @@
     const tabsBox = document.getElementById('mkt-tabs');
     if (!tabsBox) return;
 
-    const buttons = Array.from(tabsBox.querySelectorAll('.prf-tabs__tab'));
-    buttons.forEach((button, index) => {
-      button.addEventListener('click', () => {
-        if (button.classList.contains('is-active')) return;
+    tabsBox.querySelectorAll('.mkt-tabs__item').forEach((item) => {
+      item.addEventListener('click', () => {
+        if (item.dataset.mktTab === marketTab) return;
         haptic('select');
-        buttons.forEach((other) => other.classList.toggle('is-active', other === button));
-        tabsBox.style.setProperty('--prf-index', String(index));
-        marketTab = button.dataset.mktTab;
+        marketTab = item.dataset.mktTab;
         paintMarket();
       });
     });
@@ -5124,7 +5246,23 @@
       renderOwned(mktList);
     });
 
+    // Статус — только на «Активности»: продан, выставлен, снят
+    document.getElementById('mkt-status').addEventListener('click', () => {
+      haptic('light');
+      pickSheet.open({
+        title: t('market.status'),
+        icon: { href: '#sort-lines', box: '0 0 18 11', sort: true },
+        items: MARKET_STATUSES.map((id) => ({ id: id, label: t('market.st.' + id) })),
+        selected: mktList.status,
+        onApply: (id) => {
+          mktList.status = id || '';
+          paintMarket();
+        }
+      });
+    });
+
     initOwnFilters(mktList);
+    initSell();
     paintMarket();
   }
 

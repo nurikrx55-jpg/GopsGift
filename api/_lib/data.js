@@ -498,38 +498,53 @@ export async function getUser(id) {
 }
 
 export async function saveAccount(id, input, content) {
+  const key = String(id);
   const known = (content.gifts || []).map((gift) => gift.id);
-  // Баланс TON админка не правит — его приносят только пополнения
-  const before = normalAccount(await command('GET', K.acct(String(id))));
-  const acct = {
-    stars: int(input.stars, 0, 1e9),
-    coupons: int(input.coupons, 0, 1e9),
-    gifts: cleanGiftList(input.gifts, known),
-    // Улучшенные админка только забирает: присылает, какие оставить.
-    // Новых она не создаёт — те появляются только улучшением
-    nfts: (Array.isArray(input.nfts)
-      ? before.nfts.filter((one) => input.nfts.map(String).indexOf(one.id) !== -1)
-      : before.nfts).map((one) => {
-      // Ценность админка ставит каждому улучшенному по его id
-      const values = input.nftValues && typeof input.nftValues === 'object' ? input.nftValues : {};
-      return Object.prototype.hasOwnProperty.call(values, one.id)
-        ? Object.assign({}, one, { value: int(values[one.id], 0, 1e9) })
-        : one;
-    }),
-    tonNano: before.tonNano,
-    sent: before.sent,
-    bought: before.bought,
-    tasksDone: before.tasksDone,
-    tasksStarted: before.tasksStarted
-  };
 
-  // Подкрутка фона живёт отдельно от счёта: счёт уходит в браузер самого
-  // человека, а про подкрутку ему знать незачем
-  const rig = readAttrs().backdrops.some((one) => one.name === input.rigBackdrop) ? input.rigBackdrop : '';
-  await command(rig ? 'SET' : 'DEL', ...(rig ? [K.rig(String(id)), rig] : [K.rig(String(id))]));
+  // Счёт меняют и покупки с выводами — правку админа ставим с ними в очередь
+  return queued(key, async () => {
+    const before = normalAccount(await command('GET', K.acct(key)));
+    const keep = Array.isArray(input.nfts) ? input.nfts.map(String) : null;
+    // Баланс Gram (TON) админка задаёт числом в нанотонах. Не прислала — прежний
+    const tonNano = input.tonNano === undefined ? before.tonNano : int(input.tonNano, 0, 1e15);
 
-  await command('SET', K.acct(String(id)), JSON.stringify(acct));
-  return acct;
+    const acct = {
+      // Звёзд как баланса больше нет — Gram вместо них
+      stars: 0,
+      coupons: int(input.coupons, 0, 1e9),
+      gifts: cleanGiftList(input.gifts, known),
+      // Улучшенные админка только забирает: присылает, какие оставить.
+      // Новых она не создаёт — те появляются только улучшением
+      nfts: (keep ? before.nfts.filter((one) => keep.indexOf(one.id) !== -1) : before.nfts).map((one) => {
+        // Ценность админка ставит каждому улучшенному по его id
+        const values = input.nftValues && typeof input.nftValues === 'object' ? input.nftValues : {};
+        return Object.prototype.hasOwnProperty.call(values, one.id)
+          ? Object.assign({}, one, { value: int(values[one.id], 0, 1e9) })
+          : one;
+      }),
+      tonNano: tonNano,
+      sent: before.sent,
+      bought: before.bought,
+      tasksDone: before.tasksDone,
+      tasksStarted: before.tasksStarted
+    };
+
+    // Забранный подарок мог стоять на маркете — его лот снимаем вместе с ним
+    const gone = before.nfts.filter((one) => one.lot && !acct.nfts.some((left) => left.id === one.id));
+    const commands = [['SET', K.acct(key), JSON.stringify(acct)]];
+    gone.forEach((one) => commands.push(['DEL', K.lot(one.lot)], ['ZREM', K.lots, one.lot]));
+
+    // Подкрутка фона живёт отдельно от счёта: счёт уходит в браузер самого
+    // человека, а про подкрутку ему знать незачем
+    const rig = readAttrs().backdrops.some((one) => one.name === input.rigBackdrop) ? input.rigBackdrop : '';
+    commands.push(rig ? ['SET', K.rig(key), rig] : ['DEL', K.rig(key)]);
+
+    await pipeline(commands);
+
+    // Начисление от админа видно человеку в истории кошелька
+    if (tonNano > before.tonNano) await addTonLog(key, { type: 'deposit', nano: tonNano - before.tonNano, admin: true });
+    return acct;
+  });
 }
 
 export async function stats(content) {
