@@ -7,23 +7,37 @@
 
 import { configured } from './_lib/db.js';
 import { verify } from './_lib/telegram.js';
-import { readContent, startTask, claimTask, findTask, getUser, invitedCount, InputError } from './_lib/data.js';
+import { readContent, startTask, claimTask, findTask, channelName, getUser, invitedCount, InputError } from './_lib/data.js';
 import { call, BotError } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
 
 const MAX_AGE = 30 * 24 * 60 * 60;
 const MEMBER = ['creator', 'administrator', 'member'];
 
-async function subscribed(channel, userId) {
+/* strict — задание «Подписка на канал»: не смогли проверить — не даём.
+   Мягкая проверка — у старых заданий-ссылок на t.me: канал, где бот админ,
+   проверяется так же строго, а ссылка на бота, группу или чужой канал
+   (Telegram ответит ошибкой) засчитывается, как раньше, за переход */
+async function subscribed(channel, userId, strict) {
   let member;
   try {
     member = await call('getChatMember', { chat_id: '@' + channel, user_id: Number(userId) });
   } catch (error) {
+    if (!strict) return true;
     // Бота убрали из админов или канал переименовали — человек не виноват
     console.error('tasks: подписку на @' + channel + ' не проверить —', error.message);
     throw new InputError('Не получилось проверить подписку, попробуйте позже');
   }
   return MEMBER.indexOf(member.status) !== -1 || (member.status === 'restricted' && member.is_member === true);
+}
+
+// Какой канал проверять у задания: у подписки — свой, у ссылки — если она
+// ведёт прямо на t.me/<имя>
+function channelOf(task) {
+  if (!task) return '';
+  if (task.type === 'subscribe') return task.channel;
+  if (task.type === 'link' && /^https:\/\/t\.me\/[A-Za-z][A-Za-z0-9_]{3,31}\/?$/i.test(task.url || '')) return channelName(task.url);
+  return '';
 }
 
 export default {
@@ -40,7 +54,8 @@ export default {
       if (input.action === 'start') await startTask(user.id, input.task, content);
       else if (input.action === 'claim') {
         const task = findTask(content, input.task);
-        if (task && task.type === 'subscribe' && !(await subscribed(task.channel, user.id))) {
+        const channel = channelOf(task);
+        if (channel && !(await subscribed(channel, user.id, task.type === 'subscribe'))) {
           throw new InputError('Сначала подпишитесь на канал');
         }
         await claimTask(user.id, input.task, content);

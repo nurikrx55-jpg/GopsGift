@@ -3516,7 +3516,7 @@
     const have = taskProgress(task);
     if (have >= task.goal) {
       // Подписку сервер проверит у Telegram: кнопка так и называется
-      return taskButton('claim', t(task.type === 'subscribe' ? 'task.check' : 'task.claim'),
+      return taskButton('claim', t(task.type === 'subscribe' || /^https:\/\/t\.me\/[A-Za-z][A-Za-z0-9_]{3,31}\/?$/i.test(task.url || '') ? 'task.check' : 'task.claim'),
         (event) => taskPost('claim', task, event.currentTarget));
     }
 
@@ -4596,12 +4596,14 @@
     }));
   }
 
-  /* Защита: GapsGift открывается только в приложении Telegram — на
-     компьютере (Telegram Desktop, macOS) и на телефоне. В браузере и в
-     веб-версии Telegram (web.telegram.org, platform weba/webk/web) вместо
-     приложения — экран «Откройте в Telegram». Без подписанных initData
-     приложение не пускаем вовсе: такие заходы — это обычный браузер */
-  const APP_PLATFORMS = ['tdesktop', 'macos', 'ios', 'android', 'android_x', 'unigram'];
+  /* Защита: GapsGift открывается только в приложении Telegram на
+     компьютере — Telegram Desktop (Windows, Linux), Telegram для macOS и
+     Unigram. Телефоны, браузер и веб-версия Telegram (web.telegram.org,
+     platform weba/webk/web) видят экран с QR-кодом: его сканируют и
+     открывают приложение на компьютере. Без подписанных initData не
+     пускаем вовсе: такие заходы — это обычный браузер */
+  const APP_PLATFORMS = ['tdesktop', 'macos', 'unigram'];
+  const APP_LINK = 'https://t.me/GapsGiftBot/app';
 
   function outsideApp() {
     if (!tg || !tg.initData) return true;
@@ -4611,7 +4613,6 @@
   function showOutside() {
     const gate = document.createElement('div');
     gate.className = 'outside';
-    gate.innerHTML = '<svg class="outside__logo" viewBox="0 0 643 617" aria-hidden="true"><use href="#logo"></use></svg>';
 
     const title = document.createElement('h1');
     title.className = 'outside__title';
@@ -4621,14 +4622,28 @@
     text.className = 'outside__text';
     text.textContent = t('gate.text');
 
+    // QR ведёт туда же, куда кнопка: на Mini App в боте
+    const qr = document.createElement('img');
+    qr.className = 'outside__qr';
+    qr.src = 'gifts/qr-open.png';
+    qr.alt = APP_LINK;
+    qr.draggable = false;
+
     const open = document.createElement('a');
     open.className = 'outside__btn';
-    open.href = BOT_LINK + '?startapp';
+    open.href = APP_LINK;
     open.target = '_blank';
     open.rel = 'noopener';
     open.textContent = t('gate.open');
+    open.addEventListener('click', (event) => {
+      // Внутри Telegram ссылку открывает сам Telegram, а не браузер
+      if (tg && tg.initData && tg.openTelegramLink) {
+        event.preventDefault();
+        tg.openTelegramLink(APP_LINK);
+      }
+    });
 
-    gate.append(title, text, open);
+    gate.append(title, text, qr, open);
     document.body.appendChild(gate);
     document.documentElement.classList.add('is-outside');
   }

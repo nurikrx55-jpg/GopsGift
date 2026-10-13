@@ -5883,11 +5883,15 @@ body {
   text-align: center;
 }
 
-.outside__logo {
-  width: 88px;
-  height: 84px;
-  margin-bottom: 10px;
-  fill: #fff;
+.outside__qr {
+  display: block;
+  width: 220px;
+  height: 220px;
+  margin: 10px 0 4px;
+  padding: 12px;
+  border-radius: 20px;
+  background: #fff;
+  -webkit-user-drag: none;
 }
 
 .outside__title {
