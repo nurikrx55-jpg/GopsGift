@@ -43,7 +43,11 @@ async function welcome(message) {
   };
 
   try {
-    await call('sendMessage', Object.assign({ text: welcomeText(true) }, payload));
+    const sent = await call('sendMessage', Object.assign({ text: welcomeText(true) }, payload));
+    // Telegram может принять сообщение, но молча снять премиум-эмодзи —
+    // тогда в ответе их не будет. Пишем в журнал, что дошло на самом деле
+    const kept = ((sent && sent.entities) || []).filter((one) => one.type === 'custom_emoji').length;
+    console.log('bot: приветствие ушло, премиум-эмодзи в нём: ' + kept + ' из 2');
   } catch (error) {
     // Telegram может не пустить премиум-эмодзи от бота — тогда шлём тот же
     // текст с обычными, чтобы человек не остался без ответа
