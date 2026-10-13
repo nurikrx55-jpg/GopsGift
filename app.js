@@ -1770,6 +1770,142 @@
     }).catch(() => {});
   }
 
+  /* Анимация улучшения — крутится вся большая карточка, а не лента плиток.
+     Пока сервер решает, что выпало, фон карточки быстро меняется. Когда
+     ответ пришёл — фон замедляется и встаёт на выпавший, потом так же
+     узор символа, потом модель. После модели — номер #N и конфетти.
+     Каждая остановка — лёгкий «щелчок» и толчок слоя */
+  const ROLL_FAST = 70;      // мс между сменами, пока ждём сервер
+  const ROLL_STEPS = 12;     // сколько смен на замедление одного слоя
+  const ROLL_END = 360;      // последняя, самая долгая смена перед остановкой
+  const ROLL_PAUSE = 280;    // передышка между слоями
+  let roll = null;
+
+  function rollDelays() {
+    const out = [];
+    for (let i = 0; i < ROLL_STEPS; i += 1) {
+      out.push(ROLL_FAST + (ROLL_END - ROLL_FAST) * Math.pow(i / (ROLL_STEPS - 1), 2.2));
+    }
+    return out;
+  }
+
+  function rollWait(ms) {
+    return new Promise((done) => setTimeout(done, ms));
+  }
+
+  // Случайный из списка, но не тот же, что сейчас на карточке
+  function rollPick(list, current) {
+    if (list.length < 2) return list[0];
+    let next = current;
+    while (next === current) next = list[Math.floor(Math.random() * list.length)];
+    return next;
+  }
+
+  function rollBump(node) {
+    if (!node) return;
+    node.classList.remove('is-landed');
+    void node.offsetWidth;
+    node.classList.add('is-landed');
+  }
+
+  function rollPaintBackdrop(one) {
+    const head = document.getElementById('owned-head');
+    head.classList.add('is-upg');
+    head.style.setProperty('--center-color', one.center);
+    head.style.setProperty('--around-color', one.around);
+  }
+
+  function rollPaintSymbol(one) {
+    document.getElementById('owned-symbol').src = one.image;
+  }
+
+  function rollPaintModel(one) {
+    const img = roll && roll.modelImg;
+    const still = roll && roll.stills.get(one.art);
+    if (img && still) img.src = still;
+  }
+
+  // Начало: карточка становится «улучшаемой» и фон крутится без конца
+  function rollStart(gift) {
+    if (!attrs || !attrs.backdrops.length || prefersStill()) return;
+    const head = document.getElementById('owned-head');
+
+    roll = { gift: gift, token: {}, timer: 0, backdrop: null, modelImg: null, stills: new Map() };
+    owned.classList.add('is-rolling');
+    document.getElementById('owned-mark').hidden = true;
+
+    // Картинки символов и кадры моделей готовим заранее — иначе при
+    // переборе мелькала бы пустота
+    attrs.symbols.forEach((one) => { new Image().src = one.image; });
+    (gift.models || []).forEach((model) => {
+      shotOf(model).then((shot) => {
+        if (roll && shot.still) roll.stills.set(model.art, shot.still);
+      });
+    });
+
+    const spin = () => {
+      roll.backdrop = rollPick(attrs.backdrops, roll.backdrop);
+      rollPaintBackdrop(roll.backdrop);
+    };
+    spin();
+    roll.timer = setInterval(spin, ROLL_FAST);
+    head.classList.add('is-rolling');
+  }
+
+  // Замедлить один слой и поставить на выпавшее
+  async function rollStage(list, paint, target, token, layer) {
+    let current = null;
+    for (const delay of rollDelays()) {
+      if (!roll || roll.token !== token) return false;
+      current = rollPick(list, current);
+      paint(current);
+      haptic('select');
+      await rollWait(delay);
+    }
+    if (!roll || roll.token !== token) return false;
+    if (target) paint(target);
+    rollBump(layer);
+    haptic('light');
+    await rollWait(ROLL_PAUSE);
+    return Boolean(roll && roll.token === token);
+  }
+
+  // Ответ пришёл: по очереди останавливаем фон, символ и модель
+  async function rollLand(nft) {
+    if (!roll) return;
+    const token = roll.token;
+    const gift = roll.gift;
+    clearInterval(roll.timer);
+
+    const head = document.getElementById('owned-head');
+    const backdrop = backdropOf(nft.backdrop);
+    if (!(await rollStage(attrs.backdrops, rollPaintBackdrop, backdrop, token, head.querySelector('.mgm-card__bg')))) return;
+
+    const symbol = symbolOf(nft.symbol);
+    if (attrs.symbols.length && !(await rollStage(attrs.symbols, rollPaintSymbol, symbol, token, head.querySelector('.mgm-card__symbol')))) return;
+
+    // Модель: вместо живой анимации — кадры моделей, быстро сменяющие друг друга
+    const box = document.getElementById('owned-art');
+    closeArt(box, ownPlayer);
+    ownPlayer = null;
+    const img = document.createElement('img');
+    img.alt = '';
+    img.draggable = false;
+    box.appendChild(img);
+    roll.modelImg = img;
+    const models = (gift.models || []).filter((one) => one.art);
+    const target = models.find((one) => one.name === nft.model.name) || nft.model;
+    if (models.length) await rollStage(models, rollPaintModel, target, token, box);
+  }
+
+  function rollStop() {
+    if (!roll) return;
+    clearInterval(roll.timer);
+    roll = null;
+    owned.classList.remove('is-rolling');
+    document.getElementById('owned-head').classList.remove('is-rolling');
+  }
+
   function upgradeOwned() {
     const gift = ownGift;
     if (upgrading || !gift || gift.nft) return;
@@ -1789,8 +1925,11 @@
 
     payPost({ action: 'upgrade', giftId: gift.id })
       .then((data) => {
-        // Бесплатно — уже улучшено, счёт не нужен
-        if (data.status === 'paid') return data;
+        // Бесплатно — уже улучшено, счёт не нужен: карточка сразу крутится
+        if (data.status === 'paid') {
+          rollStart(gift);
+          return data;
+        }
         if (!tg || !tg.openInvoice) throw new Error(t('pay.oldApp'));
 
         return new Promise((done) => {
@@ -1798,13 +1937,30 @@
         }).then((result) => {
           if (result.status === 'cancelled') return null;
           if (result.status === 'failed') throw new Error(t('pay.failed'));
+          // Оплачено — крутим, пока сервер не скажет, что выпало
+          rollStart(gift);
           return waitPaid(result.order, PAY_TRIES);
         });
       })
       .then((paid) => {
-        if (!paid) return;
+        if (!paid) return null;
         if (paid.status !== 'paid' || !paid.me || !paid.nft) {
           toast(t('pay.slow'));
+          return null;
+        }
+        // Карточка докручивается до выпавшего, и только потом — итог
+        return rollLand(paid.nft).then(() => paid);
+      })
+      .then((paid) => {
+        const rolled = Boolean(roll);
+        rollStop();
+        if (!paid) {
+          // Не вышло — карточка возвращается к обычному подарку
+          if (rolled && ownSheet && ownGift === gift) {
+            fillOwned(gift);
+            closeArt(document.getElementById('owned-art'), ownPlayer);
+            ownPlayer = openArt(document.getElementById('owned-art'), gift);
+          }
           return;
         }
 
@@ -1820,6 +1976,7 @@
           fillOwned(fresh);
           closeArt(document.getElementById('owned-art'), ownPlayer);
           ownPlayer = openArt(document.getElementById('owned-art'), artOf(fresh));
+          rollBump(document.getElementById('owned-mark'));
           playTickerIcons();
         }
 
@@ -1827,6 +1984,13 @@
         fireFromBottom();
       })
       .catch((error) => {
+        const rolled = Boolean(roll);
+        rollStop();
+        if (rolled && ownSheet && ownGift === gift) {
+          fillOwned(gift);
+          closeArt(document.getElementById('owned-art'), ownPlayer);
+          ownPlayer = openArt(document.getElementById('owned-art'), gift);
+        }
         toast(error && error.message ? error.message : t('pay.sorry'));
       })
       .then(() => {
@@ -3146,6 +3310,8 @@
         if (gift && gift.nft) playTickerIcons();
       },
       closed: () => {
+        // Закрыли посреди улучшения — крутить больше некому, итог будет в профиле
+        rollStop();
         closeArt(document.getElementById('owned-art'), ownPlayer);
         ownPlayer = null;
         ownGift = null;
