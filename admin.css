@@ -231,7 +231,7 @@
   bottom: 0;
   z-index: 50;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   height: calc(var(--bar-h) + var(--safe-area-bottom));
   padding-bottom: var(--safe-area-bottom);
   border-top: 1px solid var(--line);
@@ -257,6 +257,32 @@
 
 .ad-tab.is-on {
   color: var(--accent);
+}
+
+/* Заявки на вывод ждут админа — их число горит на вкладке */
+.ad-tab {
+  position: relative;
+}
+
+.ad-tab__count:not(:empty) {
+  position: absolute;
+  top: 8px;
+  left: calc(50% + 6px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.ad-nav__count--hot:not(:empty) {
+  color: var(--bad);
+  font-weight: 600;
 }
 
 @media (min-width: 900px) {
@@ -1965,4 +1991,77 @@
 
 .ad-affix--rub > .ad-input {
   padding-left: 40px;
+}
+
+/* Выводы: кто и сколько, кошелёк и сумма копируются, ниже действия */
+.ad-wds {
+  display: grid;
+  gap: 14px;
+}
+
+.ad-wd {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-wd__who {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ad-wd__sum {
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ad-wd .ad-wallet code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ad-wd .ad-wallet code .i {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--hint);
+}
+
+.ad-wd__acts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* Tonkeeper — во всю ширину: открыть перевод и вернуться отметить */
+.ad-wd__acts > a {
+  grid-column: 1 / -1;
+}
+
+.ad-wd__acts .ad-btn {
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.ad-wd__state {
+  font-size: 14px;
+}
+
+.ad-wd__state--ok {
+  color: var(--ok);
+}
+
+.ad-wd__state--bad {
+  color: var(--hint);
 }

@@ -184,6 +184,16 @@ const server = http.createServer(async (req, res) => {
 
 await loadHandlers();
 
+// Разовая перестановка номеров улучшенных подарков (#1, #2… по порядку
+// улучшения). Делаем на старте, пока запросов почти нет; дальше она
+// отмечена в базе и не повторяется
+const { configured } = await import('./api/_lib/db.js');
+if (configured()) {
+  import('./api/_lib/data.js')
+    .then((data) => data.renumberUpgrades())
+    .catch((error) => console.error('upgrades: перенумерация не прошла —', error));
+}
+
 // systemd останавливает службу сигналом: дорабатываем начатые запросы и выходим
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => server.close(() => process.exit(0)));

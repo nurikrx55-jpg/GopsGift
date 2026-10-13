@@ -1,11 +1,12 @@
 /* Кошелёк, как у memgift: привязка адреса подключённого TON-кошелька,
    баланс с историей и проверка пополнений (`check` — смотрим новые
    переводы на наш адрес). Кто спрашивает, сервер узнаёт по подписи
-   Telegram. Вывода здесь пока нет. */
+   Telegram. Вывод (`withdraw`) — заявка: сумма списывается сразу, а TON
+   на кошелёк отправляет админ вручную. */
 
 import { configured } from './_lib/db.js';
 import { verify } from './_lib/telegram.js';
-import { bindWallet, tonState, checkDeposits, InputError } from './_lib/data.js';
+import { bindWallet, tonState, checkDeposits, requestWithdraw, InputError } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
 const MAX_AGE = 30 * 24 * 60 * 60;
@@ -26,6 +27,11 @@ export default {
       }
 
       if (input.action === 'state') return json(await tonState(user.id));
+
+      if (input.action === 'withdraw') {
+        await requestWithdraw(user.id, input.amount);
+        return json(await tonState(user.id));
+      }
 
       const address = input.action === 'unbind' ? '' : input.address;
       return json({ wallet: await bindWallet(user.id, address) });

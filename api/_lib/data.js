@@ -16,7 +16,11 @@
    gg:tontx:<hash>    — отметка, что этот перевод TON уже зачислен
    gg:upgseq          — сколько раз улучшали каждый подарок: отсюда номер #N
    gg:rig:<id>        — фон, который админ подкрутил на следующее улучшение
-   gg:upglow:<gift>   — последний выданный номер #N у подарка с тиражом
+   gg:upglow:<gift>   — прежняя нумерация от остатка тиража, больше не пишется
+   gg:upgnum:v2       — отметка, что улучшенные перенумерованы по порядку
+   gg:wd:<id>         — заявка на вывод TON: кто, сколько и на какой кошелёк
+   gg:wds             — все заявки на вывод по времени
+   gg:wds:open        — заявки, которые админ ещё не отправил и не отклонил
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -46,7 +50,10 @@ const K = {
   tontx: (hash) => 'gg:tontx:' + hash,
   upgseq: 'gg:upgseq',
   rig: (id) => 'gg:rig:' + id,
-  upglow: (gift) => 'gg:upglow:' + gift,
+  upgnum: 'gg:upgnum:v2',
+  wd: (id) => 'gg:wd:' + id,
+  wds: 'gg:wds',
+  wdsOpen: 'gg:wds:open',
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -182,7 +189,15 @@ export function tonPrice(stars, rate) {
   return rate > 0 ? Math.ceil(stars * NANO / rate) : 0;
 }
 
-const TASK_TYPES = ['link', 'send', 'buy', 'invite'];
+const TASK_TYPES = ['link', 'subscribe', 'send', 'buy', 'invite'];
+
+// Канал для задания «подписаться»: @name, t.me/name или просто name.
+// Храним одно имя — по нему бот спрашивает Telegram, подписан ли человек
+export function channelName(value) {
+  const raw = str(value, 120).replace(/^https?:\/\//i, '').replace(/^(www\.)?(t|telegram)\.me\//i, '').replace(/^@/, '');
+  const name = raw.split(/[/?#]/)[0];
+  return /^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(name) ? name : '';
+}
 
 export function cleanTasks(input) {
   if (!Array.isArray(input)) throw new InputError('Задания пришли не списком');
@@ -193,15 +208,21 @@ export function cleanTasks(input) {
     items: (Array.isArray(group.items) ? group.items : []).slice(0, 50).map((task) => {
       const type = TASK_TYPES.indexOf(task.type) === -1 ? 'send' : task.type;
       const url = str(task.url, 300);
+      const channel = type === 'subscribe' ? channelName(task.channel || task.url) : '';
+      if (type === 'subscribe' && !channel) throw new InputError('Канал задания: @имя или ссылка t.me/имя');
       return {
         id: slug(task.id) || newId('task'),
         name: str(task.name, 60) || 'Задание',
-        // Что нужно сделать: перейти по ссылке, отправить, купить подарки
-        // или привести друзей. Цель у ссылки всегда одна — перейти
+        // Что нужно сделать: перейти по ссылке, подписаться на канал,
+        // отправить, купить подарки или привести друзей. Цель у ссылки и
+        // подписки всегда одна
         type: type,
-        url: type === 'link' && (/^https:\/\/[^\s"'<>]+$/i.test(url) || /^tg:\/\/[^\s"'<>]+$/i.test(url)) ? url : '',
+        url: type === 'subscribe'
+          ? 'https://t.me/' + channel
+          : type === 'link' && (/^https:\/\/[^\s"'<>]+$/i.test(url) || /^tg:\/\/[^\s"'<>]+$/i.test(url)) ? url : '',
+        channel: channel,
         reward: int(task.reward, 0, 1000000),
-        goal: type === 'link' ? 1 : int(task.goal, 1, 1000000)
+        goal: type === 'link' || type === 'subscribe' ? 1 : int(task.goal, 1, 1000000)
       };
     })
   }));
@@ -487,11 +508,12 @@ export async function saveAccount(id, input, content) {
 
 export async function stats(content) {
   const now = Date.now();
-  const [total, active, fresh, week] = await pipeline([
+  const [total, active, fresh, week, withdrawals] = await pipeline([
     ['ZCARD', K.seen],
     ['ZCOUNT', K.seen, now - DAY, '+inf'],
     ['ZCOUNT', K.joined, now - DAY, '+inf'],
-    ['ZCOUNT', K.seen, now - 7 * DAY, '+inf']
+    ['ZCOUNT', K.seen, now - 7 * DAY, '+inf'],
+    ['ZCARD', K.wdsOpen]
   ]);
 
   return {
@@ -499,6 +521,8 @@ export async function stats(content) {
     active: active || 0,
     fresh: fresh || 0,
     week: week || 0,
+    // Заявки на вывод, которые ждут админа
+    withdrawals: withdrawals || 0,
     gifts: (content.gifts || []).length,
     banners: (content.banners || []).length
   };
@@ -678,20 +702,82 @@ async function rollUpgrade(userId, giftId, content) {
   return nft;
 }
 
-/* Номер #N считается от остатка тиража: вышло 1000, купили один —
-   осталось 999, и улучшенный получает #999. Каждый следующий номер меньше
-   предыдущего, поэтому не повторяется, даже если между улучшениями никто
-   ничего не купил. У подарка без тиража номера идут по порядку: #1, #2… */
+/* Номер #N — по порядку улучшения этого подарка: сколько бы его ни
+   купили, первый улучшивший получает #1, следующий #2 и так далее.
+   Счётчик прибавляется в самой базе одной командой, поэтому два улучшения
+   в одну секунду не получат одинаковый номер */
 async function nextNumber(gift) {
-  if (typeof gift.left !== 'number' || !gift.total) {
-    return int(await command('ZINCRBY', K.upgseq, 1, gift.id), 1, 1e9);
+  await renumberUpgrades();
+  return int(await command('ZINCRBY', K.upgseq, 1, gift.id), 1, 1e9);
+}
+
+/* До 2026-10-13 номер у подарка с тиражом считался от остатка (#999,
+   #998…). Один раз на всю базу переставляем уже выданные номера по
+   порядку улучшения — #1, #2… — и ставим счётчики на последний выданный.
+   Сервер — один процесс, поэтому дважды перестановка не пойдёт. Каждый
+   счёт перечитываем прямо перед записью: правка, случившаяся во время
+   обхода, не потеряется */
+let renumbering = null;
+
+// Все, кто спросил во время перестановки, ждут её конца, а не идут мимо
+export function renumberUpgrades() {
+  if (!renumbering) {
+    renumbering = renumberOnce().catch((error) => {
+      renumbering = null;
+      throw error;
+    });
+  }
+  return renumbering;
+}
+
+async function renumberOnce() {
+  if (await command('GET', K.upgnum)) return;
+
+  const ids = (await command('ZRANGE', K.seen, 0, -1)) || [];
+  const accounts = await mgetJson(ids.map(K.acct));
+  const all = [];
+  ids.forEach((id, index) => {
+    normalAccount(accounts[index]).nfts.forEach((nft) => all.push({ owner: id, id: nft.id, gift: nft.gift, at: nft.at }));
+  });
+
+  // По подаркам, в каждом — по времени улучшения
+  const byGift = new Map();
+  all.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1)).forEach((one) => {
+    const list = byGift.get(one.gift) || [];
+    list.push(one);
+    byGift.set(one.gift, list);
+  });
+
+  const nums = new Map();
+  const counters = [];
+  byGift.forEach((list, gift) => {
+    list.forEach((one, index) => nums.set(one.id, index + 1));
+    counters.push(['ZADD', K.upgseq, list.length, gift]);
+  });
+
+  // Подарки, у которых улучшенных сейчас нет, начинают снова с #1
+  const seq = (await command('ZRANGE', K.upgseq, 0, -1)) || [];
+  seq.filter((gift) => !byGift.has(gift)).forEach((gift) => counters.push(['ZADD', K.upgseq, 0, gift]));
+  if (counters.length) await pipeline(counters);
+
+  const owners = Array.from(new Set(all.map((one) => one.owner)));
+  for (const id of owners) {
+    const acct = normalAccount(await command('GET', K.acct(id)));
+    let changed = false;
+    acct.nfts.forEach((nft) => {
+      const num = nums.get(nft.id);
+      if (num && nft.num !== num) {
+        nft.num = num;
+        changed = true;
+      }
+    });
+    if (changed) await command('SET', K.acct(id), JSON.stringify(acct));
   }
 
-  const raw = await command('GET', K.upglow(gift.id));
-  const last = raw ? int(raw, 0, 1e9) : Infinity;
-  const num = Math.max(1, Math.min(gift.left, last - 1));
-  await command('SET', K.upglow(gift.id), String(num));
-  return num;
+  // Отметка — в самом конце: оборвись обход на середине, следующий запуск
+  // пройдёт его заново, а повтор ничего не испортит — номера те же
+  await command('SET', K.upgnum, String(Date.now()));
+  console.log('upgrades: перенумеровано ' + nums.size + ' улучшенных у ' + owners.length + ' человек');
 }
 
 // Бесплатное улучшение (цена ноль или админ) — сразу, без счёта
@@ -844,6 +930,135 @@ export async function checkDeposits() {
   }
 
   return credited;
+}
+
+// --- Вывод TON ---
+
+/* Вывод — ручной: человек оставляет заявку, сумма сразу уходит с баланса
+   (чтобы её нельзя было потратить второй раз, пока админ отправляет), а
+   админ переводит TON со своего кошелька на подключённый кошелёк человека
+   и отмечает заявку отправленной. Отклонённая заявка возвращает сумму.
+
+   Счёт одного человека меняют здесь строго по очереди: две заявки, поданные
+   разом, иначе прочли бы один и тот же баланс и списали бы его один раз.
+   Сервер — один процесс, поэтому очереди в памяти достаточно */
+export const WD_MIN_NANO = 0.1 * NANO;
+const locks = new Map();
+
+function queued(id, run) {
+  const before = locks.get(id) || Promise.resolve();
+  const next = before.catch(() => {}).then(run);
+  const tail = next.catch(() => {});
+  locks.set(id, tail);
+  tail.then(() => {
+    if (locks.get(id) === tail) locks.delete(id);
+  });
+  return next;
+}
+
+// Отметка в истории кошелька идёт за заявкой: «в обработке» → «выведено»
+async function markTonLog(userId, wdId, status) {
+  const raw = await command('GET', K.tonlog(String(userId)));
+  const log = raw ? JSON.parse(raw) : [];
+  const entry = log.find((one) => one.wd === wdId);
+  if (!entry) return;
+  entry.status = status;
+  await command('SET', K.tonlog(String(userId)), JSON.stringify(log));
+}
+
+export async function requestWithdraw(userId, amount) {
+  const id = String(userId);
+  const nano = Math.round(Number(amount) * NANO);
+  if (!Number.isFinite(nano) || nano < WD_MIN_NANO) throw new InputError('Минимальная сумма вывода — 0,1 TON');
+
+  return queued(id, async () => {
+    const [rawProfile, rawAcct] = await pipeline([
+      ['GET', K.user(id)],
+      ['GET', K.acct(id)]
+    ]);
+    const profile = rawProfile ? JSON.parse(rawProfile) : {};
+    if (!profile.wallet) throw new InputError('Сначала подключите кошелёк');
+
+    const acct = normalAccount(rawAcct);
+    if (acct.tonNano < nano) throw new InputError('Не хватает TON на балансе');
+    acct.tonNano -= nano;
+
+    const now = Date.now();
+    const wd = { id: newId('wd'), userId: id, nano: nano, wallet: profile.wallet, status: 'pending', createdAt: now };
+
+    await pipeline([
+      ['SET', K.acct(id), JSON.stringify(acct)],
+      ['SET', K.wd(wd.id), JSON.stringify(wd)],
+      ['ZADD', K.wds, now, wd.id],
+      ['ZADD', K.wdsOpen, now, wd.id]
+    ]);
+    await addTonLog(id, { type: 'withdraw', nano: nano, wd: wd.id, status: 'pending' });
+    return wd;
+  });
+}
+
+// Для админки: заявки с именем и ником того, кто выводит
+export async function listWithdrawals(options) {
+  const open = (options && options.filter) !== 'all';
+  const key = open ? K.wdsOpen : K.wds;
+  const offset = int(options && options.offset, 0, 1e7);
+  const limit = int(options && options.limit, 1, 100);
+
+  // Открытые — старые первыми, их отправляют по очереди; вся история — свежие первыми
+  const [ids, total] = await pipeline([
+    [open ? 'ZRANGE' : 'ZREVRANGE', key, offset, offset + limit - 1],
+    ['ZCARD', key]
+  ]);
+  if (!(ids || []).length) return { items: [], total: Number(total) || 0 };
+
+  const rows = (await mgetJson(ids.map(K.wd))).map((raw) => (raw ? JSON.parse(raw) : null)).filter(Boolean);
+  const profiles = await mgetJson(rows.map((one) => K.user(one.userId)));
+  const items = rows.map((one, index) => {
+    const person = profiles[index] ? JSON.parse(profiles[index]) : {};
+    return Object.assign({}, one, {
+      firstName: person.firstName || '',
+      lastName: person.lastName || '',
+      username: person.username || '',
+      photo: person.photo || ''
+    });
+  });
+  return { items: items, total: Number(total) || 0 };
+}
+
+export async function openWithdrawals() {
+  return Number(await command('ZCARD', K.wdsOpen)) || 0;
+}
+
+/* Админ отправил TON — «done»; передумал — «reject», и сумма
+   возвращается на баланс. Закрыть можно только ещё открытую заявку */
+export async function resolveWithdraw(wdId, action, adminId) {
+  const id = str(wdId, 32);
+  const raw = await command('GET', K.wd(id));
+  if (!raw) throw new InputError('Заявки нет');
+  const owner = JSON.parse(raw).userId;
+
+  return queued(String(owner), async () => {
+    const wd = JSON.parse(await command('GET', K.wd(id)));
+    if (wd.status !== 'pending') throw new InputError('Заявка уже закрыта');
+
+    const done = action === 'done';
+    wd.status = done ? 'done' : 'rejected';
+    wd.closedAt = Date.now();
+    wd.closedBy = String(adminId || '');
+
+    const commands = [
+      ['SET', K.wd(id), JSON.stringify(wd)],
+      ['ZREM', K.wdsOpen, id]
+    ];
+    if (!done) {
+      const acct = normalAccount(await command('GET', K.acct(wd.userId)));
+      acct.tonNano += wd.nano;
+      commands.push(['SET', K.acct(wd.userId), JSON.stringify(acct)]);
+    }
+    await pipeline(commands);
+    await markTonLog(wd.userId, id, wd.status);
+    return wd;
+  });
 }
 
 // --- Рефералы ---
@@ -1022,7 +1237,7 @@ export async function topBuyers(giftId, limit) {
    счётные — когда набралось нужное число, «Забрать». Купоны начисляет
    только сервер и только один раз за задание */
 
-function findTask(content, taskId) {
+export function findTask(content, taskId) {
   const id = slug(taskId);
   for (const group of content.tasks || []) {
     const task = (group.items || []).find((one) => one.id === id);
@@ -1037,7 +1252,8 @@ export async function invitedCount(userId) {
 
 // Сколько сделано по заданию — то же число, что видит приложение
 function progressOf(task, acct, invited) {
-  if (task.type === 'link') return acct.tasksStarted.indexOf(task.id) === -1 ? 0 : 1;
+  // Подписку сервер ещё раз проверяет у Telegram перед наградой — см. api/tasks.js
+  if (task.type === 'link' || task.type === 'subscribe') return acct.tasksStarted.indexOf(task.id) === -1 ? 0 : 1;
   if (task.type === 'buy') return acct.bought;
   if (task.type === 'invite') return invited;
   return acct.sent;
@@ -1046,7 +1262,7 @@ function progressOf(task, acct, invited) {
 export async function startTask(userId, taskId, content) {
   const id = String(userId);
   const task = findTask(content, taskId);
-  if (!task || task.type !== 'link') throw new InputError('Такого задания нет');
+  if (!task || (task.type !== 'link' && task.type !== 'subscribe')) throw new InputError('Такого задания нет');
 
   const acct = normalAccount(await command('GET', K.acct(id)));
   if (acct.tasksStarted.indexOf(task.id) === -1) {

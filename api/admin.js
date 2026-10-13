@@ -6,7 +6,8 @@ import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
   readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, TON_RECEIVER, InputError,
-  listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile
+  listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile,
+  listWithdrawals, resolveWithdraw, openWithdrawals
 } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
@@ -165,6 +166,21 @@ const actions = {
       return state;
     });
     return { content: content };
+  },
+
+  // --- Выводы ---
+
+  async 'withdraw.list'(payload) {
+    return await listWithdrawals(payload || {});
+  },
+
+  // Админ отправил TON сам или отказал: заявка закрывается, при отказе
+  // сумма возвращается на баланс человека
+  async 'withdraw.resolve'(payload, ctx) {
+    const action = payload.action === 'done' ? 'done' : payload.action === 'reject' ? 'reject' : '';
+    if (!action) throw new InputError('Неизвестное действие');
+    const wd = await resolveWithdraw(payload.id, action, ctx.user.id);
+    return { withdrawal: wd, open: await openWithdrawals() };
   },
 
   // --- Люди ---

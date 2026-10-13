@@ -184,6 +184,11 @@ async function one(query, command) {
         .filter((row) => row.added === true || row.added === 't').length;
     }
 
+    case 'ZREM': {
+      const done = rows(await query('DELETE FROM zset WHERE k = $1 AND m = ANY($2) RETURNING m', [args[0], args.slice(1).map(String)]));
+      return done.length;
+    }
+
     case 'ZCARD': {
       const found = rows(await query('SELECT count(*)::int AS n FROM zset WHERE k = $1', [args[0]]));
       return found.length ? Number(found[0].n) : 0;
@@ -265,6 +270,10 @@ const SIMPLE = {
   ZINCRBY: (args) => ({
     text: 'INSERT INTO zset (k, m, s) VALUES ($1, $3, $2) ON CONFLICT (k, m) DO UPDATE SET s = zset.s + EXCLUDED.s',
     params: [args[0], Number(args[1]), String(args[2])]
+  }),
+  ZREM: (args) => ({
+    text: 'DELETE FROM zset WHERE k = $1 AND m = ANY($2)',
+    params: [args[0], args.slice(1).map(String)]
   }),
   MSET: (args) => {
     const keys = [];

@@ -2060,6 +2060,7 @@
 
   function paintWallet() {
     const on = Boolean(walletAddr);
+    paintGram();
 
     const button = document.getElementById('prf-wallet');
     if (button) {
@@ -2084,11 +2085,35 @@
     }
   }
 
+  /* Кошелёк, как у memgift, открывается только с подключённым кошельком:
+     без него вместо страницы — окно подключения, а когда кошелёк
+     подключится, страница откроется сама. Ждём этого пару минут: если
+     человек закрыл окно и подключился позже по другому поводу, страница
+     не должна выскочить сама */
+  const WALLET_WAIT = 2 * 60 * 1000;
+  let walletWanted = 0;
+
+  function openWalletPage() {
+    haptic('light');
+    if (walletAddr) {
+      walletWanted = 0;
+      walletSheet.open();
+      return;
+    }
+    walletWanted = Date.now();
+    toast(t('wallet.needConnect'));
+    connectWallet();
+  }
+
   // Новый адрес из кошелька — запоминаем на сервере
   function rememberWallet(address) {
     if (address === walletAddr) return;
     walletAddr = address;
     paintWallet();
+    if (walletWanted && Date.now() - walletWanted < WALLET_WAIT) {
+      walletWanted = 0;
+      walletSheet.open();
+    }
     if (!Store.live()) return;
 
     walletPost({ action: 'bind', address: address })
@@ -2151,6 +2176,8 @@
     if (ME) ME.wallet = '';
     paintWallet();
     unlinkSheet.close();
+    // Без кошелька страницы кошелька нет — закрываем и её
+    if (walletSheet && walletSheet.isOpen && walletSheet.isOpen()) walletSheet.close();
     toast(t('wallet.unlinked'));
     if (Store.live()) walletPost({ action: 'unbind' }).catch(() => {});
   }
@@ -2161,18 +2188,24 @@
     return Number(wmodAmount) || 0;
   }
 
+  let wmodBusy = false;
+
   function paintWmod() {
     const amount = wmodNumber();
     document.getElementById('wmod-amount').textContent = wmodAmount || '0';
+    // Баланс мог обновиться, пока окно открыто: пришло пополнение
+    document.getElementById('wmod-balance').textContent =
+      t('wallet.balance') + ' · ' + formatTon(Number(ME && ME.tonNano) || 0) + ' TON';
 
     const deposit = wmodKind === 'deposit';
     const label = t(deposit ? 'wallet.deposit' : 'wallet.withdraw');
     document.getElementById('wmod-submit-text').textContent = amount > 0 ? label + ' ' + wmodAmount + ' TON' : label;
 
-    // Как у образца: внести — от 0,1 TON, вывести — не больше баланса и только на подключённый кошелёк
-    document.getElementById('wmod-submit').disabled = deposit
+    // Как у образца: внести — от 0,1 TON, вывести — от 0,1 TON, не больше
+    // баланса и только на подключённый кошелёк
+    document.getElementById('wmod-submit').disabled = wmodBusy || (deposit
       ? amount < 0.1
-      : !(amount > 0 && amount <= tonBalance() && walletAddr);
+      : !(amount >= 0.1 && amount <= tonBalance() && walletAddr));
   }
 
   function wmodTap(key) {
@@ -2202,9 +2235,7 @@
     wmodAmount = '';
     const deposit = kind === 'deposit';
     document.getElementById('wmod-title').textContent = t(deposit ? 'wallet.depositTitle' : 'wallet.withdrawTitle');
-    const balance = document.getElementById('wmod-balance');
-    balance.hidden = deposit;
-    balance.textContent = t('wallet.balance') + ' · ' + formatTon(Number(ME && ME.tonNano) || 0) + ' TON';
+    document.getElementById('wmod-balance').hidden = deposit;
     document.getElementById('wmod-info').hidden = deposit;
     paintWallet();
 
@@ -2282,6 +2313,36 @@
     });
   }
 
+  /* Вывод — заявка: сумма сразу уходит с баланса, а TON на подключённый
+     кошелёк отправляет админ. В истории заявка видна «в обработке», пока
+     её не отправят; отклонённая возвращает сумму на баланс */
+  function sendWithdraw() {
+    const amount = wmodNumber();
+    if (wmodBusy || !walletAddr || amount < 0.1 || amount > tonBalance()) return;
+    if (!Store.live()) {
+      toast(t('pay.noDb'));
+      return;
+    }
+
+    wmodBusy = true;
+    paintWmod();
+    walletPost({ action: 'withdraw', amount: wmodAmount })
+      .then((data) => {
+        if (ME) ME.tonNano = data.tonNano || 0;
+        tonLog = data.log || [];
+        renderTonLog(tonLog);
+        paintWallet();
+        haptic('success');
+        toast(t('wallet.withdrawSent'));
+        wmodClose();
+      })
+      .catch((error) => toast(error.message || t('pay.sorry')))
+      .then(() => {
+        wmodBusy = false;
+        paintWmod();
+      });
+  }
+
   // История как у memgift: пополнения и покупки с баланса
   function renderTonLog(log) {
     const box = document.getElementById('wl-list');
@@ -2328,7 +2389,7 @@
       dot.className = 'dot';
       dot.textContent = '·';
       const price = document.createElement('span');
-      price.className = 'price ' + (one.type === 'deposit' ? 'is-plus' : 'is-minus');
+      price.className = 'price ' + (one.type === 'deposit' ? 'is-plus' : one.status === 'rejected' ? '' : 'is-minus');
       price.textContent = (one.type === 'deposit' ? '+' : '−') + formatTon(one.nano) + ' TON';
       meta.append(time, dot, price);
       mid.append(name, meta);
@@ -2337,7 +2398,13 @@
       right.className = 'right';
       const status = document.createElement('span');
       status.className = 'status';
-      status.textContent = t(one.type === 'gift' ? 'wallet.statusGift' : one.type === 'deposit' ? 'wallet.statusDeposit' : 'wallet.statusWithdraw');
+      status.textContent = t(one.type === 'gift' ? 'wallet.statusGift'
+        : one.type === 'deposit' ? 'wallet.statusDeposit'
+          // У вывода — где заявка: ждёт админа, отправлена или отклонена
+          : one.status === 'pending' ? 'wallet.wdPending'
+            : one.status === 'rejected' ? 'wallet.wdRejected'
+              : one.status === 'done' ? 'wallet.wdDone' : 'wallet.statusWithdraw');
+      if (one.type === 'withdraw' && one.status) status.classList.add('is-' + one.status);
       right.appendChild(status);
 
       row.append(nft, mid, right);
@@ -2362,10 +2429,9 @@
     });
     unlinkSheet = createSheet(document.getElementById('unlink'));
 
-    document.getElementById('prf-walletpage').addEventListener('click', () => {
-      haptic('light');
-      walletSheet.open();
-    });
+    document.getElementById('prf-walletpage').addEventListener('click', openWalletPage);
+    const gram = document.getElementById('hdr-gram-btn');
+    if (gram) gram.addEventListener('click', openWalletPage);
 
     document.getElementById('prf-wallet').addEventListener('click', () => {
       if (walletAddr) {
@@ -2408,9 +2474,7 @@
         sendDeposit();
         return;
       }
-      // Вывод подключим позже — честно говорим, а не делаем вид
-      toast(t('wallet.soonWithdraw'));
-      wmodClose();
+      sendWithdraw();
     });
 
     // В общем списке окон: «назад» и Esc закрывают и его
@@ -3422,7 +3486,7 @@
 
   function taskProgress(task) {
     if (!ME) return 0;
-    if (task.type === 'link') return (ME.tasksStarted || []).indexOf(task.id) === -1 ? 0 : 1;
+    if (task.type === 'link' || task.type === 'subscribe') return (ME.tasksStarted || []).indexOf(task.id) === -1 ? 0 : 1;
     if (task.type === 'buy') return ME.bought || 0;
     if (task.type === 'invite') return ME.invited || 0;
     return ME.sent || 0;
@@ -3451,10 +3515,12 @@
 
     const have = taskProgress(task);
     if (have >= task.goal) {
-      return taskButton('claim', t('task.claim'), (event) => taskPost('claim', task, event.currentTarget));
+      // Подписку сервер проверит у Telegram: кнопка так и называется
+      return taskButton('claim', t(task.type === 'subscribe' ? 'task.check' : 'task.claim'),
+        (event) => taskPost('claim', task, event.currentTarget));
     }
 
-    if (task.type === 'link') {
+    if (task.type === 'link' || task.type === 'subscribe') {
       return taskButton('start', t('task.start'), (event) => {
         haptic('light');
         if (task.url) openLink(task.url);
@@ -3781,6 +3847,19 @@
     return row;
   }
 
+  function gemsSoon() {
+    const box = document.createElement('div');
+    box.className = 'prf-soon glass';
+    box.innerHTML = '<span class="prf-soon__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#gems"></use></svg></span>';
+    const text = document.createElement('p');
+    text.className = 'prf-soon__text';
+    const title = document.createElement('b');
+    title.textContent = t('profile.gemsSoonTitle');
+    text.append(title, t('profile.gemsSoon'));
+    box.appendChild(text);
+    return box;
+  }
+
   function renderOwned(c) {
     const list = document.getElementById(c.id + '-list');
     const total = document.getElementById(c.id + '-total');
@@ -3809,6 +3888,9 @@
     // В NFT слово не склоняется: «0 NFT», а не «0 подарков»
     total.textContent = formatPrice(items.length) + ' ' +
       (c.tab === 'nft' ? 'NFT' : countOf(items.length, 'gift.count'));
+
+    // Во вкладке NFT своего профиля — что продажа на GetGems скоро будет
+    if (c.tab === 'nft' && c.id === 'prf') list.appendChild(gemsSoon());
 
     if (!items.length) {
       list.appendChild(emptyState(c.tab));
@@ -3991,18 +4073,24 @@
   }
 
   function initHeader() {
-    const stars = document.getElementById('hdr-stars');
     const coupons = document.getElementById('hdr-coupons');
-    if (!stars || !coupons) return;
+    if (!coupons) return;
 
-    stars.textContent = formatPrice(ME ? ME.stars : 0);
     coupons.textContent = formatPrice(ME ? ME.coupons : 0);
+    paintGram();
 
-    // В профиле своей шапки нет — балансы стоят в его строке с языком
+    // В профиле своей шапки нет — балансы стоят в его строке с языком.
+    // Там остаются звёзды: на главной их место занял Gram
     const prfStars = document.getElementById('prf-stars');
     const prfCoupons = document.getElementById('prf-coupons');
-    if (prfStars) prfStars.textContent = stars.textContent;
+    if (prfStars) prfStars.textContent = formatPrice(ME ? ME.stars : 0);
     if (prfCoupons) prfCoupons.textContent = coupons.textContent;
+  }
+
+  // Баланс Gram в шапке — TON на счёте, как на странице кошелька
+  function paintGram() {
+    const gram = document.getElementById('hdr-gram');
+    if (gram) gram.textContent = formatTon(Number(ME && ME.tonNano) || 0);
   }
 
   function initProfile() {
@@ -4506,6 +4594,50 @@
       title: group.title,
       items: (group.items || []).map((task) => Object.assign({ done: 0 }, task))
     }));
+  }
+
+  /* Защита: GapsGift открывается только в приложении Telegram — на
+     компьютере (Telegram Desktop, macOS) и на телефоне. В браузере и в
+     веб-версии Telegram (web.telegram.org, platform weba/webk/web) вместо
+     приложения — экран «Откройте в Telegram». Без подписанных initData
+     приложение не пускаем вовсе: такие заходы — это обычный браузер */
+  const APP_PLATFORMS = ['tdesktop', 'macos', 'ios', 'android', 'android_x', 'unigram'];
+
+  function outsideApp() {
+    if (!tg || !tg.initData) return true;
+    return APP_PLATFORMS.indexOf(String(tg.platform || '')) === -1;
+  }
+
+  function showOutside() {
+    const gate = document.createElement('div');
+    gate.className = 'outside';
+    gate.innerHTML = '<svg class="outside__logo" viewBox="0 0 643 617" aria-hidden="true"><use href="#logo"></use></svg>';
+
+    const title = document.createElement('h1');
+    title.className = 'outside__title';
+    title.textContent = t('gate.title');
+
+    const text = document.createElement('p');
+    text.className = 'outside__text';
+    text.textContent = t('gate.text');
+
+    const open = document.createElement('a');
+    open.className = 'outside__btn';
+    open.href = BOT_LINK + '?startapp';
+    open.target = '_blank';
+    open.rel = 'noopener';
+    open.textContent = t('gate.open');
+
+    gate.append(title, text, open);
+    document.body.appendChild(gate);
+    document.documentElement.classList.add('is-outside');
+  }
+
+  if (outsideApp()) {
+    initSplash();
+    showOutside();
+    hideSplash();
+    return;
   }
 
   initTelegram();

@@ -3193,6 +3193,28 @@ body {
   height: 17px;
 }
 
+/* Gram — ромб memgift, шире, чем выше: по высоте ровняем со звездой */
+.hdr__icon--gram {
+  width: 19px;
+  height: 16px;
+  color: #fff;
+}
+
+.hdr__balance--gram {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hdr__balance--gram:active {
+  opacity: .7;
+}
+
 /* Витрина в профиле: три в ряд, значит всё внутри мельче */
 
 .prf__list .gifts {
@@ -5796,4 +5818,104 @@ body {
 .mgm-info__val--price img {
   width: 16px;
   height: 16px;
+}
+
+/* Вкладка NFT: плашка «скоро — продажа на GetGems». Стекло — общий
+   рецепт .glass, своё здесь только раскладка */
+.prf-soon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 16px 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+}
+
+.prf-soon__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .06);
+}
+
+.prf-soon__icon svg {
+  fill: #fff;
+  width: 22px;
+  height: 22px;
+  opacity: .85;
+}
+
+.prf-soon__text {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.3;
+  color: #8e8e93;
+}
+
+.prf-soon__text b {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f5f5f7;
+}
+
+/* Вне приложения Telegram (браузер, веб-версия) — только этот экран */
+.is-outside .stage,
+.is-outside .navbar {
+  display: none;
+}
+
+.outside {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  background: #0d0d10;
+  text-align: center;
+}
+
+.outside__logo {
+  width: 88px;
+  height: 84px;
+  margin-bottom: 10px;
+  fill: #fff;
+}
+
+.outside__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #f5f5f7;
+}
+
+.outside__text {
+  max-width: 320px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: #8e8e93;
+}
+
+.outside__btn {
+  margin-top: 12px;
+  padding: 14px 26px;
+  border-radius: 14px;
+  background: #3e88f7;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.outside__btn:active {
+  transform: scale(.96);
 }

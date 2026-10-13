@@ -10,7 +10,7 @@
   const API = '/api/admin';
   const LAST_TAB = 'gg:admin-tab';
 
-  const SECTIONS = ['gifts', 'banners', 'tasks', 'users', 'settings'];
+  const SECTIONS = ['gifts', 'banners', 'tasks', 'users', 'withdrawals', 'settings'];
 
   // Цвета лент — те же градиенты, что на витрине
   const RIBBONS = [
@@ -632,12 +632,15 @@
 
   function counts() {
     const set = (key, value) => {
-      const node = document.querySelector('[data-count="' + key + '"]');
-      if (node) node.textContent = value ? num(value) : '';
+      document.querySelectorAll('[data-count="' + key + '"]').forEach((node) => {
+        node.textContent = value ? num(value) : '';
+      });
     };
     set('gifts', (content.gifts || []).length);
     set('banners', (content.banners || []).length);
     set('users', stats ? stats.users : 0);
+    // Заявки, которые ждут отправки, — видно из любого раздела
+    set('withdrawals', stats ? stats.withdrawals : 0);
   }
 
   function go(section) {
@@ -1860,6 +1863,160 @@
     });
   }
 
+  // --- Выводы ---
+
+  /* Вывод TON ручной: человек оставил заявку в кошельке приложения, сумма
+     уже снята с его баланса. Админ переводит TON со своего кошелька на
+     адрес из заявки и жмёт «Отправлено». «Отклонить» возвращает сумму на
+     баланс человека */
+  const payouts = { filter: 'open', items: [], total: 0, token: 0 };
+
+  // 1500000000 → «1,5»: нанотоны в TON без лишних нулей
+  function ton(nano) {
+    return String(Math.round((Number(nano) || 0) / 1e5) / 1e4).replace('.', ',');
+  }
+
+  function copyText(text, done) {
+    const fallback = () => {
+      const field = el('textarea');
+      field.value = text;
+      field.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+      document.body.appendChild(field);
+      field.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      field.remove();
+      done();
+    };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  }
+
+  function copyRow(label, value, shown) {
+    const row = el('button', 'ad-wallet');
+    row.type = 'button';
+    const line = el('code', null, shown || value);
+    line.appendChild(icon('copy'));
+    row.append(el('span', null, label), line);
+    row.addEventListener('click', () => copyText(value, () => toast(label + ' — скопировано')));
+    return row;
+  }
+
+  function payoutCard(wd) {
+    const card = el('section', 'ad-card ad-wd');
+    const person = { id: wd.userId, firstName: wd.firstName, lastName: wd.lastName, username: wd.username, photo: wd.photo };
+
+    const who = el('button', 'ad-wd__who');
+    who.type = 'button';
+    const body = el('span', 'ad-person__body');
+    body.append(
+      el('span', 'ad-person__name', nameOf(person)),
+      el('span', 'ad-person__sub', (wd.username ? '@' + wd.username + ' · ' : '') + wd.userId + ' · ' + ago(wd.createdAt))
+    );
+    who.append(avatar(person), body, el('b', 'ad-wd__sum', ton(wd.nano) + ' TON'));
+    who.addEventListener('click', () => userSheet(wd.userId, () => {}));
+    card.appendChild(who);
+
+    card.appendChild(copyRow('Кошелёк получателя', wd.wallet));
+    card.appendChild(copyRow('Сумма, TON', ton(wd.nano).replace(',', '.')));
+
+    if (wd.status !== 'pending') {
+      const done = wd.status === 'done';
+      const badge = el('p', 'ad-wd__state ad-wd__state--' + (done ? 'ok' : 'bad'),
+        (done ? 'Отправлено' : 'Отклонено, сумма вернулась на баланс') + ' · ' + ago(wd.closedAt));
+      card.appendChild(badge);
+      return card;
+    }
+
+    const acts = el('div', 'ad-wd__acts');
+
+    // Tonkeeper откроет перевод с уже вписанными адресом и суммой
+    const open = el('a', 'ad-btn ad-btn--ghost');
+    open.href = 'https://app.tonkeeper.com/transfer/' + encodeURIComponent(wd.wallet) + '?amount=' + wd.nano;
+    open.target = '_blank';
+    open.rel = 'noopener';
+    open.append(icon('link'), el('span', null, 'Открыть перевод в Tonkeeper'));
+    open.addEventListener('click', (event) => {
+      if (tg && typeof tg.openLink === 'function') {
+        event.preventDefault();
+        tg.openLink(open.href);
+      }
+    });
+
+    const reject = button('Отклонить', {
+      kind: 'danger',
+      icon: 'close',
+      onClick: async (event) => {
+        if (!(await ask('Отклонить вывод ' + ton(wd.nano) + ' TON? Сумма вернётся на баланс человека.'))) return;
+        resolvePayout(event.currentTarget, wd, 'reject');
+      }
+    });
+
+    const sent = button('Отправлено', {
+      icon: 'check',
+      onClick: async (event) => {
+        if (!(await ask('Вы отправили ' + ton(wd.nano) + ' TON на ' + wd.wallet + '?'))) return;
+        resolvePayout(event.currentTarget, wd, 'done');
+      }
+    });
+
+    acts.append(open, reject, sent);
+    card.appendChild(acts);
+    return card;
+  }
+
+  async function resolvePayout(node, wd, action) {
+    const data = await run(node, 'withdraw.resolve', { id: wd.id, action: action });
+    if (!data) return;
+    if (stats) stats.withdrawals = data.open;
+    toast(action === 'done' ? 'Вывод отмечен отправленным' : 'Вывод отклонён, сумма вернулась');
+    go('withdrawals');
+  }
+
+  function renderWithdrawals() {
+    setTop('Выводы', 'Заявки на вывод TON — отправьте вручную и отметьте', [
+      iconButton('refresh', 'Обновить', () => go('withdrawals'), 'ad-icon--round')
+    ]);
+
+    const tabs = el('div', 'ad-quick');
+    [['open', 'Ждут отправки'], ['all', 'Все заявки']].forEach(([id, label]) => {
+      const chip = el('button', 'ad-chip', label);
+      chip.type = 'button';
+      chip.setAttribute('aria-pressed', String(payouts.filter === id));
+      chip.addEventListener('click', () => {
+        if (payouts.filter === id) return;
+        haptic('pick');
+        payouts.filter = id;
+        go('withdrawals');
+      });
+      tabs.appendChild(chip);
+    });
+    view.appendChild(tabs);
+
+    const list = el('div', 'ad-wds');
+    list.appendChild(loading());
+    view.appendChild(list);
+
+    const token = ++payouts.token;
+    api('withdraw.list', { filter: payouts.filter, limit: 100 }).then((data) => {
+      if (token !== payouts.token || !list.isConnected) return;
+      list.textContent = '';
+      if (payouts.filter === 'open' && stats) {
+        stats.withdrawals = data.total;
+        counts();
+      }
+      if (!data.items.length) {
+        list.appendChild(empty('wallet', payouts.filter === 'open' ? 'Заявок нет' : 'Выводов ещё не было',
+          payouts.filter === 'open' ? 'Новые заявки появятся здесь, как только кто-то нажмёт «Вывести»' : ''));
+        return;
+      }
+      data.items.forEach((wd) => list.appendChild(payoutCard(wd)));
+    }).catch((error) => {
+      if (token !== payouts.token) return;
+      list.textContent = '';
+      list.appendChild(empty('pulse', 'Не загрузилось', error.message));
+    });
+  }
+
   // --- Задания ---
 
   function renderTasks() {
@@ -1912,7 +2069,7 @@
         reward.appendChild(document.createTextNode(num(task.reward) + ' ' + plural(task.reward, 'купон', 'купона', 'купонов')));
         bodyNode.append(el('b', null, task.name), reward);
 
-        row.append(mark, bodyNode, el('span', 'ad-task__goal', task.type === 'link' ? 'ссылка' : '×' + num(task.goal)));
+        row.append(mark, bodyNode, el('span', 'ad-task__goal', task.type === 'link' ? 'ссылка' : task.type === 'subscribe' ? 'канал' : '×' + num(task.goal)));
         row.addEventListener('click', () => taskSheet(groupIndex, taskIndex));
         rows.appendChild(row);
       });
@@ -1949,6 +2106,7 @@
 
   const TASK_TYPES = [
     ['link', 'Перейти по ссылке'],
+    ['subscribe', 'Подписка на канал'],
     ['send', 'Отправить подарки'],
     ['buy', 'Купить подарки'],
     ['invite', 'Пригласить друзей']
@@ -1963,17 +2121,22 @@
       const name = input(task ? task.name : '', { placeholder: 'Например, Подпишись на канал', max: 60 });
       const reward = stepper(task ? task.reward : 1, [1, 5, 10, 50]);
       const goal = stepper(task ? task.goal : 1, [1, 5, 10]);
-      const url = input(task ? task.url : '', { placeholder: 'https://t.me/…', max: 300 });
+      const url = input(task && task.type === 'link' ? task.url : '', { placeholder: 'https://t.me/…', max: 300 });
       url.inputMode = 'url';
+      // Канал для подписки. Бот должен быть в нём админом — иначе Telegram
+      // не скажет, подписан ли человек
+      const channel = input(task && task.channel ? '@' + task.channel : '@GapsGift_Community', { placeholder: '@канал или https://t.me/канал', max: 120 });
 
       // Тип задания: от него зависит, что считается выполнением
       const types = el('div', 'ad-quick');
       const urlField = field('Ссылка', affix(url, 'link'), true);
       const goalField = field('Сколько раз', goal, true);
+      const channelField = field('Канал', affix(channel, 'link'), true);
       const paintType = () => {
         types.querySelectorAll('.ad-chip').forEach((chip) => chip.setAttribute('aria-pressed', String(chip.dataset.type === type)));
         urlField.hidden = type !== 'link';
-        goalField.hidden = type === 'link';
+        channelField.hidden = type !== 'subscribe';
+        goalField.hidden = type === 'link' || type === 'subscribe';
       };
       TASK_TYPES.forEach(([id, label]) => {
         const chip = el('button', 'ad-chip', label);
@@ -1988,9 +2151,9 @@
       });
 
       const form = el('div', 'ad-form');
-      form.append(field('Что нужно сделать', name, true), field('Тип', types, true), urlField, goalField, field('Награда в купонах', reward, true));
+      form.append(field('Что нужно сделать', name, true), field('Тип', types, true), urlField, channelField, goalField, field('Награда в купонах', reward, true));
       body.appendChild(form);
-      body.appendChild(el('p', 'ad-note', 'Ссылка: у человека кнопка «Начать» открывает её, потом «Забрать» — и купоны на счёт. Остальные типы засчитываются сами, когда набралось нужное число.'));
+      body.appendChild(el('p', 'ad-note', 'Ссылка: у человека кнопка «Начать» открывает её, потом «Забрать» — и купоны на счёт. Подписка: «Начать» открывает канал, а «Забрать» сработает, только если человек правда подписан — бот проверяет это сам, для этого он должен быть админом канала. Остальные типы засчитываются сами, когда набралось нужное число.'));
       paintType();
 
       if (task) {
@@ -2024,14 +2187,22 @@
             return;
           }
 
+          const handle = channel.value.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^@/, '').split(/[/?#]/)[0];
+          if (type === 'subscribe' && !/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(handle)) {
+            toast('Канал: @имя или ссылка https://t.me/имя', 'bad');
+            channel.focus();
+            return;
+          }
+
           const tasks = copyTasks();
           const next = {
             id: task ? task.id : undefined,
             name: name.value.trim(),
             type: type,
             url: type === 'link' ? link : '',
+            channel: type === 'subscribe' ? handle : '',
             reward: reward.read(),
-            goal: type === 'link' ? 1 : Math.max(1, goal.read())
+            goal: type === 'link' || type === 'subscribe' ? 1 : Math.max(1, goal.read())
           };
           if (task) tasks[groupIndex].items[taskIndex] = next;
           else tasks[groupIndex].items.push(next);
@@ -2123,6 +2294,7 @@
     gifts: renderGifts,
     banners: renderBanners,
     users: renderUsers,
+    withdrawals: renderWithdrawals,
     tasks: renderTasks,
     settings: renderSettings
   };

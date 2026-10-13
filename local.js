@@ -315,6 +315,8 @@
   const actions = {
     session: () => hydrate(content).then((state) => ({ content: state, stats: stats() })),
     stats: () => Promise.resolve({ stats: stats() }),
+    // Без сервера денег нет — и выводить нечего
+    'withdraw.list': () => Promise.resolve({ items: [], total: 0 }),
 
     'gift.save': (payload) => {
       const input = payload.gift || {};
