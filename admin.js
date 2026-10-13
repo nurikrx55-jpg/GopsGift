@@ -1751,6 +1751,29 @@
       owned.append(giveBtn, picker);
       body.appendChild(owned);
 
+      /* Подкрутка: следующее улучшение этого человека выпадет на чёрном
+         фоне Eclipse. Срабатывает один раз и снимается сама; человек о ней
+         не узнает — в его приложение она не уходит */
+      let rig = person.rigBackdrop || '';
+      const upgCard = el('section', 'ad-card');
+      upgCard.appendChild(el('h3', null, 'Улучшение'));
+      const rigBtn = el('button', 'ad-switch');
+      rigBtn.type = 'button';
+      const rigDot = el('i', 'ad-switch__dot');
+      const rigText = el('span', 'ad-switch__text');
+      rigText.append(el('b', null, 'Чёрный фон на следующем улучшении'), el('small', null, 'Eclipse · сработает один раз'));
+      const rigToggle = el('span', 'ad-toggle');
+      rigBtn.append(rigDot, rigText, rigToggle);
+      const paintRig = () => rigBtn.setAttribute('aria-pressed', String(rig === 'Eclipse'));
+      rigBtn.addEventListener('click', () => {
+        rig = rig === 'Eclipse' ? '' : 'Eclipse';
+        haptic('pick');
+        paintRig();
+      });
+      paintRig();
+      upgCard.appendChild(rigBtn);
+      body.appendChild(upgCard);
+
       foot.appendChild(button('Сохранить', {
         icon: 'check',
         onClick: async (event) => {
@@ -1759,7 +1782,8 @@
             account: {
               stars: stars.read(),
               coupons: coupons.read(),
-              gifts: gifts
+              gifts: gifts,
+              rigBackdrop: rig
             }
           }, (data) => {
             closeSheet();

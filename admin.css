@@ -1856,3 +1856,71 @@
   color: var(--text);
   background: var(--accent-soft);
 }
+
+/* Переключатель строкой: кружок-образец, подпись и тумблер справа */
+.ad-switch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ad-switch__dot {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: radial-gradient(circle, #212121, #0e0f0f);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.ad-switch__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.ad-switch__text b {
+  font-weight: inherit;
+}
+
+.ad-switch__text small {
+  font-size: 13px;
+  color: var(--hint);
+}
+
+.ad-toggle {
+  position: relative;
+  flex: none;
+  width: 50px;
+  height: 30px;
+  border-radius: 999px;
+  background: #3a3a40;
+  transition: background 0.2s ease;
+}
+
+.ad-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+
+.ad-switch[aria-pressed="true"] .ad-toggle {
+  background: var(--ok);
+}
+
+.ad-switch[aria-pressed="true"] .ad-toggle::after {
+  transform: translateX(20px);
+}

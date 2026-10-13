@@ -6,7 +6,7 @@ import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
   readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, TON_RECEIVER, InputError,
-  listUsers, getUser, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile
+  listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile
 } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
@@ -176,6 +176,7 @@ const actions = {
   async 'user.get'(payload) {
     const user = await getUser(String(payload.id || ''));
     if (!user) throw new InputError('Такого пользователя нет');
+    user.rigBackdrop = await readRig(user.id);
     return { user: user };
   },
 
@@ -185,7 +186,9 @@ const actions = {
 
     const content = await readContent(true);
     await saveAccount(id, payload.account || {}, content);
-    return { user: await getUser(id) };
+    const user = await getUser(id);
+    user.rigBackdrop = await readRig(id);
+    return { user: user };
   }
 };
 

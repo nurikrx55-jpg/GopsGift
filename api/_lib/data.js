@@ -15,6 +15,7 @@
    gg:tonlog:<id>     — история кошелька: пополнения TON и покупки с баланса
    gg:tontx:<hash>    — отметка, что этот перевод TON уже зачислен
    gg:upgseq          — сколько раз улучшали каждый подарок: отсюда номер #N
+   gg:rig:<id>        — фон, который админ подкрутил на следующее улучшение
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -43,6 +44,7 @@ const K = {
   tonlog: (id) => 'gg:tonlog:' + id,
   tontx: (hash) => 'gg:tontx:' + hash,
   upgseq: 'gg:upgseq',
+  rig: (id) => 'gg:rig:' + id,
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -435,6 +437,10 @@ export async function listUsers(options) {
   return { items: found.slice(offset, offset + limit), total: found.length };
 }
 
+export async function readRig(id) {
+  return (await command('GET', K.rig(String(id)))) || '';
+}
+
 export async function getUser(id) {
   const [person] = await people([String(id)]);
   return person || null;
@@ -456,6 +462,11 @@ export async function saveAccount(id, input, content) {
     tasksDone: before.tasksDone,
     tasksStarted: before.tasksStarted
   };
+
+  // Подкрутка фона живёт отдельно от счёта: счёт уходит в браузер самого
+  // человека, а про подкрутку ему знать незачем
+  const rig = readAttrs().backdrops.some((one) => one.name === input.rigBackdrop) ? input.rigBackdrop : '';
+  await command(rig ? 'SET' : 'DEL', ...(rig ? [K.rig(String(id)), rig] : [K.rig(String(id))]));
 
   await command('SET', K.acct(String(id)), JSON.stringify(acct));
   return acct;
@@ -630,7 +641,11 @@ async function rollUpgrade(userId, giftId, content) {
 
   const attrs = readAttrs();
   const model = weighted(gift.models);
-  const backdrop = weighted(attrs.backdrops);
+  // Админ подкрутил фон — выпадает он, и подкрутка снимается
+  const rig = await command('GET', K.rig(id));
+  const rigged = rig && attrs.backdrops.find((one) => one.name === rig);
+  const backdrop = rigged || weighted(attrs.backdrops);
+  if (rig) await command('DEL', K.rig(id));
   const symbol = weighted(attrs.symbols);
   const num = await command('ZINCRBY', K.upgseq, 1, giftId);
 
