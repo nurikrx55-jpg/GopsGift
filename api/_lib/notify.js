@@ -1,8 +1,9 @@
 /* Сообщения бота людям: получен подарок, вывод отправлен или отклонён.
 
    Пишем на языке человека из Telegram: русский — тем, у кого русский,
-   остальным английский. Разметка — HTML Telegram: жирный, цитата-блок,
-   моноширинный адрес. Под сообщением — кнопка в приложение.
+   остальным английский. Только текст, без эмодзи (так просил ШЕП):
+   жирный, цитата-блок, моноширинный адрес. Под сообщением — кнопка в
+   приложение.
 
    Сообщение — приятное дополнение, а не часть операции: подарок уже
    передан, заявка уже закрыта. Поэтому ошибка отправки (человек не
@@ -14,38 +15,38 @@ const APP_URL = process.env.APP_URL || 'https://gapsgift.online/';
 
 const TEXT = {
   ru: {
-    giftTitle: '🎁 <b>Вам подарок!</b>',
-    giftFrom: '👤 От: {from}',
+    giftTitle: '<b>Вам подарок!</b>',
+    giftFrom: 'От: {from}',
     giftNote: 'Подарок уже в вашем профиле — откройте GapsGift, чтобы посмотреть.',
-    giftOpen: '🎁 Открыть подарок',
-    wdDoneTitle: '✅ <b>Вывод отправлен</b>',
+    giftOpen: 'Открыть подарок',
+    wdDoneTitle: '<b>Вывод отправлен</b>',
     wdDoneNote: 'TON уже в пути — обычно они приходят на кошелёк за минуту.',
-    wdRejectTitle: '❌ <b>Вывод отклонён</b>',
+    wdRejectTitle: '<b>Вывод отклонён</b>',
     wdRejectNote: 'Сумма вернулась на ваш баланс в GapsGift.',
-    wdAmount: '💎 Сумма: <b>{n} TON</b>',
-    wdWallet: '👛 Кошелёк: <code>{w}</code>',
-    soldTitle: '💰 <b>Ваш подарок продан!</b>',
-    soldPrice: '💎 Цена: <b>{n} TON</b>',
-    soldPayout: '👛 Вам зачислено: <b>{n} TON</b>',
-    soldBuyer: '👤 Покупатель: {who}',
+    wdAmount: 'Сумма: <b>{n} TON</b>',
+    wdWallet: 'Кошелёк: <code>{w}</code>',
+    soldTitle: '<b>Ваш подарок продан!</b>',
+    soldPrice: 'Цена: <b>{n} TON</b>',
+    soldPayout: 'Вам зачислено: <b>{n} TON</b>',
+    soldBuyer: 'Покупатель: {who}',
     soldNote: 'Деньги уже на вашем балансе в GapsGift.',
     open: 'Открыть GapsGift'
   },
   en: {
-    giftTitle: '🎁 <b>You got a gift!</b>',
-    giftFrom: '👤 From: {from}',
+    giftTitle: '<b>You got a gift!</b>',
+    giftFrom: 'From: {from}',
     giftNote: 'The gift is already in your profile — open GapsGift to see it.',
-    giftOpen: '🎁 Open the gift',
-    wdDoneTitle: '✅ <b>Withdrawal sent</b>',
+    giftOpen: 'Open the gift',
+    wdDoneTitle: '<b>Withdrawal sent</b>',
     wdDoneNote: 'Your TON is on its way — it usually reaches the wallet within a minute.',
-    wdRejectTitle: '❌ <b>Withdrawal rejected</b>',
+    wdRejectTitle: '<b>Withdrawal rejected</b>',
     wdRejectNote: 'The amount is back on your GapsGift balance.',
-    wdAmount: '💎 Amount: <b>{n} TON</b>',
-    wdWallet: '👛 Wallet: <code>{w}</code>',
-    soldTitle: '💰 <b>Your gift was sold!</b>',
-    soldPrice: '💎 Price: <b>{n} TON</b>',
-    soldPayout: '👛 You got: <b>{n} TON</b>',
-    soldBuyer: '👤 Buyer: {who}',
+    wdAmount: 'Amount: <b>{n} TON</b>',
+    wdWallet: 'Wallet: <code>{w}</code>',
+    soldTitle: '<b>Your gift was sold!</b>',
+    soldPrice: 'Price: <b>{n} TON</b>',
+    soldPayout: 'You got: <b>{n} TON</b>',
+    soldBuyer: 'Buyer: {who}',
     soldNote: 'The money is already on your GapsGift balance.',
     open: 'Open GapsGift'
   }
@@ -102,7 +103,7 @@ export function giftReceived(to, from, gift, nft) {
   const text = [
     w.giftTitle,
     '',
-    '<blockquote>🎀 ' + title + '\n' + fill(w.giftFrom, { from: sender }) + '</blockquote>',
+    '<blockquote>' + title + '\n' + fill(w.giftFrom, { from: sender }) + '</blockquote>',
     '',
     w.giftNote
   ].join('\n');
@@ -140,7 +141,7 @@ export function giftSold(sale, gift) {
   const text = [
     w.soldTitle,
     '',
-    '<blockquote>🎀 <b>' + name + '</b> · ' + esc(nft.model && nft.model.name) + ' <b>#' + esc(nft.num) + '</b>\n' +
+    '<blockquote><b>' + name + '</b> · ' + esc(nft.model && nft.model.name) + ' <b>#' + esc(nft.num) + '</b>\n' +
       fill(w.soldPrice, { n: ton(sale.lot.nano, sale.seller.lang) }) + '\n' +
       fill(w.soldPayout, { n: ton(sale.payout, sale.seller.lang) }) + '\n' +
       fill(w.soldBuyer, { who: who }) + '</blockquote>',
