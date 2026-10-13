@@ -10,14 +10,7 @@
   const API = '/api/admin';
   const LAST_TAB = 'gg:admin-tab';
 
-  const SECTIONS = {
-    overview: { title: 'Обзор' },
-    gifts: { title: 'Подарки' },
-    banners: { title: 'Баннеры' },
-    users: { title: 'Пользователи' },
-    tasks: { title: 'Задания' },
-    settings: { title: 'Настройки' }
-  };
+  const SECTIONS = ['gifts', 'banners', 'tasks', 'users', 'settings'];
 
   // Цвета лент — те же градиенты, что на витрине
   const RIBBONS = [
@@ -60,7 +53,7 @@
   let content = null;
   let stats = null;
   let me = null;
-  let current = 'overview';
+  let current = 'gifts';
   let sheetClose = null;
 
   // --- Мелочи ---
@@ -128,7 +121,7 @@
   }
 
   function day(ts) {
-    return ts ? new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+    return ts ? new Date(ts).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
   }
 
   function haptic(kind) {
@@ -149,10 +142,6 @@
     node.dataset.tone = tone || 'ok';
     node.querySelector('use').setAttribute('href', tone === 'bad' ? '#i-close' : '#i-check');
     node.hidden = false;
-    // Перезапуск появления, если уведомление уже висит
-    node.style.animation = 'none';
-    void node.offsetWidth;
-    node.style.animation = '';
 
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { node.hidden = true; }, tone === 'bad' ? 3600 : 2400);
@@ -414,10 +403,21 @@
 
   // --- Поля ---
 
+  // Подписью-label оборачиваем только одно поле ввода: внутри label с
+  // кнопками нажатие на подпись нажимало бы первую из них
   function field(label, control, wide) {
-    const wrap = el('label', 'ad-field' + (wide ? ' ad-field--wide' : ''));
+    const single = control.matches('input, textarea, select, .ad-affix');
+    const wrap = el(single ? 'label' : 'div', 'ad-field' + (wide ? ' ad-field--wide' : ''));
     wrap.append(el('span', null, label), control);
     return wrap;
+  }
+
+  // Группа полей с подписью — так длинный лист читается по частям
+  function group(title) {
+    const box = el('section', 'ad-group');
+    box.appendChild(el('h4', null, title));
+    for (let i = 1; i < arguments.length; i += 1) box.appendChild(arguments[i]);
+    return box;
   }
 
   function input(value, options) {
@@ -641,7 +641,7 @@
   }
 
   function go(section) {
-    if (!SECTIONS[section]) section = 'overview';
+    if (SECTIONS.indexOf(section) < 0) section = 'gifts';
     current = section;
 
     try { sessionStorage.setItem(LAST_TAB, section); } catch (_) {}
@@ -655,10 +655,6 @@
 
     release(view);
     view.textContent = '';
-    // Перезапуск появления раздела
-    view.style.animation = 'none';
-    void view.offsetWidth;
-    view.style.animation = '';
 
     RENDER[section]();
     counts();
@@ -673,112 +669,6 @@
     go(link.dataset.go);
   });
 
-  // --- Обзор ---
-
-  function renderOverview() {
-    const hour = new Date().getHours();
-    const hello = hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
-    setTop(hello + (me && me.first_name ? ', ' + me.first_name : ''), new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }), [
-      iconButton('refresh', 'Обновить', (event) => refreshStats(event.currentTarget))
-    ]);
-
-    if (offline) view.appendChild(localNote());
-
-    const tiles = el('div', 'ad-stats');
-    [
-      { icon: 'users', value: stats.users, label: 'Пользователей всего' },
-      { icon: 'sparkle', value: stats.fresh, label: 'Новых за сутки', tint: 'rgba(52,199,89,.16)', tone: '#34c759' },
-      { icon: 'pulse', value: stats.active, label: 'Заходили за сутки', tint: 'rgba(246,179,41,.16)', tone: '#f6b329' },
-      { icon: 'calendar', value: stats.week, label: 'Заходили за неделю', tint: 'rgba(175,82,222,.18)', tone: '#c792ea' }
-    ].forEach((tile) => {
-      const box = el('div', 'ad-stat');
-      const mark = el('span', 'ad-stat__icon');
-      if (tile.tint) mark.style.setProperty('--tint', tile.tint);
-      if (tile.tone) mark.style.setProperty('--tone', tile.tone);
-      mark.appendChild(icon(tile.icon));
-      box.append(mark, el('b', null, num(tile.value)), el('span', null, tile.label));
-      tiles.appendChild(box);
-    });
-    view.appendChild(tiles);
-
-    const cols = el('div', 'ad-cols');
-
-    // Последние заходы
-    const recent = el('section', 'ad-card');
-    const head = el('div', 'ad-card__head');
-    head.appendChild(el('h3', null, 'Последние заходы'));
-    const all = el('button', 'ad-link', 'Все');
-    all.dataset.go = 'users';
-    all.appendChild(icon('right'));
-    head.appendChild(all);
-    recent.appendChild(head);
-
-    const list = el('div', 'ad-list');
-    list.appendChild(skeletonRows(4));
-    recent.appendChild(list);
-    cols.appendChild(recent);
-
-    api('users.list', { limit: 6 }).then((data) => {
-      list.textContent = '';
-      if (!data.items.length) {
-        list.appendChild(empty('users', 'Пока никого', 'Люди появятся здесь, как только откроют приложение'));
-        return;
-      }
-      data.items.forEach((person) => list.appendChild(personRow(person)));
-    }).catch((error) => {
-      list.textContent = '';
-      list.appendChild(empty('users', 'Не загрузилось', error.message));
-    });
-
-    // Витрина
-    const shelf = el('section', 'ad-card');
-    const shelfHead = el('div', 'ad-card__head');
-    const shelfTitle = el('div');
-    shelfTitle.append(el('h3', null, 'Витрина'), el('p', null,
-      num((content.gifts || []).length) + ' ' + plural((content.gifts || []).length, 'подарок', 'подарка', 'подарков') +
-      ' · ' + num((content.banners || []).length) + ' ' + plural((content.banners || []).length, 'баннер', 'баннера', 'баннеров')));
-    const manage = el('button', 'ad-link', 'Управлять');
-    manage.dataset.go = 'gifts';
-    manage.appendChild(icon('right'));
-    shelfHead.append(shelfTitle, manage);
-    shelf.appendChild(shelfHead);
-
-    const strip = el('div', 'ad-gifts');
-    (content.gifts || []).slice(0, 4).forEach((gift) => {
-      const card = giftCard(gift);
-      card.addEventListener('click', () => giftSheet(gift));
-      strip.appendChild(card);
-    });
-    if (!(content.gifts || []).length) {
-      strip.appendChild(addTile('Первый подарок', () => giftSheet(null)));
-    }
-    shelf.appendChild(strip);
-    cols.appendChild(shelf);
-
-    view.appendChild(cols);
-  }
-
-  // Пока базы нет, об этом нужно сказать прямо: иначе легко решить, что
-  // правки уже видны всем
-  function localNote() {
-    const card = el('section', 'ad-local');
-    const mark = el('span', 'ad-local__icon');
-    mark.appendChild(icon('db'));
-
-    const text = el('div', 'ad-local__text');
-    text.append(
-      el('b', null, 'Пока без общей базы'),
-      el('p', null, 'Всё работает, но правки и список людей живут только на этом устройстве. Подключите базу — и их увидят все.')
-    );
-
-    const more = el('button', 'ad-link', 'Как подключить');
-    more.appendChild(icon('right'));
-    more.addEventListener('click', () => go('settings'));
-
-    card.append(mark, text, more);
-    return card;
-  }
-
   async function refreshStats(node) {
     await run(node, 'stats', {}, (data) => {
       stats = data.stats;
@@ -787,23 +677,8 @@
     });
   }
 
-  function skeletonRows(n) {
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < n; i += 1) {
-      const row = el('div', 'ad-person');
-      const ava = el('span', 'ad-ava ad-skel');
-      const body = el('div', 'ad-person__body');
-      const a = el('span', 'ad-skel');
-      a.style.height = '14px';
-      a.style.width = (50 + (i * 13) % 35) + '%';
-      const b = el('span', 'ad-skel');
-      b.style.height = '11px';
-      b.style.width = '38%';
-      body.append(a, b);
-      row.append(ava, body, el('span'));
-      frag.appendChild(row);
-    }
-    return frag;
+  function loading() {
+    return el('p', 'ad-loading', 'Загружаем…');
   }
 
   function addTile(text, onClick) {
@@ -826,15 +701,16 @@
     const orderBtn = button(ordering ? 'Готово' : 'Порядок', {
       kind: ordering ? null : 'ghost',
       icon: ordering ? 'check' : 'swap',
+      extra: 'ad-btn--top',
       onClick: () => {
         ordering = !ordering;
         haptic('pick');
         go('gifts');
       }
     });
-    const add = button('Добавить', { icon: 'plus', onClick: () => giftSheet(null) });
+    const add = button('Добавить', { icon: 'plus', extra: 'ad-btn--top', onClick: () => giftSheet(null) });
 
-    setTop('Подарки', ordering ? 'Стрелками двигайте подарки на витрине' : num(gifts.length) + ' ' + plural(gifts.length, 'подарок', 'подарка', 'подарков') + ' на витрине', gifts.length > 1 ? [orderBtn, add] : [add]);
+    setTop('Подарки', ordering ? 'Стрелками двигайте подарки на витрине' : num(gifts.length) + ' ' + plural(gifts.length, 'подарок', 'подарка', 'подарков') + ' на витрине', gifts.length > 1 ? (ordering ? [orderBtn] : [orderBtn, add]) : [add]);
 
     if (!gifts.length) {
       view.appendChild(empty('gift', 'Витрина пустая', 'Добавьте первый подарок — хватит файла .tgs или .svg и цены', button('Добавить подарок', { icon: 'plus', onClick: () => giftSheet(null) })));
@@ -849,13 +725,13 @@
       cell.appendChild(card);
 
       const meta = el('div', 'ad-gift__meta');
-      meta.append(el('b', null, gift.name), el('span', null, num(gift.left) + ' / ' + num(gift.total)));
+      meta.append(el('b', null, gift.name), el('span', null, 'осталось ' + num(gift.left) + ' из ' + num(gift.total)));
       cell.appendChild(meta);
 
       if (ordering) {
         const move = el('div', 'ad-gift__move');
-        const left = iconButton('left', 'Раньше', () => moveGift(index, -1), 'ad-icon--glass');
-        const right = iconButton('right', 'Позже', () => moveGift(index, 1), 'ad-icon--glass');
+        const left = iconButton('left', 'Раньше', () => moveGift(index, -1));
+        const right = iconButton('right', 'Позже', () => moveGift(index, 1));
         left.disabled = index === 0;
         right.disabled = index === gifts.length - 1;
         move.append(left, right);
@@ -940,117 +816,116 @@
       const total = input(draft.total, { type: 'number' });
       const left = input(draft.left, { type: 'number' });
 
-      const form = el('div', 'ad-form');
-      form.append(
-        field('Название', name, true),
-        field('Цена', affix(price, 'star-img')),
-        field('Статус', status),
-        field('Выпущено всего', total),
-        field('Осталось', left),
-        field('Текст ленты', badge, true)
-      );
-      body.appendChild(form);
+      const main = el('div', 'ad-form');
+      main.append(field('Название', name, true), field('Цена', affix(price, 'star-img')), field('Статус', status));
+      body.appendChild(group('Основное', main));
 
-      // Цвет ленты — образцами, а не списком
-      const swatchWrap = el('div', 'ad-field');
-      swatchWrap.appendChild(el('span', null, 'Цвет ленты'));
-      const swatches = el('div', 'ad-swatches');
+      const stock = el('div', 'ad-form');
+      stock.append(field('Выпущено всего', total), field('Осталось', left));
+      body.appendChild(group('Тираж', stock));
+
+      /* Лента. Образец задаёт цвет и заодно ступень стейкинга, поэтому
+         отмечен всегда. Свой цвет только перекрашивает ленту поверх него */
+      const ribbonOf = (id) => RIBBONS.find((one) => one.id === (id || 'default')) || RIBBONS[0];
+      const dots = el('div', 'ad-dots');
+
+      const own = el('label', 'ad-dot ad-dot--own');
+      own.title = 'Свой цвет';
+      const tone = el('input');
+      tone.type = 'color';
+      tone.value = draft.tone || ribbonOf(draft.kind).from;
+      own.appendChild(tone);
+
+      const paintDots = () => {
+        dots.querySelectorAll('[data-kind]').forEach((dot) => dot.setAttribute('aria-pressed', String(dot.dataset.kind === draft.kind)));
+        own.setAttribute('aria-pressed', String(Boolean(draft.tone)));
+        own.dataset.filled = String(Boolean(draft.tone));
+        if (draft.tone) own.style.setProperty('--own', draft.tone);
+      };
+
       RIBBONS.forEach((ribbon) => {
-        const swatch = el('button', 'ad-swatch');
-        swatch.type = 'button';
-        const dot = el('i');
+        const dot = el('button', 'ad-dot');
+        dot.type = 'button';
+        dot.dataset.kind = ribbon.id;
+        dot.title = ribbon.name;
+        dot.setAttribute('aria-label', ribbon.name);
         dot.style.background = 'linear-gradient(135deg, ' + ribbon.from + ', ' + ribbon.to + ')';
-        swatch.append(dot, el('span', null, ribbon.name));
-        swatch.setAttribute('aria-pressed', String(draft.kind === ribbon.id));
-        swatch.addEventListener('click', () => {
+        dot.addEventListener('click', () => {
           draft.kind = ribbon.id;
-          // Образец задаёт и цвет: свой, если он был, снимаем
           draft.tone = '';
           tone.value = ribbon.from;
-          swatches.querySelectorAll('.ad-swatch').forEach((one) => one.setAttribute('aria-pressed', String(one === swatch)));
+          paintDots();
           card.paint(draft);
           haptic('pick');
         });
-        swatches.appendChild(swatch);
+        dots.appendChild(dot);
       });
-      swatchWrap.appendChild(swatches);
-      body.appendChild(swatchWrap);
-
-      /* Свой цвет. Он перебивает образец: образцы — это заодно и редкость,
-         от которой считается стейкинг, а цвет ленты к ней не привязан */
-      const tone = el('input', 'ad-color');
-      tone.type = 'color';
-      tone.value = draft.tone || (RIBBONS.find((one) => one.id === (draft.kind || 'default')) || RIBBONS[0]).from;
-
-      const toneRow = el('div', 'ad-tone');
-      toneRow.appendChild(tone);
-
-      const toneOff = button('Как у образца', {
-        kind: 'ghost',
-        onClick: () => {
-          draft.tone = '';
-          const back = RIBBONS.find((one) => one.id === (draft.kind || 'default')) || RIBBONS[0];
-          tone.value = back.from;
-          card.paint(draft);
-          haptic('pick');
-        }
-      });
-      toneRow.appendChild(toneOff);
+      dots.appendChild(own);
 
       tone.addEventListener('input', () => {
         draft.tone = tone.value;
+        paintDots();
         card.paint(draft);
       });
+      paintDots();
 
-      const toneWrap = field('Свой цвет ленты', toneRow, true);
-      body.appendChild(toneWrap);
+      body.appendChild(group('Лента',
+        field('Текст', badge),
+        field('Цвет', dots),
+        el('p', 'ad-note', 'Красная и жёлтая — легендарная ступень стейкинга, фиолет — эпическая, зелёная — редкая. Радужный кружок — свой цвет.')
+      ));
 
-      /* Фон карточки. Не выбран — приложение снимает цвет с самого подарка;
-         выбран — берёт этот, и карточка с листом красятся от него. */
-      const back = el('input', 'ad-color');
-      back.type = 'color';
-      back.value = draft.bg || '#6b5fb0';
-
-      const backRow = el('div', 'ad-tone');
-      backRow.appendChild(back);
-      backRow.appendChild(button('Автоматически', {
-        kind: 'ghost',
-        onClick: () => {
-          draft.bg = '';
-          back.value = '#6b5fb0';
-          card.paint(draft);
-          haptic('pick');
-        }
-      }));
-
-      back.addEventListener('input', () => {
-        draft.bg = back.value;
-        card.paint(draft);
-      });
-
-      body.appendChild(field('Фон подарка', backRow, true));
-
-      // Редкость: красит карточку на странице подарка
-      const rarityWrap = el('div', 'ad-field');
-      rarityWrap.appendChild(el('span', null, 'Редкость — цвет карточки'));
-      const rarities = el('div', 'ad-swatches');
+      // Карточка: редкость и фон
+      const rarities = el('div', 'ad-quick');
       RARITIES.forEach((rarity) => {
-        const swatch = el('button', 'ad-swatch');
-        swatch.type = 'button';
+        const chip = el('button', 'ad-chip');
+        chip.type = 'button';
         const dot = el('i');
         dot.style.background = 'linear-gradient(180deg, ' + rarity.from + ', ' + rarity.to + ')';
-        swatch.append(dot, el('span', null, rarity.name));
-        swatch.setAttribute('aria-pressed', String((draft.rarity || '') === rarity.id));
-        swatch.addEventListener('click', () => {
+        chip.append(dot, el('span', null, rarity.name));
+        chip.setAttribute('aria-pressed', String((draft.rarity || '') === rarity.id));
+        chip.addEventListener('click', () => {
           draft.rarity = rarity.id;
-          rarities.querySelectorAll('.ad-swatch').forEach((one) => one.setAttribute('aria-pressed', String(one === swatch)));
+          rarities.querySelectorAll('.ad-chip').forEach((one) => one.setAttribute('aria-pressed', String(one === chip)));
           card.paint(draft);
           haptic('pick');
         });
-        rarities.appendChild(swatch);
+        rarities.appendChild(chip);
       });
-      rarityWrap.appendChild(rarities);
-      body.appendChild(rarityWrap);
+
+      /* Фон. «Авто» — приложение снимает цвет с самого подарка; свой —
+         карточка и страница подарка красятся от него */
+      const backs = el('div', 'ad-quick');
+      const autoBack = el('button', 'ad-chip', 'Авто');
+      autoBack.type = 'button';
+      const ownBack = el('label', 'ad-dot ad-dot--own');
+      ownBack.title = 'Свой фон';
+      const back = el('input');
+      back.type = 'color';
+      back.value = draft.bg || '#6b5fb0';
+      ownBack.appendChild(back);
+
+      const paintBack = () => {
+        autoBack.setAttribute('aria-pressed', String(!draft.bg));
+        ownBack.setAttribute('aria-pressed', String(Boolean(draft.bg)));
+        ownBack.dataset.filled = String(Boolean(draft.bg));
+        if (draft.bg) ownBack.style.setProperty('--own', draft.bg);
+      };
+      autoBack.addEventListener('click', () => {
+        draft.bg = '';
+        paintBack();
+        card.paint(draft);
+        haptic('pick');
+      });
+      back.addEventListener('input', () => {
+        draft.bg = back.value;
+        paintBack();
+        card.paint(draft);
+      });
+      paintBack();
+      backs.append(autoBack, ownBack);
+
+      body.appendChild(group('Карточка', field('Редкость', rarities), field('Фон', backs)));
 
       const sync = () => {
         draft.name = name.value;
@@ -1075,8 +950,6 @@
         }));
       }
 
-      foot.appendChild(el('span', 'ad-grow'));
-      foot.appendChild(button('Отмена', { kind: 'ghost', onClick: closeSheet }));
       foot.appendChild(button(gift ? 'Сохранить' : 'Добавить', {
         icon: 'check',
         onClick: async (event) => {
@@ -1132,7 +1005,7 @@
   function renderBanners() {
     const banners = content.banners || [];
     setTop('Баннеры', banners.length ? 'Листаются на главной по кругу' : '', [
-      button('Добавить', { icon: 'plus', onClick: () => bannerSheet(null) })
+      button('Добавить', { icon: 'plus', extra: 'ad-btn--top', onClick: () => bannerSheet(null) })
     ]);
 
     if (!banners.length) {
@@ -1151,7 +1024,6 @@
       card.type = 'button';
       card.style.backgroundImage = 'url("' + banner.image + '")';
       card.setAttribute('aria-label', 'Изменить баннер «' + banner.label + '»');
-      card.appendChild(el('span', 'ad-banner__num', String(index + 1)));
       card.addEventListener('click', () => bannerSheet(banner));
       item.appendChild(card);
 
@@ -1453,8 +1325,6 @@
         }));
       }
 
-      foot.appendChild(el('span', 'ad-grow'));
-      foot.appendChild(button('Отмена', { kind: 'ghost', onClick: closeSheet }));
       foot.appendChild(button(banner ? 'Сохранить' : 'Добавить', {
         icon: 'check',
         onClick: async (event) => {
@@ -1502,7 +1372,7 @@
 
   // --- Люди ---
 
-  const people = { query: '', filter: 'all', items: [], total: 0, loading: false, token: 0 };
+  const people = { query: '', items: [], total: 0, token: 0 };
 
   function avatar(person, big) {
     const ava = el('span', 'ad-ava' + (big ? ' ad-ava--big' : ''));
@@ -1558,32 +1428,27 @@
   }
 
   function renderUsers() {
-    setTop('Пользователи', stats ? num(stats.users) + ' ' + plural(stats.users, 'человек', 'человека', 'человек') + ' открывали приложение' : '');
+    setTop('Люди', '', [
+      iconButton('refresh', 'Обновить', (event) => refreshStats(event.currentTarget), 'ad-icon--round')
+    ]);
 
-    const bar = el('div', 'ad-search');
+    const tiles = el('div', 'ad-stats');
+    [
+      [stats.users, 'всего'],
+      [stats.fresh, 'новых за сутки'],
+      [stats.active, 'были за сутки'],
+      [stats.week, 'были за неделю']
+    ].forEach((pair) => {
+      const box = el('div', 'ad-stat');
+      box.append(el('b', null, num(pair[0])), el('span', null, pair[1]));
+      tiles.appendChild(box);
+    });
+    view.appendChild(tiles);
+
     const search = input(people.query, { placeholder: 'Имя, @username или id' });
     search.type = 'search';
     search.enterKeyHint = 'search';
-    bar.appendChild(affix(search, 'search'));
-
-    const seg = el('div', 'ad-seg');
-    [
-      ['all', 'Все'], ['new', 'Новые'], ['premium', 'Telegram Premium']
-    ].forEach(([id, label]) => {
-      const chip = el('button', 'ad-chip', label);
-      chip.type = 'button';
-      chip.setAttribute('aria-pressed', String(people.filter === id));
-      chip.addEventListener('click', () => {
-        if (people.filter === id) return;
-        people.filter = id;
-        seg.querySelectorAll('.ad-chip').forEach((one) => one.setAttribute('aria-pressed', String(one === chip)));
-        haptic('pick');
-        loadPeople(true);
-      });
-      seg.appendChild(chip);
-    });
-    bar.appendChild(seg);
-    view.appendChild(bar);
+    view.appendChild(affix(search, 'search'));
 
     const counter = el('p', 'ad-note');
     counter.id = 'people-count';
@@ -1622,7 +1487,7 @@
     if (reset) {
       people.items = [];
       list.textContent = '';
-      list.appendChild(skeletonRows(6));
+      list.appendChild(loading());
       more.hidden = true;
     } else {
       busy(more, true);
@@ -1631,7 +1496,6 @@
     try {
       const data = await api('users.list', {
         query: people.query,
-        filter: people.filter,
         offset: people.items.length,
         limit: USERS_PAGE
       });
@@ -1644,12 +1508,10 @@
       people.items = people.items.concat(data.items);
       people.total = data.total;
 
-      counter.textContent = people.query || people.filter !== 'all'
-        ? 'Найдено: ' + num(data.total)
-        : '';
+      counter.textContent = people.query ? 'Найдено: ' + num(data.total) : '';
 
       if (!people.items.length) {
-        list.appendChild(people.query || people.filter !== 'all'
+        list.appendChild(people.query
           ? empty('search', 'Никого не нашли', 'Попробуйте часть имени, @username или id')
           : empty('users', 'Пока никого', 'Люди появятся здесь, как только откроют приложение'));
       }
@@ -1714,7 +1576,7 @@
         facts.appendChild(chip);
       };
       fact('с нами с', day(person.firstSeen));
-      fact('был', ago(person.lastSeen));
+      fact('заходил', ago(person.lastSeen));
       fact('заходов', num(person.visits || 0));
       who.appendChild(facts);
       body.appendChild(who);
@@ -1807,8 +1669,6 @@
       owned.append(giveBtn, picker);
       body.appendChild(owned);
 
-      foot.appendChild(el('span', 'ad-grow'));
-      foot.appendChild(button('Отмена', { kind: 'ghost', onClick: closeSheet }));
       foot.appendChild(button('Сохранить', {
         icon: 'check',
         onClick: async (event) => {
@@ -1834,7 +1694,7 @@
   function renderTasks() {
     const groups = content.tasks || [];
     setTop('Задания', 'Видны на вкладке «Задания» в приложении', [
-      button('Блок', { icon: 'plus', onClick: addGroup })
+      button('Блок', { icon: 'plus', extra: 'ad-btn--top', onClick: addGroup })
     ]);
 
     if (!groups.length) {
@@ -1867,7 +1727,7 @@
       }, 'ad-icon--danger'));
       card.appendChild(head);
 
-      const rows = el('div');
+      const rows = el('div', 'ad-tasks');
       (group.items || []).forEach((task, taskIndex) => {
         const row = el('button', 'ad-task');
         row.type = 'button';
@@ -1878,10 +1738,10 @@
         const bodyNode = el('span', 'ad-task__body');
         const reward = el('span', 'ad-reward');
         reward.innerHTML = '<svg viewBox="0 0 18 18" aria-hidden="true"><use href="#coupon"></use></svg>';
-        reward.appendChild(document.createTextNode(num(task.reward)));
+        reward.appendChild(document.createTextNode(num(task.reward) + ' ' + plural(task.reward, 'купон', 'купона', 'купонов')));
         bodyNode.append(el('b', null, task.name), reward);
 
-        row.append(mark, bodyNode, el('span', 'ad-task__goal', '0/' + num(task.goal)));
+        row.append(mark, bodyNode, el('span', 'ad-task__goal', '×' + num(task.goal)));
         row.addEventListener('click', () => taskSheet(groupIndex, taskIndex));
         rows.appendChild(row);
       });
@@ -1889,7 +1749,7 @@
 
       const add = el('button', 'ad-dashed');
       add.type = 'button';
-      add.append(icon('plus'), el('span', null, 'Задание'));
+      add.append(icon('plus'), el('span', null, 'Добавить задание'));
       add.addEventListener('click', () => taskSheet(groupIndex, -1));
       card.appendChild(add);
 
@@ -1934,6 +1794,7 @@
           kind: 'danger',
           icon: 'trash',
           onClick: async (event) => {
+            if (!(await ask('Удалить задание «' + task.name + '»?'))) return;
             const tasks = copyTasks();
             tasks[groupIndex].items.splice(taskIndex, 1);
             busy(event.currentTarget, true);
@@ -1943,8 +1804,6 @@
         }));
       }
 
-      foot.appendChild(el('span', 'ad-grow'));
-      foot.appendChild(button('Отмена', { kind: 'ghost', onClick: closeSheet }));
       foot.appendChild(button(task ? 'Сохранить' : 'Добавить', {
         icon: 'check',
         onClick: async (event) => {
@@ -1976,73 +1835,42 @@
   // --- Настройки ---
 
   function renderSettings() {
-    setTop('Настройки', 'Как админка связана с сервером');
+    setTop('Настройки', '');
 
-    const cols = el('div', 'ad-cols');
-
-    // Подключение
-    const link = el('section', 'ad-card');
-    link.appendChild(el('h3', null, 'Подключение'));
-
-    const rows = el('div');
-    const row = (ok, iconName, label, value) => {
-      const line = el('div', 'ad-switch');
-      const text = el('span', 'ad-switch__text');
-      text.append(el('span', null, label), el('small', null, value));
-      const mark = el('span', 'ad-stat__icon');
-      mark.style.setProperty('--tint', ok ? 'rgba(52,199,89,.16)' : 'rgba(246,179,41,.16)');
-      mark.style.setProperty('--tone', ok ? '#34c759' : '#f6b329');
-      mark.appendChild(icon(iconName));
-      line.append(mark, text);
-      rows.appendChild(line);
-    };
-
-    row(!offline, 'db', 'База данных',
-      offline ? 'не подключена — правки не уходят дальше устройства' : 'подключена, правки видны всем');
-    row(!offline, 'key', 'Подпись Telegram',
-      offline ? 'не настроена' : 'проверяется на сервере');
-    row(true, 'shield', 'Вы вошли как',
-      (me && me.username ? '@' + me.username + ' · ' : '') + (me ? me.id : ''));
-
-    link.appendChild(rows);
-
+    // Без общей базы правки остаются на этом устройстве — говорим прямо
     if (offline) {
+      const note = el('section', 'ad-local');
+      note.append(
+        el('b', null, 'Общая база не подключена'),
+        el('p', null, 'Правки и список людей живут только на этом устройстве.')
+      );
       const steps = el('div', 'ad-steps');
-      const step = (iconName, title, html) => {
+      [
+        ['db', 'База данных', 'Строка подключения — <code>DATABASE_URL</code> в ' + ENV_FILE + '.'],
+        ['key', 'Подпись Telegram', '<code>BOT_TOKEN</code> в ' + ENV_FILE + ' — токен бота из @BotFather.'],
+        ['refresh', 'Перезапуск', '<code>systemctl restart gapsgift</code> — после него админка сама перейдёт на базу.']
+      ].forEach((item) => {
         const box = el('div', 'ad-step');
         const mark = el('span', 'ad-step__mark');
-        mark.appendChild(icon(iconName));
+        mark.appendChild(icon(item[0]));
         const text = el('div');
-        text.appendChild(el('b', null, title));
+        text.appendChild(el('b', null, item[1]));
         const p = el('p');
-        p.innerHTML = html;
+        p.innerHTML = item[2];
         text.appendChild(p);
         box.append(mark, text);
         steps.appendChild(box);
-      };
-
-      step('db', 'База данных',
-        'Строка подключения к базе — <code>DATABASE_URL</code> в ' + ENV_FILE + '.');
-      step('key', 'Подпись Telegram',
-        '<code>BOT_TOKEN</code> в ' + ENV_FILE + ' — токен бота из @BotFather.');
-      step('refresh', 'Перезапуск',
-        'Новые переменные подхватит <code>systemctl restart gapsgift</code>. После него админка сама перейдёт на базу.');
-
-      link.appendChild(steps);
-      link.appendChild(button('Проверить подключение', {
-        kind: 'ghost',
-        icon: 'refresh',
-        onClick: () => location.reload()
-      }));
+      });
+      view.append(note, steps);
     }
 
-    cols.appendChild(link);
+    const cols = el('div', 'ad-cols');
 
     // Стейкинг: ставки по редкостям и порог цены
     const stake = el('section', 'ad-card');
     stake.appendChild(el('h3', null, 'Стейкинг'));
     stake.appendChild(el('p', 'ad-note',
-      'Сколько подарок приносит за год — по его редкости. И с какой цены его вообще можно ставить.'));
+      'Сколько подарок приносит за год — по ступени его ленты.'));
 
     const now = content.stake || {};
     const fields = {};
@@ -2065,10 +1893,9 @@
 
     stake.appendChild(form);
     stake.appendChild(el('p', 'ad-note',
-      'Уже сделанные ставки не меняются: процент записан в каждой из них на день, когда её сделали.'));
+      'Уже сделанные ставки не меняются.'));
 
     stake.appendChild(button('Сохранить', {
-      kind: 'go',
       icon: 'check',
       onClick: (event) => {
         const next = {};
@@ -2085,19 +1912,26 @@
     // Оплата TON: курс, по которому подарок продаётся за пополненный баланс
     const ton = el('section', 'ad-card');
     ton.appendChild(el('h3', null, 'Оплата TON'));
-    const tonNote = el('p', 'ad-note');
-    tonNote.append('Пополнения приходят на кошелёк ');
-    tonNote.appendChild(el('code', null, tonAddress || '—'));
-    tonNote.append('. Сколько звёзд стоит 1 TON — по этому курсу подарок можно купить с баланса. Ноль — оплата TON выключена.');
-    ton.appendChild(tonNote);
+    ton.appendChild(el('p', 'ad-note', 'Сколько звёзд стоит 1 TON — по этому курсу подарок покупают с баланса. Ноль — оплата TON выключена.'));
 
     const tonForm = el('div', 'ad-form');
     const rate = input((content.ton && content.ton.rate) || 0, { type: 'number' });
     tonForm.appendChild(field('1 TON =', affix(rate, 'star-img'), true));
     ton.appendChild(tonForm);
 
+    // Кошелёк для пополнений: целиком и копируется одним нажатием
+    if (tonAddress) {
+      const wallet = el('button', 'ad-wallet');
+      wallet.type = 'button';
+      wallet.append(el('span', null, 'Кошелёк для пополнений'), el('code', null, tonAddress));
+      wallet.addEventListener('click', () => {
+        const done = () => toast('Адрес скопирован');
+        if (navigator.clipboard) navigator.clipboard.writeText(tonAddress).then(done, done);
+      });
+      ton.appendChild(wallet);
+    }
+
     ton.appendChild(button('Сохранить', {
-      kind: 'go',
       icon: 'check',
       onClick: (event) => {
         const next = { rate: Math.max(0, parseInt(String(rate.value).replace(/\D/g, ''), 10) || 0) };
@@ -2108,10 +1942,14 @@
     cols.appendChild(ton);
 
     view.appendChild(cols);
+
+    const back = el('a', 'ad-btn ad-btn--ghost');
+    back.href = 'index.html';
+    back.append(icon('back'), el('span', null, 'Вернуться в приложение'));
+    view.appendChild(back);
   }
 
   const RENDER = {
-    overview: renderOverview,
     gifts: renderGifts,
     banners: renderBanners,
     users: renderUsers,
@@ -2133,41 +1971,10 @@
     document.getElementById('ad').hidden = true;
   }
 
-  function showGate(kind, status) {
+  function showGate(kind) {
     const back = el('a', 'ad-btn ad-btn--ghost');
     back.href = 'index.html';
     back.append(icon('back'), el('span', null, 'В приложение'));
-
-    if (kind === 'setup') {
-      const steps = el('div', 'ad-steps');
-      const step = (done, iconName, title, html) => {
-        const box = el('div', 'ad-step');
-        box.dataset.done = String(done);
-        const mark = el('span', 'ad-step__mark');
-        mark.appendChild(icon(done ? 'check' : iconName));
-        const text = el('div');
-        text.appendChild(el('b', null, title));
-        const p = el('p');
-        p.innerHTML = html;
-        text.appendChild(p);
-        box.append(mark, text);
-        steps.appendChild(box);
-      };
-
-      step(status.db, 'db', 'База данных',
-        status.db ? 'Подключена.' : 'Строка подключения — <code>DATABASE_URL</code> в ' + ENV_FILE + '.');
-      step(Boolean(status.auth), 'key', 'Подпись Telegram',
-        status.auth
-          ? 'Настроена.'
-          : '<code>BOT_TOKEN</code> в ' + ENV_FILE + ' — токен бота из @BotFather. Без него сервер не может отличить вас от постороннего, поэтому люди не записываются, а правки не уходят дальше устройства.');
-      step(false, 'refresh', 'Перезапуск', 'Новые переменные подхватит <code>systemctl restart gapsgift</code>. После него нажмите «Проверить».');
-
-      const again = button('Проверить', { icon: 'refresh', onClick: () => start() });
-      const wrap = el('div', 'ad-steps');
-      wrap.append(steps, again);
-      gateCard('settings', 'Осталось подключить', 'Чтобы правки видели все, админке нужна общая база.', wrap);
-      return;
-    }
 
     if (kind === 'expired') {
       gateCard('clock', 'Сессия устарела', 'Откройте админку заново из профиля в приложении.', back);
@@ -2246,8 +2053,8 @@
     document.getElementById('gate').hidden = true;
     document.getElementById('ad').hidden = false;
 
-    let last = 'overview';
-    try { last = sessionStorage.getItem(LAST_TAB) || 'overview'; } catch (_) {}
+    let last = 'gifts';
+    try { last = sessionStorage.getItem(LAST_TAB) || 'gifts'; } catch (_) {}
     go(last);
   }
 

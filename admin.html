@@ -69,7 +69,6 @@
         <path d="M6.5 3.18751C6.5 2.2095 5.70717 1.41667 4.72917 1.41667H4.21665C3.5217 1.41667 2.95833 1.98004 2.95833 2.67498C2.95833 3.36993 3.5217 3.9333 4.21665 3.9333H6.5V3.18751Z" fill="none" stroke="currentColor" stroke-width="1.0625"></path>
         <path d="M5.93311 13.9994H3.6665C2.10185 13.9992 0.833496 12.7311 0.833496 11.1664V8.02282H5.93408L5.93311 13.9994ZM12.1665 11.1664C12.1665 12.7312 10.8983 13.9994 9.3335 13.9994H6.99561V8.02282H12.1665V11.1664Z" fill="currentColor"></path>
       </symbol>
-      <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-5.5H9v5.5H5.5A1.5 1.5 0 0 1 4 19Z"/></symbol>
       <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3.5" y="8" width="17" height="4.5" rx="1.2"/><path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5M12 8v12.5"/><path d="M12 8c-1.6-3.2-5-3.6-5.5-1.6C6 8.3 9.5 8 12 8Zm0 0c1.6-3.2 5-3.6 5.5-1.6.5 1.9-3 1.6-5.5 1.6Z"/></symbol>
       <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m4.5 17 4.8-4.6 3.6 3.3 2.6-2.4 4 3.7"/></symbol>
       <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9.5" cy="8.5" r="3.2"/><path d="M3.8 19c.7-3.1 3-4.9 5.7-4.9s5 1.8 5.7 4.9"/><path d="M15.5 5.6a3 3 0 0 1 0 5.8M17.4 14.4c1.5.6 2.6 2 3 4.1"/></symbol>
@@ -92,15 +91,11 @@
       <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
       <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></symbol>
       <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3.5 12h4l2.3-5.5 4.4 11 2.3-5.5h4"/></symbol>
-      <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5 13.8 9l5.7 1.8-5.7 1.9L12 18.5l-1.8-5.8-5.7-1.9L10.2 9Z"/></symbol>
       <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.5 19.5 6.6V12c0 4.3-3 7.4-7.5 8.5C7.5 19.4 4.5 16.3 4.5 12V6.6Z"/><path d="m9 12.2 2.1 2.1 4-4.2"/></symbol>
       <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5 8 12l6.5 7"/></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19.5 4.5V9H15"/></symbol>
-      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3.5 5.5 13.5H12l-1 7 7.5-10H12Z"/></symbol>
-      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M8 3.5v4M16 3.5v4M4 10h16"/></symbol>
       <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6.5" rx="7" ry="2.8"/><path d="M5 6.5v11c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-11M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/></symbol>
       <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8.5" cy="14.5" r="3.5"/><path d="M11 12 19.5 3.5M16.5 6.5l2.5 2.5M14.5 8.5 16.5 10.5"/></symbol>
-      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.8 12S6 5.8 12 5.8 21.2 12 21.2 12 18 18.2 12 18.2 2.8 12 2.8 12Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
     </defs>
   </svg>
 
@@ -120,25 +115,20 @@
       </div>
 
       <nav class="ad-nav">
-          <button class="ad-nav__item" type="button" data-go="overview"><svg class="i"><use href="#i-home"/></svg><span>Обзор</span><b class="ad-nav__count" data-count="overview"></b></button>
-          <button class="ad-nav__item" type="button" data-go="gifts"><svg class="i"><use href="#i-gift"/></svg><span>Подарки</span><b class="ad-nav__count" data-count="gifts"></b></button>
-          <button class="ad-nav__item" type="button" data-go="banners"><svg class="i"><use href="#i-image"/></svg><span>Баннеры</span><b class="ad-nav__count" data-count="banners"></b></button>
-          <button class="ad-nav__item" type="button" data-go="users"><svg class="i"><use href="#i-users"/></svg><span>Люди</span><b class="ad-nav__count" data-count="users"></b></button>
-          <button class="ad-nav__item" type="button" data-go="tasks"><svg class="i"><use href="#i-tasks"/></svg><span>Задания</span><b class="ad-nav__count" data-count="tasks"></b></button>
-          <button class="ad-nav__item" type="button" data-go="settings"><svg class="i"><use href="#i-settings"/></svg><span>Настройки</span><b class="ad-nav__count" data-count="settings"></b></button>
+        <button class="ad-nav__item" type="button" data-go="gifts"><svg class="i"><use href="#i-gift"/></svg><span>Подарки</span><b class="ad-nav__count" data-count="gifts"></b></button>
+        <button class="ad-nav__item" type="button" data-go="banners"><svg class="i"><use href="#i-image"/></svg><span>Баннеры</span><b class="ad-nav__count" data-count="banners"></b></button>
+        <button class="ad-nav__item" type="button" data-go="tasks"><svg class="i"><use href="#i-tasks"/></svg><span>Задания</span></button>
+        <button class="ad-nav__item" type="button" data-go="users"><svg class="i"><use href="#i-users"/></svg><span>Люди</span><b class="ad-nav__count" data-count="users"></b></button>
+        <button class="ad-nav__item" type="button" data-go="settings"><svg class="i"><use href="#i-settings"/></svg><span>Настройки</span></button>
       </nav>
 
-      <div class="ad-side__foot">
-        <a class="ad-side__app" href="index.html"><svg class="i"><use href="#i-back"/></svg>В приложение</a>
-        <span class="ad-live"><i></i>Изменения видны всем сразу</span>
-      </div>
+      <a class="ad-side__app" href="index.html"><svg class="i"><use href="#i-back"/></svg>В приложение</a>
     </aside>
 
     <div class="ad-main">
       <header class="ad-top">
-        <a class="ad-top__back" href="index.html" aria-label="В приложение"><svg class="i"><use href="#i-back"/></svg></a>
         <div class="ad-top__title">
-          <h1 id="top-title">Обзор</h1>
+          <h1 id="top-title"></h1>
           <p id="top-sub"></p>
         </div>
         <div class="ad-top__acts" id="top-acts"></div>
@@ -148,11 +138,10 @@
     </div>
 
     <nav class="ad-bar" aria-label="Разделы">
-      <button class="ad-tab" type="button" data-go="overview"><svg class="i"><use href="#i-home"/></svg><span>Обзор</span></button>
       <button class="ad-tab" type="button" data-go="gifts"><svg class="i"><use href="#i-gift"/></svg><span>Подарки</span></button>
       <button class="ad-tab" type="button" data-go="banners"><svg class="i"><use href="#i-image"/></svg><span>Баннеры</span></button>
-      <button class="ad-tab" type="button" data-go="users"><svg class="i"><use href="#i-users"/></svg><span>Люди</span></button>
       <button class="ad-tab" type="button" data-go="tasks"><svg class="i"><use href="#i-tasks"/></svg><span>Задания</span></button>
+      <button class="ad-tab" type="button" data-go="users"><svg class="i"><use href="#i-users"/></svg><span>Люди</span></button>
       <button class="ad-tab" type="button" data-go="settings"><svg class="i"><use href="#i-settings"/></svg><span>Настройки</span></button>
     </nav>
   </div>
