@@ -16,23 +16,15 @@ import { readContent, readOrder, settleOrder } from './_lib/data.js';
 import { call, hasBot } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
 
-// Приветствие на /start. Значки — премиум-эмодзи из набора, который выбрал
-// ШЕП: самолётик Telegram и подарок. Внутри тега — обычный эмодзи на случай,
-// если у человека премиум-эмодзи не отображаются
+// Приветствие на /start: две строки, под ними кнопка в приложение и канал
 const APP_URL = process.env.APP_URL || 'https://gapsgift.online/';
 const CHANNEL_URL = 'https://t.me/GapsGift_Community';
-const PLANE = '<tg-emoji emoji-id="6028346797368283073">✈️</tg-emoji>';
-const GIFT = '<tg-emoji emoji-id="6037175527846975726">🎁</tg-emoji>';
+const WELCOME = 'Welcome to GapsGift!\n\nSend unique gifts to your friends, sell your gifts';
 
-function welcomeText(fancy) {
-  return (fancy ? PLANE : '✈️') + ' Welcome to GapsGift!\n\n' +
-    (fancy ? GIFT : '🎁') + ' Send unique gifts to your friends, sell your gifts';
-}
-
-async function welcome(message) {
-  const payload = {
+function welcome(message) {
+  return call('sendMessage', {
     chat_id: message.chat.id,
-    parse_mode: 'HTML',
+    text: WELCOME,
     link_preview_options: { is_disabled: true },
     reply_markup: {
       inline_keyboard: [
@@ -40,20 +32,7 @@ async function welcome(message) {
         [{ text: 'GapsGift Community', url: CHANNEL_URL }]
       ]
     }
-  };
-
-  try {
-    const sent = await call('sendMessage', Object.assign({ text: welcomeText(true) }, payload));
-    // Telegram может принять сообщение, но молча снять премиум-эмодзи —
-    // тогда в ответе их не будет. Пишем в журнал, что дошло на самом деле
-    const kept = ((sent && sent.entities) || []).filter((one) => one.type === 'custom_emoji').length;
-    console.log('bot: приветствие ушло, премиум-эмодзи в нём: ' + kept + ' из 2');
-  } catch (error) {
-    // Telegram может не пустить премиум-эмодзи от бота — тогда шлём тот же
-    // текст с обычными, чтобы человек не остался без ответа
-    console.warn('bot: приветствие без премиум-эмодзи —', error.message);
-    await call('sendMessage', Object.assign({ text: welcomeText(false) }, payload));
-  }
+  });
 }
 
 function sameSecret(given, secret) {
