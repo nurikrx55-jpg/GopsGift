@@ -3,7 +3,7 @@
 
 import { configured } from './_lib/db.js';
 import { verify, isAdmin, startParam } from './_lib/telegram.js';
-import { readContent, publicContent, touchUser, readStakes } from './_lib/data.js';
+import { readContent, publicContent, touchUser, invitedCount } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
 // Подпись Telegram живёт всю сессию Mini App; месяц — с запасом на тех,
@@ -26,9 +26,8 @@ export default {
 
       if (me) {
         me.admin = isAdmin(me.id);
-        // Что отдано в стейкинг, приходит вместе со счётом: отдельный
-        // запрос ради этого гонять незачем
-        me.stakes = await readStakes(me.id);
+        // Для задания «пригласить друзей» — сколько уже пришло по ссылке
+        me.invited = await invitedCount(me.id);
       }
 
       return json({ content: publicContent(content), me: me });

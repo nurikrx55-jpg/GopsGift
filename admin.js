@@ -826,8 +826,8 @@
       stock.append(field('Выпущено всего', total), field('Осталось', left));
       body.appendChild(group('Тираж', stock));
 
-      /* Лента. Образец задаёт цвет и заодно ступень стейкинга, поэтому
-         отмечен всегда. Свой цвет только перекрашивает ленту поверх него */
+      /* Лента. Образец задаёт цвет и отмечен всегда; свой цвет только
+         перекрашивает ленту поверх него */
       const ribbonOf = (id) => RIBBONS.find((one) => one.id === (id || 'default')) || RIBBONS[0];
       const dots = el('div', 'ad-dots');
 
@@ -874,7 +874,7 @@
       body.appendChild(group('Лента',
         field('Текст', badge),
         field('Цвет', dots),
-        el('p', 'ad-note', 'Красная и жёлтая — легендарная ступень стейкинга, фиолет — эпическая, зелёная — редкая. Радужный кружок — свой цвет.')
+        el('p', 'ad-note', 'Радужный кружок — свой цвет.')
       ));
 
       // Карточка: редкость и фон
@@ -966,9 +966,9 @@
 
       const addModel = el('button', 'ad-dashed');
       addModel.type = 'button';
-      addModel.append(icon('plus'), el('span', null, 'Добавить модель'));
-      addModel.addEventListener('click', async () => {
-        const file = await pickFile('.tgs,.json,.svg,application/json,image/svg+xml');
+      addModel.append(icon('plus'), el('span', null, 'Добавить модель — нажмите или перетащите .tgs / .svg'));
+      // Файл можно выбрать или перетащить прямо на кнопку
+      const takeModel = async (file) => {
         if (!file) return;
         const svg = /\.svg$/i.test(file.name) || file.type === 'image/svg+xml';
 
@@ -992,7 +992,9 @@
         });
         haptic('ok');
         drawModels();
-      });
+      };
+      addModel.addEventListener('click', () => pickFile('.tgs,.json,.svg,application/json,image/svg+xml').then(takeModel));
+      dropTarget(addModel, takeModel);
 
       const upForm = el('div', 'ad-form');
       upForm.append(field('Цена улучшения', affix(upPrice, 'star-img'), true));
@@ -1821,7 +1823,7 @@
         reward.appendChild(document.createTextNode(num(task.reward) + ' ' + plural(task.reward, 'купон', 'купона', 'купонов')));
         bodyNode.append(el('b', null, task.name), reward);
 
-        row.append(mark, bodyNode, el('span', 'ad-task__goal', '×' + num(task.goal)));
+        row.append(mark, bodyNode, el('span', 'ad-task__goal', task.type === 'link' ? 'ссылка' : '×' + num(task.goal)));
         row.addEventListener('click', () => taskSheet(groupIndex, taskIndex));
         rows.appendChild(row);
       });
@@ -1856,18 +1858,51 @@
     saveTasks(tasks, 'Блок добавлен');
   }
 
+  const TASK_TYPES = [
+    ['link', 'Перейти по ссылке'],
+    ['send', 'Отправить подарки'],
+    ['buy', 'Купить подарки'],
+    ['invite', 'Пригласить друзей']
+  ];
+
   function taskSheet(groupIndex, taskIndex) {
     const group = (content.tasks || [])[groupIndex];
     const task = taskIndex >= 0 ? group.items[taskIndex] : null;
 
     openSheet(task ? 'Задание' : 'Новое задание', (body, foot) => {
-      const name = input(task ? task.name : '', { placeholder: 'Например, Отправить 3 подарка', max: 60 });
+      let type = (task && task.type) || 'link';
+      const name = input(task ? task.name : '', { placeholder: 'Например, Подпишись на канал', max: 60 });
       const reward = stepper(task ? task.reward : 1, [1, 5, 10, 50]);
       const goal = stepper(task ? task.goal : 1, [1, 5, 10]);
+      const url = input(task ? task.url : '', { placeholder: 'https://t.me/…', max: 300 });
+      url.inputMode = 'url';
+
+      // Тип задания: от него зависит, что считается выполнением
+      const types = el('div', 'ad-quick');
+      const urlField = field('Ссылка', affix(url, 'link'), true);
+      const goalField = field('Сколько раз', goal, true);
+      const paintType = () => {
+        types.querySelectorAll('.ad-chip').forEach((chip) => chip.setAttribute('aria-pressed', String(chip.dataset.type === type)));
+        urlField.hidden = type !== 'link';
+        goalField.hidden = type === 'link';
+      };
+      TASK_TYPES.forEach(([id, label]) => {
+        const chip = el('button', 'ad-chip', label);
+        chip.type = 'button';
+        chip.dataset.type = id;
+        chip.addEventListener('click', () => {
+          type = id;
+          haptic('pick');
+          paintType();
+        });
+        types.appendChild(chip);
+      });
 
       const form = el('div', 'ad-form');
-      form.append(field('Что нужно сделать', name, true), field('Награда в купонах', reward, true), field('Сколько раз', goal, true));
+      form.append(field('Что нужно сделать', name, true), field('Тип', types, true), urlField, goalField, field('Награда в купонах', reward, true));
       body.appendChild(form);
+      body.appendChild(el('p', 'ad-note', 'Ссылка: у человека кнопка «Начать» открывает её, потом «Забрать» — и купоны на счёт. Остальные типы засчитываются сами, когда набралось нужное число.'));
+      paintType();
 
       if (task) {
         foot.appendChild(button('Удалить', {
@@ -1893,12 +1928,21 @@
             return;
           }
 
+          const link = url.value.trim();
+          if (type === 'link' && !/^https:\/\//i.test(link) && !/^tg:\/\//i.test(link)) {
+            toast('Ссылка должна начинаться с https://', 'bad');
+            url.focus();
+            return;
+          }
+
           const tasks = copyTasks();
           const next = {
             id: task ? task.id : undefined,
             name: name.value.trim(),
+            type: type,
+            url: type === 'link' ? link : '',
             reward: reward.read(),
-            goal: Math.max(1, goal.read())
+            goal: type === 'link' ? 1 : Math.max(1, goal.read())
           };
           if (task) tasks[groupIndex].items[taskIndex] = next;
           else tasks[groupIndex].items.push(next);
@@ -1945,49 +1989,6 @@
     }
 
     const cols = el('div', 'ad-cols');
-
-    // Стейкинг: ставки по редкостям и порог цены
-    const stake = el('section', 'ad-card');
-    stake.appendChild(el('h3', null, 'Стейкинг'));
-    stake.appendChild(el('p', 'ad-note',
-      'Сколько подарок приносит за год — по ступени его ленты.'));
-
-    const now = content.stake || {};
-    const fields = {};
-    const form = el('div', 'ad-form');
-
-    [
-      ['legend', 'Легендарные, %'],
-      ['epic', 'Эпические, %'],
-      ['rare', 'Редкие, %'],
-      ['plain', 'Остальные, %']
-    ].forEach((pair) => {
-      const node = input(now[pair[0]], { type: 'number' });
-      fields[pair[0]] = node;
-      form.appendChild(field(pair[1], node));
-    });
-
-    const least = input(now.min, { type: 'number' });
-    fields.min = least;
-    form.appendChild(field('Ставить можно от', affix(least, 'star-img'), true));
-
-    stake.appendChild(form);
-    stake.appendChild(el('p', 'ad-note',
-      'Уже сделанные ставки не меняются.'));
-
-    stake.appendChild(button('Сохранить', {
-      icon: 'check',
-      onClick: (event) => {
-        const next = {};
-        Object.keys(fields).forEach((key) => {
-          next[key] = Math.max(0, parseInt(String(fields[key].value).replace(/\D/g, ''), 10) || 0);
-        });
-
-        run(event.currentTarget, 'stake.save', { stake: next }, () => toast('Ставки сохранены'));
-      }
-    }));
-
-    cols.appendChild(stake);
 
     // Оплата TON: курс, по которому подарок продаётся за пополненный баланс
     const ton = el('section', 'ad-card');

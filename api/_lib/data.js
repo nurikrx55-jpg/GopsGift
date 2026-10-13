@@ -8,7 +8,7 @@
    gg:file:<id>       — загруженные из админки анимации и картинки
    gg:order:<id>      — заказ: кто, что и за сколько покупает
    gg:charge:<id>     — отметка, что этот платёж уже засчитан
-   gg:stake:<id>      — что человек отдал в стейкинг и на какой срок
+   gg:stake:<id>      — ставки убранного стейкинга: читаются, только чтобы вернуть подарки
    gg:buyers:<gift>   — кто сколько штук этого подарка купил, для «Топа покупателей»
    gg:buyers:filled   — отметка, что прошлые покупки уже сосчитаны по счетам
    gg:refs:<id>       — кого человек привёл своей ссылкой, по времени прихода
@@ -160,31 +160,6 @@ export function cleanBanner(input) {
   return banner;
 }
 
-/* Стейкинг. Ставки и порог живут в содержимом, рядом с витриной: их
-   правит админка, и приложение получает их на заходе. Сроки не трогаем —
-   от них зависит слишком многое, чтобы менять их мимоходом. */
-
-export const STAKE_TERMS = [7, 30, 90];
-
-export const STAKE_DEFAULT = {
-  legend: 35,
-  epic: 22,
-  rare: 14,
-  plain: 8,
-  min: 300
-};
-
-export function cleanStake(input) {
-  const src = input || {};
-  return {
-    legend: int(src.legend, 0, 1000),
-    epic: int(src.epic, 0, 1000),
-    rare: int(src.rare, 0, 1000),
-    plain: int(src.plain, 0, 1000),
-    min: int(src.min, 0, 100000000)
-  };
-}
-
 // --- Пополнения TON ---
 
 /* Куда приходят пополнения. Адрес публичный, его не прячем; поменять
@@ -203,13 +178,7 @@ export function tonPrice(stars, rate) {
   return rate > 0 ? Math.ceil(stars * NANO / rate) : 0;
 }
 
-// Какая ставка полагается подарку. Лент семь, ставок четыре
-const STAKE_TIER = { legend: 'legend', blood: 'legend', epic: 'epic', rare: 'rare' };
-
-export function stakeRate(gift, rates) {
-  const table = rates || STAKE_DEFAULT;
-  return table[STAKE_TIER[gift && gift.kind] || 'plain'] || 0;
-}
+const TASK_TYPES = ['link', 'send', 'buy', 'invite'];
 
 export function cleanTasks(input) {
   if (!Array.isArray(input)) throw new InputError('Задания пришли не списком');
@@ -217,12 +186,20 @@ export function cleanTasks(input) {
   return input.slice(0, 20).map((group) => ({
     id: slug(group.id) || newId('block'),
     title: str(group.title, 40) || 'Без названия',
-    items: (Array.isArray(group.items) ? group.items : []).slice(0, 50).map((task) => ({
-      id: slug(task.id) || newId('task'),
-      name: str(task.name, 60) || 'Задание',
-      reward: int(task.reward, 0, 1000000),
-      goal: int(task.goal, 1, 1000000)
-    }))
+    items: (Array.isArray(group.items) ? group.items : []).slice(0, 50).map((task) => {
+      const type = TASK_TYPES.indexOf(task.type) === -1 ? 'send' : task.type;
+      const url = str(task.url, 300);
+      return {
+        id: slug(task.id) || newId('task'),
+        name: str(task.name, 60) || 'Задание',
+        // Что нужно сделать: перейти по ссылке, отправить, купить подарки
+        // или привести друзей. Цель у ссылки всегда одна — перейти
+        type: type,
+        url: type === 'link' && (/^https:\/\/[^\s"'<>]+$/i.test(url) || /^tg:\/\/[^\s"'<>]+$/i.test(url)) ? url : '',
+        reward: int(task.reward, 0, 1000000),
+        goal: type === 'link' ? 1 : int(task.goal, 1, 1000000)
+      };
+    })
   }));
 }
 
@@ -270,9 +247,7 @@ export async function readContent(fresh) {
   const raw = await command('GET', K.content);
   const value = raw ? JSON.parse(raw) : await seed();
 
-  // Настройки стейкинга появились позже самой витрины: у записей, сделанных
-  // до них, их нет, и подставить значения проще здесь, чем в каждом месте
-  if (!value.stake) value.stake = Object.assign({}, STAKE_DEFAULT);
+  // Курс TON появился позже самой витрины: у старых записей его нет
   if (!value.ton) value.ton = { rate: 0 };
 
   contentCache = { at: Date.now(), value: value };
@@ -295,7 +270,6 @@ export function publicContent(content) {
     gifts: content.gifts || [],
     banners: content.banners || [],
     tasks: content.tasks || [],
-    stake: content.stake || STAKE_DEFAULT,
     ton: { address: TON_RECEIVER, rate: (content.ton && content.ton.rate) || 0 },
     updatedAt: content.updatedAt || 0
   };
@@ -305,7 +279,7 @@ export function publicContent(content) {
 
 // Новичок начинает с нуля: ни звёзд, ни купонов, ни подарков
 function emptyAccount() {
-  return { stars: 0, coupons: 0, gifts: [], nfts: [], tonNano: 0 };
+  return { stars: 0, coupons: 0, gifts: [], nfts: [], tonNano: 0, sent: 0, bought: 0, tasksDone: [], tasksStarted: [] };
 }
 
 // Улучшенный подарок: из какого подарка, что выпало и его номер
@@ -338,7 +312,13 @@ function normalAccount(raw) {
     gifts: Array.isArray(acct.gifts) ? acct.gifts : [],
     nfts: Array.isArray(acct.nfts) ? acct.nfts.map(cleanNft).filter(Boolean) : [],
     // Баланс TON в нанотонах — целым числом, чтобы не терять копейки
-    tonNano: int(acct.tonNano, 0, 1e15)
+    tonNano: int(acct.tonNano, 0, 1e15),
+    // Для заданий: сколько подарков отправил и купил, какие задания уже
+    // забрал и по каким ссылкам начинал
+    sent: int(acct.sent, 0, 1e9),
+    bought: int(acct.bought, 0, 1e9),
+    tasksDone: Array.isArray(acct.tasksDone) ? acct.tasksDone.map(String).slice(-500) : [],
+    tasksStarted: Array.isArray(acct.tasksStarted) ? acct.tasksStarted.map(String).slice(-500) : []
   };
 }
 
@@ -393,6 +373,7 @@ export async function touchUser(tg, start) {
   }
 
   await pipeline(commands);
+  if (rawAcct) await returnStakes(id, acct);
   return Object.assign({}, profile, acct);
 }
 
@@ -469,7 +450,11 @@ export async function saveAccount(id, input, content) {
     gifts: cleanGiftList(input.gifts, known),
     // Улучшенные подарки админка не правит — они живут своей жизнью
     nfts: before.nfts,
-    tonNano: before.tonNano
+    tonNano: before.tonNano,
+    sent: before.sent,
+    bought: before.bought,
+    tasksDone: before.tasksDone,
+    tasksStarted: before.tasksStarted
   };
 
   await command('SET', K.acct(String(id)), JSON.stringify(acct));
@@ -556,6 +541,7 @@ export async function settleOrder(id, payment, ton) {
   const rawAcct = await command('GET', K.acct(order.userId));
   const acct = normalAccount(rawAcct);
   for (let i = 0; i < order.qty; i += 1) acct.gifts.push(order.giftId);
+  acct.bought += order.qty;
 
   // Купоны, ушедшие в скидку, списываются ровно сейчас — вместе с деньгами
   acct.coupons = Math.max(0, acct.coupons - (order.coupons || 0));
@@ -882,6 +868,8 @@ export async function transferGift(fromId, toId, giftId, nftId) {
   const sender = normalAccount(rawFrom);
   const recipient = normalAccount(rawTo);
 
+  sender.sent += 1;
+
   // Улучшенный уходит целиком, со своей моделью, фоном и номером
   if (nft) {
     const at = sender.nfts.findIndex((one) => one.id === nft);
@@ -984,63 +972,84 @@ export async function topBuyers(giftId, limit) {
   return value;
 }
 
-// --- Стейкинг ---
+// --- Задания ---
 
-/* Отданный подарок уходит со счёта и живёт в ставке: забрать его раньше
-   срока нельзя, и держать его в двух местах сразу было бы неправдой.
+/* Как у memgift: ссылка — «Начать» открывает её, потом «Забрать»;
+   счётные — когда набралось нужное число, «Забрать». Купоны начисляет
+   только сервер и только один раз за задание */
 
-   Ставку записываем вместе с подарком: админ поменяет проценты завтра, а
-   обещано было сегодняшнее. */
-
-export async function readStakes(userId) {
-  const raw = await command('GET', K.stake(String(userId)));
-  if (!raw) return [];
-
-  try {
-    const list = JSON.parse(raw);
-    return Array.isArray(list) ? list : [];
-  } catch (_) {
-    return [];
+function findTask(content, taskId) {
+  const id = slug(taskId);
+  for (const group of content.tasks || []) {
+    const task = (group.items || []).find((one) => one.id === id);
+    if (task) return task;
   }
+  return null;
 }
 
-export async function addStake(userId, input, content) {
+export async function invitedCount(userId) {
+  return Number(await command('ZCARD', K.refs(String(userId)))) || 0;
+}
+
+// Сколько сделано по заданию — то же число, что видит приложение
+function progressOf(task, acct, invited) {
+  if (task.type === 'link') return acct.tasksStarted.indexOf(task.id) === -1 ? 0 : 1;
+  if (task.type === 'buy') return acct.bought;
+  if (task.type === 'invite') return invited;
+  return acct.sent;
+}
+
+export async function startTask(userId, taskId, content) {
   const id = String(userId);
-  const days = int(input.days, 1, 3650);
-  if (STAKE_TERMS.indexOf(days) === -1) throw new InputError('Такого срока нет');
+  const task = findTask(content, taskId);
+  if (!task || task.type !== 'link') throw new InputError('Такого задания нет');
 
-  const giftId = slug(input.giftId);
-  const gift = (content.gifts || []).find((one) => one.id === giftId);
-  if (!gift) throw new InputError('Такого подарка больше нет');
+  const acct = normalAccount(await command('GET', K.acct(id)));
+  if (acct.tasksStarted.indexOf(task.id) === -1) {
+    acct.tasksStarted.push(task.id);
+    await command('SET', K.acct(id), JSON.stringify(acct));
+  }
+  return acct;
+}
 
-  const rates = content.stake || STAKE_DEFAULT;
-  if ((gift.price || 0) < rates.min) throw new InputError('Этот подарок дешевле порога');
+export async function claimTask(userId, taskId, content) {
+  const id = String(userId);
+  const task = findTask(content, taskId);
+  if (!task) throw new InputError('Такого задания нет');
 
-  const rawAcct = await command('GET', K.acct(id));
-  const acct = normalAccount(rawAcct);
+  const acct = normalAccount(await command('GET', K.acct(id)));
+  if (acct.tasksDone.indexOf(task.id) !== -1) throw new InputError('Награда уже получена');
 
-  const at = acct.gifts.indexOf(giftId);
-  if (at === -1) throw new InputError('Этого подарка у вас нет');
+  const invited = task.type === 'invite' ? await invitedCount(id) : 0;
+  if (progressOf(task, acct, invited) < task.goal) throw new InputError('Задание ещё не выполнено');
 
-  // Со счёта уходит ровно одна копия, остальные остаются свободными
-  acct.gifts.splice(at, 1);
+  acct.tasksDone.push(task.id);
+  acct.coupons += task.reward;
+  await command('SET', K.acct(id), JSON.stringify(acct));
+  return acct;
+}
 
-  const stakes = await readStakes(id);
-  stakes.push({
-    id: newId('st'),
-    giftId: giftId,
-    days: days,
-    rate: stakeRate(gift, rates),
-    price: int(gift.price, 0, 100000000),
-    at: Date.now()
+// --- Возврат из стейкинга ---
+
+/* Стейкинг убран 2026-10-13. Что люди успели в него отдать, возвращается
+   на счёт при следующем заходе, а запись ставок стирается */
+async function returnStakes(id, acct) {
+  const raw = await command('GET', K.stake(id));
+  if (!raw) return false;
+
+  let list = [];
+  try {
+    list = JSON.parse(raw);
+  } catch (_) {}
+  (Array.isArray(list) ? list : []).forEach((one) => {
+    if (one && one.giftId) acct.gifts.push(String(one.giftId));
   });
 
   await pipeline([
     ['SET', K.acct(id), JSON.stringify(acct)],
-    ['SET', K.stake(id), JSON.stringify(stakes)]
+    ['DEL', K.stake(id)]
   ]);
-
-  return { stakes: stakes, acct: acct };
+  return true;
 }
 
 // --- Файлы ---

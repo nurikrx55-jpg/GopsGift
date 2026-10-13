@@ -5,7 +5,7 @@
 import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
-  readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanStake, cleanTon, TON_RECEIVER, InputError,
+  readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, TON_RECEIVER, InputError,
   listUsers, getUser, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile
 } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
@@ -33,17 +33,6 @@ const actions = {
 
   async stats() {
     return { stats: await stats(await readContent(true)) };
-  },
-
-  // --- Стейкинг ---
-
-  async 'stake.save'(payload) {
-    const content = await writeContent((state) => {
-      state.stake = cleanStake(payload.stake);
-      return state;
-    });
-
-    return { content: content };
   },
 
   // --- Оплата TON ---

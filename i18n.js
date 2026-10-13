@@ -85,6 +85,8 @@
       'gift.share': 'Поделиться',
       'gift.close': 'Закрыть',
       'gift.upgrade': 'Улучшить',
+      'gift.toMarket': 'Перейти в маркет',
+      'gift.shareText': 'Посмотри подарок «{name}» в GapsGift!',
       'gift.model': 'Модель',
       'gift.symbol': 'Символ',
       'gift.backdrop': 'Фон',
@@ -98,6 +100,9 @@
       'gift.couponsHave': 'у вас {n}',
 
       'task.reward.aria': 'Награда: {n} купонов',
+      'task.start': 'Начать',
+      'task.claim': 'Забрать',
+      'task.claimed': '+{n} купонов',
 
       'profile.gifts': 'Подарки',
       'profile.admin': 'Админка',
@@ -314,6 +319,8 @@
       'gift.share': 'Share',
       'gift.close': 'Close',
       'gift.upgrade': 'Upgrade',
+      'gift.toMarket': 'Go to market',
+      'gift.shareText': 'Check out the "{name}" gift on GapsGift!',
       'gift.model': 'Model',
       'gift.symbol': 'Symbol',
       'gift.backdrop': 'Background',
@@ -327,6 +334,9 @@
       'gift.couponsHave': 'you have {n}',
 
       'task.reward.aria': 'Reward: {n} coupons',
+      'task.start': 'Start',
+      'task.claim': 'Claim',
+      'task.claimed': '+{n} coupons',
 
       'profile.gifts': 'Gifts',
       'profile.admin': 'Admin',

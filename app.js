@@ -481,13 +481,15 @@
     card.appendChild(art);
     showShot(art, gift);
 
-    if (gift.badge) {
+    // Распроданный — лента memgift «sold out» тёмно-красная, поверх своей
+    const sold = gift.left === 0;
+    if (gift.badge || sold) {
       const badge = document.createElement('span');
       badge.className = 'gift__badge';
-      badge.dataset.kind = gift.kind || 'default';
+      badge.dataset.kind = sold ? 'soldout' : gift.kind || 'default';
       // Цвет ленты может задать админка — тогда лента одноцветная; не
       // задала — заливка по редкости, градиентом из спрайта
-      if (gift.tone) badge.style.setProperty('--ribbon-fill', gift.tone);
+      if (gift.tone && !sold) badge.style.setProperty('--ribbon-fill', gift.tone);
       // Контур ленты лежит в спрайте, здесь только ссылка на него
       badge.innerHTML =
         '<svg class="gift__ribbon" viewBox="-2 -2 124 36" aria-hidden="true">' +
@@ -495,7 +497,7 @@
 
       const label = document.createElement('span');
       label.className = 'gift__label';
-      label.textContent = gift.badge;
+      label.textContent = sold ? 'sold out' : gift.badge;
       badge.appendChild(label);
       card.appendChild(badge);
     }
@@ -1195,6 +1197,10 @@
       document.getElementById('sheet-total').textContent = '/' + formatPrice(gift.total);
     }
 
+    // Распродан — одна кнопка «Перейти в маркет» вместо покупки
+    sheet.classList.toggle('is-sold', gift.left === 0);
+    document.getElementById('sheet-store').hidden = gift.left !== 0;
+
     loadTop(gift);
   }
 
@@ -1385,7 +1391,9 @@
       root.classList.add('is-open');
 
       // Содержимое уместилось — прокручивать нечего, забираем жест себе целиком
-      scroll.classList.toggle('is-static', scroll.scrollHeight <= scroll.clientHeight + 1);
+      // Страницу не трогаем: её содержимое часто догружается уже после
+      // открытия, и запертая прокрутка так бы и осталась запертой
+      scroll.classList.toggle('is-static', !page && scroll.scrollHeight <= scroll.clientHeight + 1);
 
       if (on.opened) on.opened(payload);
     }
@@ -1782,7 +1790,6 @@
         fillFromStore();
         initHeader();
         paintProfile();
-        renderStake();
 
         // Окно остаётся открытым и становится улучшенным — как у memgift
         const fresh = OWNED.upg.find((one) => one.nft.id === paid.nft.id);
@@ -1805,6 +1812,35 @@
       });
   }
 
+  // --- Поделиться ---
+
+  /* Как `useShare` у memgift: окно пересылки Telegram со ссылкой на бота.
+     Ссылка открывает приложение сразу на этом подарке (startapp=gift_<id>) */
+  const BOT_LINK = 'https://t.me/GapsGiftBot';
+
+  function giftLink(gift) {
+    return BOT_LINK + '?startapp=gift_' + encodeURIComponent(gift.id);
+  }
+
+  function shareGift(gift) {
+    haptic('light');
+    const url = 'https://t.me/share/url?url=' + encodeURIComponent(giftLink(gift)) +
+      '&text=' + encodeURIComponent(t('gift.shareText', { name: gift.name }));
+    if (tg && tg.openTelegramLink && tg.initData) tg.openTelegramLink(url);
+    else window.open(url, '_blank', 'noopener');
+  }
+
+  // Пришли по такой ссылке — сразу открываем страницу подарка
+  function openStartGift() {
+    let start = String((tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || '');
+    if (!start && tg && tg.initData) {
+      try { start = new URLSearchParams(tg.initData).get('start_param') || ''; } catch (_) {}
+    }
+    const match = /^gift_([a-z0-9-]+)$/.exec(start);
+    const gift = match && giftById(match[1]);
+    if (gift && buySheet) buySheet.open(gift);
+  }
+
   function initOwnedTools() {
     if (!owned) return;
 
@@ -1820,11 +1856,13 @@
     });
 
     document.getElementById('owned-upgrade').addEventListener('click', upgradeOwned);
-    document.getElementById('owned-share').addEventListener('click', soon('soon.share'));
+    document.getElementById('owned-share').addEventListener('click', () => {
+      if (ownGift) shareGift(ownGift);
+    });
 
     document.getElementById('owned-copy').addEventListener('click', () => {
       if (!ownGift) return;
-      copyText(location.origin + '/?gift=' + encodeURIComponent(ownGift.id), 'profile.linkCopied');
+      copyText(giftLink(ownGift), 'profile.linkCopied');
     });
   }
 
@@ -2616,7 +2654,6 @@
         fillFromStore();
         initHeader();
         paintProfile();
-        renderStake();
 
         haptic('success');
         toast(t('send.done', { name: data.name || to.name }));
@@ -2873,7 +2910,6 @@
         drawGifts();
         initHeader();
         paintProfile();
-        renderStake();
 
         // Покупатель в топе этого подарка теперь другой — берём свежий
         tops.delete(gift.id);
@@ -2969,19 +3005,17 @@
 
     document.getElementById('sheet-buy').addEventListener('click', buyGift);
 
+    // Маркет у нас — витрина: уходим на главную, как «Перейти в магазин» memgift
+    document.getElementById('sheet-store').addEventListener('click', () => {
+      haptic('light');
+      buySheet.close();
+      selectTab(0);
+    });
+
     const share = document.getElementById('sheet-share');
     if (share) {
       share.addEventListener('click', () => {
-        haptic('light');
-        toast(t('soon.share'));
-      });
-    }
-
-    const emoji = document.getElementById('sheet-emoji');
-    if (emoji) {
-      emoji.addEventListener('click', () => {
-        haptic('light');
-        toast(t('soon.emoji'));
+        if (sheetGift) shareGift(sheetGift);
       });
     }
 
@@ -3287,14 +3321,105 @@
 
     info.append(name, reward);
 
-    // Счётчик, а не кнопка: пока задание не выполнено, нажимать нечего
+    row.append(avatar, info, taskAction(task));
+    return row;
+  }
+
+  /* Кнопка справа — как `._task-action` memgift: «Начать» у ссылки,
+     «Забрать», когда задание выполнено, галочка, когда награда получена.
+     Пока счётное задание не набрано — просто счётчик «2/5» */
+  const TASK_API = '/api/tasks';
+  const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  let taskBusy = false;
+
+  function taskProgress(task) {
+    if (!ME) return 0;
+    if (task.type === 'link') return (ME.tasksStarted || []).indexOf(task.id) === -1 ? 0 : 1;
+    if (task.type === 'buy') return ME.bought || 0;
+    if (task.type === 'invite') return ME.invited || 0;
+    return ME.sent || 0;
+  }
+
+  function taskButton(kind, label, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'task__btn task__btn--' + kind;
+    if (kind === 'done') button.innerHTML = CHECK;
+    else {
+      const span = document.createElement('span');
+      span.textContent = label;
+      button.appendChild(span);
+    }
+    if (onClick) button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function taskAction(task) {
+    if ((ME && ME.tasksDone || []).indexOf(task.id) !== -1) {
+      const done = taskButton('done');
+      done.tabIndex = -1;
+      return done;
+    }
+
+    const have = taskProgress(task);
+    if (have >= task.goal) {
+      return taskButton('claim', t('task.claim'), (event) => taskPost('claim', task, event.currentTarget));
+    }
+
+    if (task.type === 'link') {
+      return taskButton('start', t('task.start'), (event) => {
+        haptic('light');
+        if (task.url) openLink(task.url);
+        taskPost('start', task, event.currentTarget);
+      });
+    }
+
     const count = document.createElement('span');
     count.className = 'task__count';
-    count.textContent = formatPrice(task.done) + '/' + formatPrice(task.goal);
-    count.dataset.done = String(task.done >= task.goal);
+    count.textContent = formatPrice(Math.min(have, task.goal)) + '/' + formatPrice(task.goal);
+    return count;
+  }
 
-    row.append(avatar, info, count);
-    return row;
+  function taskPost(action, task, button) {
+    if (taskBusy) return;
+    if (!Store.live()) {
+      toast(t('pay.noDb'));
+      return;
+    }
+    taskBusy = true;
+    if (button) button.classList.add('is-loading');
+
+    fetch(TASK_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: (tg && tg.initData) || '', action: action, task: task.id })
+    }).then((response) => response.json().catch(() => ({})).then((data) => {
+      if (!response.ok) throw new Error(data.message || t('pay.sorry'));
+      return data;
+    })).then((data) => {
+      Store.apply(null, data.me);
+      fillFromStore();
+      initHeader();
+      paintProfile();
+      if (action === 'claim') {
+        haptic('success');
+        fireFromBottom();
+        toast(t('task.claimed', { n: task.reward }));
+      }
+    }).catch((error) => {
+      toast(error.message);
+    }).then(() => {
+      taskBusy = false;
+      renderTasks();
+    });
+  }
+
+  // Перерисовка после каждой перемены счёта: купил, отправил, забрал
+  function renderTasks() {
+    const root = document.getElementById('tasks');
+    if (!root) return;
+    root.textContent = '';
+    initTasks();
   }
 
   function initTasks() {
@@ -3383,7 +3508,8 @@
     let list = c.sort === 'oldest' ? items.slice() : items.slice().reverse();
     if (c.coll.length) list = list.filter((gift) => c.coll.indexOf(gift.id) !== -1);
 
-    // Символ и фон бывают только у улучшенных подарков
+    // Модель, символ и фон бывают только у улучшенных подарков
+    if (c.models.length) list = list.filter((gift) => gift.nft && c.models.indexOf(gift.nft.model.name) !== -1);
     if (c.symbols.length) list = list.filter((gift) => c.symbols.indexOf(gift.symbol) !== -1);
     if (c.backdrops.length) list = list.filter((gift) => c.backdrops.indexOf(gift.backdrop) !== -1);
 
@@ -3418,12 +3544,15 @@
      чужом (страница человека из топа покупателей, как /view/:id у memgift).
      Разметка у них одна, различаются приставкой id, а что выбрано в
      отборе, каждый помнит сам */
-  function ownedList(id, source, open) {
+  function ownedList(id, source, open, card) {
     return {
       id: id,
+      // Чем рисовать карточку: своим профилем или квадратом memgift
+      card: card || null,
       tab: 'gifts',
       sort: '',
       coll: [],
+      models: [],
       symbols: [],
       backdrops: [],
       view: 'blocks',
@@ -3461,12 +3590,13 @@
     if (!box) return;
 
     box.textContent = '';
-    box.hidden = !c.sort && !c.coll.length && !c.symbols.length && !c.backdrops.length;
+    box.hidden = !c.sort && !c.coll.length && !c.models.length && !c.symbols.length && !c.backdrops.length;
     if (box.hidden) return;
 
     box.appendChild(cheap(c, t('profile.clearAll'), '', () => {
       c.sort = '';
       c.coll = [];
+      c.models = [];
       c.symbols = [];
       c.backdrops = [];
     }, true));
@@ -3477,6 +3607,14 @@
         one ? one.name : t('profile.collections', { n: c.coll.length }),
         '<svg viewBox="0 0 28 28" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#blocks"></use></svg>',
         () => { c.coll = []; }
+      ));
+    }
+
+    if (c.models.length) {
+      box.appendChild(cheap(c, 
+        c.models.length === 1 ? 'Model: ' + c.models[0] : c.models.length + ' Models',
+        '<svg viewBox="0 0 18 18" aria-hidden="true" style="fill:#f5f5f7;stroke:none"><use href="#gift-oth"></use></svg>',
+        () => { c.models = []; }
       ));
     }
 
@@ -3565,6 +3703,8 @@
     if (dot) dot.hidden = !c.sort;
     const collDot = document.getElementById(c.id + '-coll-dot');
     if (collDot) collDot.hidden = !c.coll.length;
+    const modelDot = document.getElementById(c.id + '-model-dot');
+    if (modelDot) modelDot.hidden = !c.models.length;
     const symbolDot = document.getElementById(c.id + '-symbol-dot');
     if (symbolDot) symbolDot.hidden = !c.symbols.length;
     const backdropDot = document.getElementById(c.id + '-backdrop-dot');
@@ -3598,9 +3738,10 @@
       const grid = document.createElement('div');
       grid.className = 'gifts';
       // Из профиля открывается карточка уже купленного подарка, а не покупка
-      page.forEach((gift) => grid.appendChild(gift.nft
-        ? nftCard(gift, c.open)
-        : buildGift(gift, c.open)));
+      if (c.card) grid.className = 'vw-grid';
+      page.forEach((gift) => grid.appendChild(c.card
+        ? c.card(gift, c.open)
+        : gift.nft ? nftCard(gift, c.open) : buildGift(gift, c.open)));
       list.appendChild(grid);
     }
 
@@ -3639,12 +3780,18 @@
       renderOwned(c);
     };
 
+    // Кнопок отбора у чужого профиля меньше, как у memgift: вешаем на те, что есть
+    const on = (name, handler) => {
+      const node = document.getElementById(c.id + '-' + name);
+      if (node) node.addEventListener('click', handler);
+    };
+
     const open = (cfg) => {
       haptic('light');
       pickSheet.open(cfg);
     };
 
-    document.getElementById(c.id + '-sort').addEventListener('click', () => open({
+    on('sort', () => open({
       title: t('osort.title'),
       icon: { href: '#sort-lines', box: '0 0 18 11', sort: true },
       items: OWN_SORTS.map((id) => ({ id: id, label: t('osort.' + id) })),
@@ -3653,7 +3800,7 @@
     }));
 
     // Коллекции — те подарки, что лежат у человека, без повторов
-    document.getElementById(c.id + '-coll').addEventListener('click', () => {
+    on('coll', () => {
       const seen = new Set();
       const items = [];
       c.source(c.tab).forEach((gift) => {
@@ -3674,7 +3821,32 @@
 
     const rate = (value) => String(value).replace('.', window.I18N.lang() === 'ru' ? ',' : '.') + '%';
 
-    document.getElementById(c.id + '-symbol').addEventListener('click', () => withAttrs((all) => open({
+    // Модели — что выпало у улучшенных подарков этого человека, без повторов
+    on('model', () => {
+      const seen = new Set();
+      const items = [];
+      c.source(c.tab).forEach((gift) => {
+        if (!gift.nft || seen.has(gift.nft.model.name)) return;
+        seen.add(gift.nft.model.name);
+        items.push({
+          id: gift.nft.model.name,
+          label: gift.nft.model.name,
+          rate: pct(gift.nft.model.rate),
+          media: { type: 'gift', gift: artOf(gift) }
+        });
+      });
+
+      open({
+        title: t('profile.model'),
+        icon: { href: '#gift-oth', box: '0 0 18 18' },
+        items: items,
+        multi: true,
+        selected: c.models,
+        onApply: (ids) => { c.models = ids.slice(); reload(); }
+      });
+    });
+
+    on('symbol', () => withAttrs((all) => open({
       title: t('profile.symbol'),
       icon: { href: '#symbol-mark', box: '0 0 18 18' },
       items: all.symbols.map((one) => ({
@@ -3688,7 +3860,7 @@
       onApply: (ids) => { c.symbols = ids.slice(); reload(); }
     })));
 
-    document.getElementById(c.id + '-backdrop').addEventListener('click', () => withAttrs((all) => open({
+    on('backdrop', () => withAttrs((all) => open({
       title: t('profile.backdrop'),
       icon: { href: '#backdrop', box: '0 0 18 18' },
       items: all.backdrops.map((one) => ({
@@ -3702,7 +3874,7 @@
       onApply: (ids) => { c.backdrops = ids.slice(); reload(); }
     })));
 
-    document.getElementById(c.id + '-view').addEventListener('click', () => {
+    on('view', () => {
       haptic('select');
       c.view = c.view === 'blocks' ? 'lists' : 'blocks';
       renderOwned(c);
@@ -3850,6 +4022,8 @@
   // Счётчик в шапке профиля и список под вкладкой — после покупки их
   // приходится перерисовывать, а не собирать профиль заново
   function paintProfile() {
+    // Задания считают отправленные и купленные — их счёт меняется вместе с профилем
+    renderTasks();
     const owned = OWNED.gifts.length + OWNED.nft.length + OWNED.upg.length;
     const count = document.getElementById('prf-count');
 
@@ -3872,7 +4046,7 @@
   let viewAsk = 0;
 
   const viewList = ownedList('vw', (kind) => (kind === 'gifts' ? VIEWED.gifts.concat(VIEWED.upg) : []),
-    (gift) => ownSheet.open(gift));
+    (gift) => ownSheet.open(gift), viewCard);
 
   function personName(person) {
     return [person.firstName, person.lastName].filter(Boolean).join(' ') ||
@@ -3891,6 +4065,87 @@
     document.getElementById('vw-count').textContent = count === null
       ? '…'
       : formatPrice(count) + ' ' + countOf(count, 'gift.count');
+  }
+
+  /* Карточка чужого профиля — `.item._gift` memgift: квадрат 1:1,
+     скругление 20, фон редкости (или #252528), узор, подарок на 70% и
+     лента 88×36 в углу. У улучшенного — его фон, узор символа, номер */
+  const RARITY_BG = {
+    rare: 'linear-gradient(180deg, #282867 0%, #131328 100%)',
+    veryrare: 'linear-gradient(180deg, #1D6132 0%, #0B2211 100%)',
+    epic: 'linear-gradient(180deg, #632475 0%, #19101D 100%)',
+    legend: 'linear-gradient(180deg, #6F480E 0%, #1D1710 100%)',
+    author: 'linear-gradient(180deg, #762121 0%, #221111 100%)'
+  };
+
+  function viewCard(gift, onPick) {
+    const upg = Boolean(gift.nft);
+    const card = document.createElement('div');
+    card.className = 'vw-gift' + (upg ? ' is-upgraded' : '');
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+
+    if (upg) {
+      const colors = backdropColors(gift);
+      card.style.background = 'radial-gradient(circle at 50% 40%, ' + boostColor(colors.center, 0.28) +
+        ' 0%, ' + colors.center + ' 45%, ' + colors.around + ' 100%)';
+    } else {
+      card.style.background = RARITY_BG[gift.rarity] || '#252528';
+    }
+
+    const symbols = document.createElement('div');
+    symbols.className = 'vw-gift__symbols';
+    const pattern = document.createElement('img');
+    const symbol = upg && symbolOf(gift.nft.symbol);
+    pattern.src = symbol ? symbol.image : 'gifts/pattern.png';
+    pattern.alt = '';
+    pattern.draggable = false;
+    symbols.appendChild(pattern);
+    card.appendChild(symbols);
+
+    if (upg) {
+      const num = document.createElement('div');
+      num.className = 'vw-gift__badge';
+      const span = document.createElement('span');
+      span.textContent = '#' + gift.nft.num;
+      num.appendChild(span);
+      card.appendChild(num);
+    }
+
+    const art = document.createElement('div');
+    art.className = 'vw-gift__nft';
+    card.appendChild(art);
+    showShot(art, artOf(gift));
+
+    const sold = !upg && gift.left === 0;
+    if (!upg && (gift.badge || sold)) {
+      const rib = document.createElement('div');
+      rib.className = 'vw-gift__rarity';
+      const image = document.createElement('span');
+      image.className = 'gift__badge vw-gift__ribbon';
+      image.dataset.kind = sold ? 'soldout' : gift.kind || 'default';
+      if (gift.tone && !sold) image.style.setProperty('--ribbon-fill', gift.tone);
+      image.innerHTML = '<svg class="gift__ribbon" viewBox="-2 -2 124 36" aria-hidden="true"><use href="#ribbon-shape"></use></svg>';
+      const text = document.createElement('div');
+      text.className = 'vw-gift__text';
+      const label = document.createElement('span');
+      label.textContent = sold ? 'sold out' : gift.badge;
+      text.appendChild(label);
+      rib.append(image, text);
+      card.appendChild(rib);
+    }
+
+    const show = () => {
+      haptic('light');
+      if (onPick) onPick(gift);
+    };
+    card.addEventListener('click', show);
+    card.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      show();
+    });
+    return card;
   }
 
   function openView(person) {
@@ -3973,431 +4228,6 @@
     });
 
     initOwnFilters(viewList);
-  }
-
-  // --- Стейкинг ---
-
-  /* Раздел пока макет: ставки никуда не уходят, они живут в самом браузере
-     и пропадут вместе с его памятью. Зато всё остальное настоящее — ставка
-     от редкости, срок, накопленное считаются по-честному, и видно, как
-     раздел будет работать.
-
-     Подарок, отданный в стейкинг, замораживается на выбранный срок: на
-     карточке появляется лента Staking, лёд поверх и счётчик дней. В окне
-     выбора его уже нет — ставить дважды одну и ту же штуку нельзя. */
-
-  // Лент на карточках семь видов, ставок — четыре: остальные идут по общей
-  const TIER_OF = { legend: 'legend', blood: 'legend', epic: 'epic', rare: 'rare' };
-  const STAKE_TERMS = [7, 30, 90];
-  const STAKE_API = '/api/stake';
-  const YEAR = 365;
-  const DAY_MS = 24 * 60 * 60 * 1000;
-  // Запасные ставки — на случай, если содержимое пришло без них
-  const STAKE_BACK = { legend: 35, epic: 22, rare: 14, plain: 8, min: 300 };
-
-  // Ставки и порог цены задаёт админка, приложение их только показывает
-  function stakeRules() {
-    const state = Store.state() || {};
-    return Object.assign({}, STAKE_BACK, state.stake || {});
-  }
-
-  function rateOf(gift) {
-    return stakeRules()[TIER_OF[gift && gift.kind] || 'plain'] || 0;
-  }
-
-  function canStake(gift) {
-    return Boolean(gift) && (gift.price || 0) >= stakeRules().min;
-  }
-
-  function stakeIncome(gift, days) {
-    return Math.round((gift.price || 0) * rateOf(gift) / 100 * days / YEAR);
-  }
-
-  // Что человек отдал в стейкинг. Приходит с сервера вместе со счётом
-  function stakes() {
-    return (ME && Array.isArray(ME.stakes) ? ME.stakes : []);
-  }
-
-  // Доли звезды на экране всё-таки нужны: за день с одного подарка набегает
-  // меньше единицы, и ноль вместо этого выглядел бы поломкой
-  function stars(value) {
-    const sum = Number(value) || 0;
-    if (!sum || sum >= 10) return formatPrice(Math.round(sum));
-    const short = String(Math.round(sum * 10) / 10);
-    return window.I18N.lang() === 'ru' ? short.replace('.', ',') : short;
-  }
-
-  /* Сколько прошло и сколько набежало на одной ставке. Процент и цену
-     берём из самой записи: админ поменяет ставки завтра, а человеку было
-     обещано сегодняшнее. */
-  function spotOf(entry) {
-    const gift = giftById(entry.giftId);
-    const full = entry.days * DAY_MS;
-    const gone = Math.min(Math.max(Date.now() - entry.at, 0), full);
-    const price = typeof entry.price === 'number' ? entry.price : (gift ? gift.price : 0);
-    const perDay = (price || 0) * (entry.rate || 0) / 100 / YEAR;
-
-    return {
-      gift: gift,
-      perDay: perDay,
-      share: full ? gone / full : 1,
-      left: Math.max(0, Math.ceil((full - gone) / DAY_MS)),
-      earned: perDay * (gone / DAY_MS),
-      until: entry.at + full
-    };
-  }
-
-  function dayName(stamp) {
-    const when = new Date(stamp);
-    try {
-      return when.toLocaleDateString(window.I18N.lang(), { day: 'numeric', month: 'short' });
-    } catch (_) {
-      return when.toLocaleDateString();
-    }
-  }
-
-  // --- Что видно в разделе ---
-
-  function paintStakeSum() {
-    const sum = document.getElementById('stk-sum');
-    const word = document.getElementById('stk-sum-word');
-    if (!sum) return;
-
-    const list = stakes();
-    let perDay = 0;
-    let earned = 0;
-    list.forEach((entry) => {
-      const spot = spotOf(entry);
-      perDay += spot.perDay;
-      earned += spot.earned;
-    });
-
-    sum.textContent = formatPrice(list.length);
-    if (word) word.textContent = countOf(list.length, 'gift.count');
-    document.getElementById('stk-day').textContent = stars(perDay);
-    document.getElementById('stk-earned').textContent = stars(earned);
-  }
-
-  // Карточка поставленного подарка: лента Staking вместо редкости, лёд
-  // поверх и счётчик дней внизу
-  function stakeCard(entry) {
-    const spot = spotOf(entry);
-    if (!spot.gift) return null;
-
-    const card = buildGift(spot.gift, () => spotSheet.open(entry));
-
-    const old = card.querySelector('.gift__badge');
-    if (old) old.remove();
-
-    const badge = document.createElement('span');
-    badge.className = 'gift__badge';
-    badge.dataset.kind = 'stake';
-    badge.innerHTML =
-      '<svg class="gift__ribbon" viewBox="-2 -2 124 36" aria-hidden="true">' +
-      '<use href="#ribbon-shape"></use></svg>';
-
-    const label = document.createElement('span');
-    label.className = 'gift__label';
-    label.textContent = t('stake.ribbon');
-    badge.appendChild(label);
-
-    const frost = document.createElement('span');
-    frost.className = 'stk__frost';
-    frost.setAttribute('aria-hidden', 'true');
-
-    const timer = document.createElement('span');
-    timer.className = 'stk__timer';
-    timer.textContent = spot.left ? countOf(spot.left, 'stake.daysLeft').replace('{n}', spot.left) : t('stake.over');
-
-    card.append(badge, frost, timer);
-    return card;
-  }
-
-  function renderStake() {
-    const box = document.getElementById('stk-done');
-    const list = document.getElementById('stk-list');
-    if (!box || !list) return;
-
-    paintStakeSum();
-
-    const mine = stakes();
-    releaseArt(list);
-    list.textContent = '';
-    box.hidden = !mine.length;
-
-    mine.forEach((entry) => {
-      const card = stakeCard(entry);
-      if (card) list.appendChild(card);
-    });
-  }
-
-  // --- Окно выбора ---
-
-  function stakeEmpty(after) {
-    const none = document.createElement('div');
-    none.className = 'stk__none';
-
-    const title = document.createElement('b');
-    title.textContent = t('stake.empty');
-
-    const note = document.createElement('p');
-    note.textContent = t('stake.emptyNote');
-
-    const go = document.createElement('button');
-    go.type = 'button';
-    go.textContent = t('stake.toShelf');
-    go.addEventListener('click', () => {
-      haptic('light');
-      if (after) after();
-      const at = tabs.findIndex((tab) => tab.dataset.section === 'home');
-      if (at !== -1) selectTab(at);
-    });
-
-    none.append(title, note, go);
-    return none;
-  }
-
-  /* Витрина выбора: каждая копия стоит сама по себе. Свести их в одну
-     карточку со счётчиком было бы короче, но выбирают здесь не вид
-     подарка, а конкретную штуку — и после ставки одна из них уходит. */
-  let picksShown = PAGE;
-
-  function fillPicks() {
-    const list = document.getElementById('picks-list');
-    const rule = document.getElementById('picks-rule');
-    if (!list) return;
-
-    if (rule) rule.textContent = t('stake.min', { n: formatPrice(stakeRules().min) });
-
-    releaseArt(list);
-    list.textContent = '';
-
-    // Поставленные подарки сервер уже снял со счёта, поэтому здесь всё,
-    // что у человека осталось
-    const all = OWNED.gifts;
-    if (!all.length) {
-      list.appendChild(stakeEmpty(() => picksSheet.close()));
-      return;
-    }
-
-    const free = all.slice(0, picksShown);
-    free.forEach((gift) => {
-      const ready = canStake(gift);
-      const card = buildGift(gift, (one) => {
-        if (!ready) {
-          toast(t('stake.cheap'));
-          return;
-        }
-        picksSheet.close();
-        // Лист стейкинга поднимаем, когда выбор уже уехал вниз
-        setTimeout(() => stakeSheet.open(one), 260);
-      });
-
-      if (!ready) card.classList.add('is-off');
-      list.appendChild(card);
-    });
-
-    if (all.length > free.length) {
-      list.appendChild(moreButton(all.length - free.length, () => {
-        picksShown += PAGE;
-        fillPicks();
-      }));
-    }
-  }
-
-  // --- Лист стейкинга ---
-
-  let stakeSheet = null;
-  let spotSheet = null;
-  let warnSheet = null;
-  let infoSheet = null;
-  let picksSheet = null;
-  let stakePlayer = null;
-  let spotPlayer = null;
-  let stakeGift = null;
-  let spotEntry = null;
-  let stakeTerm = STAKE_TERMS[1];
-
-  function paintStake() {
-    if (!stakeGift) return;
-
-    document.getElementById('stake-rate').textContent = t('stake.apy', { n: rateOf(stakeGift) });
-    document.getElementById('stake-income').textContent = formatPrice(stakeIncome(stakeGift, stakeTerm));
-
-    Array.from(document.querySelectorAll('.stk__term')).forEach((node) => {
-      node.classList.toggle('is-on', Number(node.dataset.days) === stakeTerm);
-    });
-  }
-
-  function fillStake(gift) {
-    stakeGift = gift;
-    // Средний срок выбран заранее: с него чаще всего и начинают
-    stakeTerm = STAKE_TERMS[1];
-
-    const stage = document.getElementById('stake-stage');
-    applyTint(stage, tintOf(gift));
-    if (!tints.has(gift.art)) {
-      warmTint(gift, (tint) => {
-        if (tint && stakeGift === gift) applyTint(stage, tint);
-      });
-    }
-
-    document.getElementById('stake-title').textContent = gift.name;
-    document.getElementById('stake-note').textContent = gift.badge || '';
-
-    const terms = document.getElementById('stake-terms');
-    terms.textContent = '';
-
-    STAKE_TERMS.forEach((days) => {
-      const button = document.createElement('button');
-      button.className = 'stk__term';
-      button.type = 'button';
-      button.dataset.days = String(days);
-      button.textContent = days + ' ' + countOf(days, 'stake.days');
-      button.addEventListener('click', () => {
-        if (stakeTerm === days) return;
-        stakeTerm = days;
-        haptic('select');
-        paintStake();
-      });
-      terms.appendChild(button);
-    });
-
-    paintStake();
-  }
-
-  // --- Лист поставленного подарка ---
-
-  function fillSpot(entry) {
-    spotEntry = entry;
-    const spot = spotOf(entry);
-    if (!spot.gift) return;
-
-    const stage = document.getElementById('spot-stage');
-    applyTint(stage, tintOf(spot.gift));
-
-    document.getElementById('spot-title').textContent = spot.gift.name;
-    document.getElementById('spot-note').textContent = spot.left
-      ? t('stake.frozen', { date: dayName(spot.until) })
-      : t('stake.over');
-
-    document.getElementById('spot-bar').style.width = (spot.share * 100).toFixed(1) + '%';
-    document.getElementById('spot-term').textContent = entry.days + ' ' + countOf(entry.days, 'stake.days');
-    document.getElementById('spot-rate').textContent = t('stake.apy', { n: entry.rate || rateOf(spot.gift) });
-    document.getElementById('spot-earned').textContent = stars(spot.earned);
-  }
-
-  let staking = false;
-
-  /* Ставку делает сервер: он же снимает подарок со счёта и запоминает
-     процент на этот день. Отсюда уходит только, что ставят и на сколько. */
-  function putStake() {
-    if (!stakeGift || staking) return;
-
-    const gift = stakeGift;
-    staking = true;
-    const go = document.getElementById('warn-go');
-    go.disabled = true;
-
-    fetch(STAKE_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        initData: (tg && tg.initData) || '',
-        action: 'add',
-        giftId: gift.id,
-        days: stakeTerm
-      })
-    }).then((response) => response.json()
-      .catch(() => ({}))
-      .then((data) => {
-        if (!response.ok) throw new Error(data.message || t('pay.off'));
-        return data;
-      }))
-      .then((data) => {
-        // Счёт и ставки приходят порознь — в хранилище они кладутся вместе
-        Store.apply(null, Object.assign({}, data.me, { stakes: data.stakes || [] }));
-        fillFromStore();
-        renderStake();
-        paintProfile();
-
-        haptic('success');
-        warnSheet.close();
-        stakeSheet.close();
-        toast(t('stake.saved'));
-      })
-      .catch((error) => {
-        toast(error && error.message ? error.message : t('pay.off'));
-      })
-      .then(() => {
-        staking = false;
-        go.disabled = false;
-      });
-  }
-
-  function initStaking() {
-    const root = document.getElementById('stake');
-    if (!root) return;
-
-    stakeSheet = createSheet(root, {
-      fill: fillStake,
-      opened: (gift) => {
-        stakePlayer = openArt(document.getElementById('stake-art'), gift);
-      },
-      closed: () => {
-        closeArt(document.getElementById('stake-art'), stakePlayer);
-        stakePlayer = null;
-        stakeGift = null;
-      }
-    });
-
-    spotSheet = createSheet(document.getElementById('spot'), {
-      fill: fillSpot,
-      opened: (entry) => {
-        const gift = giftById(entry.giftId);
-        if (gift) spotPlayer = openArt(document.getElementById('spot-art'), gift);
-      },
-      closed: () => {
-        closeArt(document.getElementById('spot-art'), spotPlayer);
-        spotPlayer = null;
-        spotEntry = null;
-      }
-    });
-
-    infoSheet = createSheet(document.getElementById('info'));
-    picksSheet = createSheet(document.getElementById('picks'), { fill: fillPicks });
-    warnSheet = createSheet(document.getElementById('warn'));
-
-    document.getElementById('stk-info').addEventListener('click', () => {
-      haptic('light');
-      infoSheet.open();
-    });
-
-    document.getElementById('stk-add').addEventListener('click', () => {
-      haptic('light');
-      picksShown = PAGE;
-      picksSheet.open();
-    });
-
-    // Выводить и вкладывать заново пока нечего — обе кнопки честно об этом
-    // и говорят
-    ['stk-out', 'stk-again'].forEach((id) => {
-      document.getElementById(id).addEventListener('click', () => {
-        haptic('light');
-        toast(t('stake.wait'));
-      });
-    });
-
-    // Сперва предупреждение: обратного хода у ставки нет
-    document.getElementById('stake-go').addEventListener('click', () => {
-      if (!stakeGift || staking) return;
-      haptic('light');
-      warnSheet.open();
-    });
-
-    document.getElementById('warn-go').addEventListener('click', putStake);
-
-    renderStake();
   }
 
   // --- Выбор языка ---
@@ -4514,7 +4344,6 @@
       drawGifts();
       initHeader();
       paintProfile();
-      renderStake();
     });
   }
 
@@ -4622,10 +4451,10 @@
       initProfile();
       initOwnFilters(ownList);
       initView();
-      initStaking();
       initLang();
 
       initSlider(buildBanners());
+      openStartGift();
     })
     .catch((error) => {
       console.warn('Содержимое не загрузилось:', error);

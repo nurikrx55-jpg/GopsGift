@@ -1849,3 +1849,10 @@
   padding: 0 10px;
   text-align: center;
 }
+
+/* Над кнопкой несут файл — подсвечиваем, что его можно бросить */
+.ad-dashed[data-over="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
+}

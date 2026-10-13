@@ -688,6 +688,7 @@ body {
 
 .gift__badge[data-kind="premium"] { --ribbon-fill: url(#ribbon-premium); }
 .gift__badge[data-kind="sold"]    { --ribbon-fill: url(#ribbon-sold); }
+.gift__badge[data-kind="soldout"] { --ribbon-fill: url(#ribbon-soldout); }
 .gift__badge[data-kind="time"]    { --ribbon-fill: url(#ribbon-time); }
 
 /* Редкость: зелёная, фиолетовая, жёлтая. Без обводок — только заливка */
@@ -695,9 +696,6 @@ body {
 .gift__badge[data-kind="epic"]   { --ribbon-fill: url(#ribbon-epic); }
 .gift__badge[data-kind="legend"] { --ribbon-fill: url(#ribbon-legend); }
 .gift__badge[data-kind="blood"]  { --ribbon-fill: url(#ribbon-blood); }
-
-/* Лента поставленного подарка — холодная, под стать льду на карточке */
-.gift__badge[data-kind="stake"]  { --ribbon-fill: url(#ribbon-stake); }
 
 /* Заливка приходит из спрайта градиентом по редкости — или своим цветом,
    если его задали в админке. Контура по краю нет: светлая обводка лишняя,
@@ -1668,7 +1666,6 @@ body {
    Материал тот же, что у капсулы навигации и плашек: стекло из .glass на
    самом листе, кромка из --glass-edge на карточках со строками и на
    кнопке отказа. Ничего своего здесь не заведено. */
-
 
 .pick__top {
   flex: none;
@@ -2685,11 +2682,6 @@ body {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* В окне выбора кнопка идёт через всю сетку, а не одной клеткой */
-.picks .more {
-  grid-column: 1 / -1;
-}
-
 /* Разделов два, а сетка одна — переиспользуем витринную */
 .prf__list .gifts {
   margin-top: 0;
@@ -3161,39 +3153,6 @@ body {
   min-width: 0;
 }
 
-/* «!» у названия: открывает рассказ про стейкинг. В остальных разделах её
-   нет — рассказывать про них нечего */
-.hdr__info {
-  display: none;
-  width: 22px;
-  height: 22px;
-  flex: none;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: var(--glass-edge);
-  color: #f5f5f7;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  /* Шапка касаний не перехватывает, а эта кнопка должна их получать */
-  pointer-events: auto;
-  transition: transform 0.12s ease, background-color 0.2s ease;
-}
-
-.stage[data-section="staking"] .hdr__info {
-  display: grid;
-  place-items: center;
-}
-
-.hdr__info:active {
-  transform: scale(0.88);
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
 /* Название раздела стоит на одном месте во всех разделах — меняется
    только текст, поэтому шапка не дёргается при переходах */
 .hdr__section {
@@ -3269,9 +3228,7 @@ body {
 /* У карточки товара и у листа стейкинга шапка тоже ложится поверх
    подложки: та доходит до самого верха листа, и полоска-ручка лежит
    прямо на ней */
-.sheet--buy .sheet__head,
-.sheet--stake .sheet__head,
-.sheet--spot .sheet__head {
+.sheet--buy .sheet__head {
   position: absolute;
   top: 0;
   left: 0;
@@ -3281,15 +3238,8 @@ body {
   padding-top: 8px;
 }
 
-.sheet--buy .sheet__grabber,
-.sheet--stake .sheet__grabber,
-.sheet--spot .sheet__grabber {
+.sheet--buy .sheet__grabber {
   background: rgba(255, 255, 255, 0.4);
-}
-
-.sheet--stake .sheet__scroll,
-.sheet--spot .sheet__scroll {
-  padding-top: 0;
 }
 
 .own-dismiss {
@@ -3307,464 +3257,6 @@ body {
 .own-dismiss:active {
   transform: scale(0.98);
   background: rgba(255, 255, 255, 0.12);
-}
-
-/* Стейкинг.
-
-   Раздел пока макет: ничего не ставится и не считается, поэтому в итоге
-   нули, а сверху стоит пометка «Скоро». */
-
-.stage[data-section="staking"] .pane[data-pane="staking"] {
-  display: block;
-}
-
-.stk {
-  padding: 0 16px;
-}
-
-/* Итог: тёмная плита с подсветкой сверху — от неё раздел начинается */
-.stk__hero {
-  position: relative;
-  overflow: hidden;
-  padding: 18px 20px 16px;
-  border-radius: 26px;
-  background: linear-gradient(180deg, #1a1a20 0%, #121216 100%);
-  box-shadow: var(--glass-edge);
-}
-
-/* Свет из-за верхнего края: голубое свечение по центру, плита кажется
-   подсвеченной изнутри. Размытие сверх градиента сглаживает границу, за
-   которой свет сходит на нет */
-.stk__glow {
-  position: absolute;
-  top: -60%;
-  left: 50%;
-  width: 124%;
-  height: 124%;
-  translate: -50%;
-  background: radial-gradient(46% 46% at 50% 58%, rgba(96, 196, 255, 0.58) 0%, rgba(96, 196, 255, 0) 72%);
-  filter: blur(14px);
-  pointer-events: none;
-}
-
-.stk__cap {
-  position: relative;
-  font-size: 14px;
-  color: var(--hint);
-}
-
-.stk__sum {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-top: 6px;
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.stk__star {
-  width: 28px;
-  height: 28px;
-  display: block;
-}
-
-/* В крупной строке считаем подарки, а не звёзды: в стейкинг кладут их */
-.stk__gifticon {
-  width: 25px;
-  height: 29px;
-  flex: none;
-  fill: currentColor;
-}
-
-.stk__sum small {
-  align-self: flex-end;
-  padding-bottom: 3px;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--hint);
-}
-
-.stk__star--small {
-  width: 15px;
-  height: 15px;
-}
-
-/* Два счётчика — своими плитками внутри плиты: так они читаются парой, а
-   не продолжением крупной суммы над ними */
-.stk__split {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.stk__stat {
-  min-width: 0;
-  display: grid;
-  gap: 7px;
-  padding: 11px 13px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.045);
-  box-shadow: var(--glass-edge);
-  font-size: 13px;
-  color: var(--hint);
-}
-
-.stk__stat b {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-/* Вывод и реинвест — равные между собой и обе тише белой кнопки раздела */
-.stk__acts {
-  position: relative;
-  display: grid;
-  /* Слова разной длины: «Реинвестировать» вдвое длиннее «Вывода», и поровну
-     поделённая строка обрезала бы его многоточием */
-  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.stk__act {
-  min-width: 0;
-  min-height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: var(--glass-edge);
-  color: #f5f5f7;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.12s ease, background-color 0.2s ease;
-}
-
-.stk__act span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stk__act svg {
-  width: 17px;
-  height: 17px;
-  flex: none;
-}
-
-.stk__act:active {
-  transform: scale(0.97);
-  background-color: rgba(255, 255, 255, 0.13);
-}
-
-.stk__title {
-  margin: 24px 0 12px;
-  font-size: 17px;
-  font-weight: 600;
-}
-
-/* Главное действие раздела — белая кнопка: на тёмном она читается как
-   единственное, что здесь нажимают */
-.stk__add {
-  width: 100%;
-  min-height: 56px;
-  margin-top: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 0 20px;
-  border: 0;
-  border-radius: 999px;
-  background: #fff;
-  color: #0d0d10;
-  font-family: inherit;
-  font-size: 17px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 10px 26px -14px rgba(255, 255, 255, 0.5);
-  transition: transform 0.12s ease, filter 0.2s ease;
-}
-
-.stk__add:active {
-  transform: scale(0.98);
-  filter: brightness(0.92);
-}
-
-.stk__add svg {
-  width: 17px;
-  height: 19px;
-  fill: currentColor;
-}
-
-/* Ставить нечего */
-.stk__none {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  padding: 26px 20px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: var(--glass-edge);
-  text-align: center;
-}
-
-.stk__none b {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.stk__none p {
-  max-width: 260px;
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--hint);
-}
-
-.stk__none button {
-  margin-top: 6px;
-  min-height: 42px;
-  padding: 0 20px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* Три шага: номер в кружке и строка рядом */
-.stk__how {
-  display: grid;
-  gap: 14px;
-  padding: 0;
-  list-style: none;
-}
-
-.stk__how li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--hint);
-}
-
-.stk__how i {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(62, 136, 247, 0.16);
-  color: var(--accent);
-  font-size: 13px;
-  font-style: normal;
-  font-weight: 700;
-}
-
-/* Поставленные подарки: та же витрина, что в профиле */
-.stk__done {
-  margin-top: 4px;
-}
-
-.stk__list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.stk__list .gift {
-  --ribbon-w: 88px;
-  --ribbon-h: 36px;
-  --ribbon-cx: 24px;
-  --ribbon-cy: 22px;
-  --ribbon-font: 12px;
-  --ribbon-max: 64px;
-  --gift-radius: 20px;
-  --pattern-bottom: 0px;
-  --pattern-radius: var(--gift-radius);
-  --pattern-opacity: 0.18;
-  height: auto;
-  aspect-ratio: 1;
-  padding: 8px;
-}
-
-.stk__list .gift__art {
-  top: 50%;
-  transform: translate(-50%, -50%);
-  /* Подарок подо льдом — цвет приглушён, будто за стеклом */
-  filter: saturate(0.7) brightness(0.92);
-  transform-origin: center;
-  width: 74%;
-}
-
-/* Лёд: холодная плёнка поверх карточки и матовый край */
-.stk__frost {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  border-radius: inherit;
-  background:
-    linear-gradient(150deg, rgba(168, 216, 255, 0.22) 0%, rgba(120, 180, 255, 0.06) 45%, rgba(40, 90, 170, 0.18) 100%);
-  box-shadow: inset 0 0 0 1px rgba(168, 216, 255, 0.22);
-  pointer-events: none;
-}
-
-/* Сколько осталось — внизу карточки */
-.stk__timer {
-  position: absolute;
-  z-index: 3;
-  left: 6px;
-  right: 6px;
-  bottom: 6px;
-  padding: 4px 0;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
-  box-shadow: var(--glass-edge);
-  font-size: 11px;
-  text-align: center;
-  color: #cfe7ff;
-}
-
-/* Полоса срока в листе */
-.stk__bar {
-  height: 6px;
-  margin: 18px 0 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-.stk__bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #7fc4ff, #3e88f7);
-  transition: width 0.5s ease;
-}
-
-/* В листе лёд идёт без светлой обводки: по краю подложки она читалась
-   белой рамкой вокруг подарка */
-.sheet--spot .stk__frost {
-  box-shadow: none;
-}
-
-/* Предупреждение встаёт поверх листа, из которого его открыли */
-.sheet--warn {
-  z-index: 210;
-}
-
-/* Предупреждение перед ставкой */
-.warn__text {
-  padding: 2px 2px 6px;
-  font-size: 15px;
-  line-height: 1.45;
-  color: var(--hint);
-}
-
-/* Правило цены над витриной выбора */
-.picks__rule {
-  flex: none;
-  margin: -2px 16px 10px;
-  font-size: 13px;
-  color: var(--hint);
-}
-
-/* Подарок дешевле порога ставить нельзя — он приглушён */
-.picks .gift.is-off {
-  opacity: 0.4;
-  cursor: default;
-}
-
-/* Выбор подарка: та же витрина, что в профиле, — три в ряд */
-.picks {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  padding-bottom: 12px;
-}
-
-.picks .gift {
-  --ribbon-w: 88px;
-  --ribbon-h: 36px;
-  --ribbon-cx: 24px;
-  --ribbon-cy: 22px;
-  --ribbon-font: 12px;
-  --ribbon-max: 64px;
-  --gift-radius: 20px;
-  --pattern-bottom: 0px;
-  --pattern-radius: var(--gift-radius);
-  --pattern-opacity: 0.18;
-  height: auto;
-  aspect-ratio: 1;
-  padding: 8px;
-}
-
-/* Цены на выбранном подарке нет — он встаёт по центру карточки */
-.picks .gift__art {
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 74%;
-}
-
-/* Окну выбора нужен потолок: подарков бывает много. Мало — окно само
-   станет ниже */
-.sheet--picks .sheet__panel {
-  max-height: min(560px, 82dvh);
-}
-
-.picks .stk__none {
-  grid-column: 1 / -1;
-}
-
-/* Срок в листе: три отрезка, один выбран */
-.stk__label {
-  margin: 20px 0 10px;
-  font-size: 14px;
-  color: var(--hint);
-}
-
-.stk__terms {
-  display: flex;
-  gap: 8px;
-}
-
-.stk__term {
-  flex: 1 1 0;
-  min-height: 46px;
-  border: 0;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: var(--glass-edge);
-  color: #f5f5f7;
-  font-family: inherit;
-  font-size: 15px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.stk__term.is-on {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
 }
 
 /* Задания */
@@ -6018,4 +5510,258 @@ body {
 
 .gp-top__row.is-link:active {
   opacity: 0.7;
+}
+
+/* Распроданный подарок: ни количества, ни купонов, ни TON — только длинная
+   кнопка «Перейти в маркет» */
+.sheet.is-sold .gp-qty,
+.sheet.is-sold #sheet-buy,
+.sheet.is-sold #cpn,
+.sheet.is-sold #tonpay {
+  display: none !important;
+}
+
+.gp-store {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.gp-store[hidden] {
+  display: none;
+}
+
+/* Кнопка задания — `._task-action ._btn` memgift: «Начать» стеклом,
+   «Забрать» голубым, выполненное — зелёная галочка */
+.task__btn {
+  flex: none;
+  height: 32px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 99em;
+  background: linear-gradient(180deg, #232323, #1b1b1b);
+  -webkit-backdrop-filter: blur(28px) saturate(60%);
+  backdrop-filter: blur(28px) saturate(60%);
+  box-shadow: var(--glass-edge-tight);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.task__btn:active {
+  transform: scale(0.95);
+}
+
+.task__btn span {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #f5f5f7;
+}
+
+.task__btn--claim {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.task__btn--claim span {
+  color: #7cb3ff;
+}
+
+.task__btn--done {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  pointer-events: none;
+}
+
+.task__btn--done svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.task__btn.is-loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Сетка чужого профиля — `._comp._item._nfts .items.blocks` memgift:
+   три в ряд, отступ 12, карточка-квадрат со скруглением 20 */
+.vw-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  padding: 2px 16px;
+}
+
+.vw-gift {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 20px;
+  background: #252528;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.18s ease;
+}
+
+.vw-gift:active {
+  transform: scale(0.97);
+}
+
+.vw-gift__symbols {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 20px;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.vw-gift__symbols img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+}
+
+.vw-gift.is-upgraded .vw-gift__symbols {
+  opacity: 0.38;
+}
+
+.vw-gift.is-upgraded .vw-gift__symbols img {
+  width: 110%;
+  height: 110%;
+}
+
+.vw-gift__nft {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 20px;
+  pointer-events: none;
+}
+
+.vw-gift__nft > * {
+  width: 70% !important;
+  height: 70% !important;
+  object-fit: contain;
+  display: block;
+}
+
+.vw-gift.is-upgraded .vw-gift__nft > * {
+  width: 74% !important;
+  height: 74% !important;
+}
+
+.vw-gift__badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 7;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 50px;
+  background: rgba(0, 0, 0, 0.34);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.vw-gift__badge span {
+  color: #f5f5f7;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.15px;
+}
+
+/* Лента — `._rarity`: 88×36, повёрнута на 45°, текст 12px поверх */
+.vw-gift__rarity {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  z-index: 12;
+  width: 0;
+  height: 0;
+  transform: rotate(45deg) translate(2px);
+  pointer-events: none;
+}
+
+.vw-gift__rarity .vw-gift__ribbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: auto;
+  width: 88px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+}
+
+.vw-gift__text {
+  position: absolute;
+  z-index: 2;
+  max-width: 64px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform: translate(-50%, -53%);
+}
+
+.vw-gift__text span {
+  color: #f5f5f7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Окно подарка в чужом профиле — `.vgm-modal` memgift: карточка ниже
+   (236px), узор и модель по центру, кнопок нет */
+.pgm-own.is-foreign .mgm-card,
+.pgm-own.is-foreign .mgm-card__head {
+  height: 236px;
+}
+
+.pgm-own.is-foreign .mgm-card__symbol {
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+}
+
+.pgm-own.is-foreign .mgm-card__symbol img {
+  width: 84%;
+  height: 84%;
+  object-fit: contain;
+}
+
+.pgm-own.is-foreign .mgm-card__model {
+  top: 50%;
+  width: 62%;
+  height: 62%;
+}
+
+/* В чужом профиле кнопок отбора две, и они по размеру текста — как
+   `.filtersItemsItem` memgift, а не на всю ширину */
+.sheet--view .prf-filter__item {
+  flex: 0 0 auto;
+  width: fit-content;
+}
+
+/* Лента под текстом, а не поверх него */
+.vw-gift__rarity .vw-gift__ribbon {
+  z-index: 1;
 }
