@@ -1697,7 +1697,8 @@
        На чёрном фоне Eclipse строка есть всегда (пока не задана — прочерк),
        у остальных — только когда ценность задана */
     const worth = upg ? gift.nft.value || 0 : 0;
-    const showWorth = upg && (gift.nft.backdrop === 'Eclipse' || worth > 0);
+    // Строка «Ценность» — только если админ её добавил
+    const showWorth = upg && worth > 0;
     document.getElementById('owned-value-row').hidden = !showWorth;
     if (showWorth) {
       const value = document.getElementById('owned-value');
@@ -2314,7 +2315,11 @@
   function playTickerIcons() {
     if (!window.lottie) return;
     owned.querySelectorAll('[data-icon]').forEach((box) => {
+      // Скрытая кнопка — значок не заводим: анимация в скрытом месте
+      // получает нулевой размер и потом так и остаётся пустой
+      if (!box.offsetParent) return;
       let player = tickerIcons.get(box);
+      if (player) player.resize();
       if (!player) {
         player = window.lottie.loadAnimation({
           container: box,
@@ -2359,17 +2364,16 @@
     document.getElementById('owned-price').hidden = !price;
     if (price) document.getElementById('owned-price-text').textContent = formatTon(price);
 
+    // «Купить» — у всех, кроме продавца: у него вместо неё «Закрыть»
+    const buyable = Boolean(lot) && !isMine(lot);
     document.getElementById('owned-chrome').hidden = !lot;
-    document.getElementById('owned-lotfoot').hidden = !lot;
-    document.getElementById('owned-close').parentNode.hidden = Boolean(lot);
-    if (!lot) return;
+    document.getElementById('owned-lotfoot').hidden = !buyable;
+    document.getElementById('owned-close').parentNode.hidden = buyable;
+    if (!buyable) return;
 
     paintGram();
-    const buy = document.getElementById('owned-buy');
+    document.getElementById('owned-buy').disabled = false;
     document.getElementById('owned-buy-price').textContent = formatTon(lot.nano);
-    // Свой лот не купить, и не хватает на балансе — кнопка гаснет,
-    // как `checkBalanceAndPrice` memgift
-    buy.disabled = isMine(lot) || (Number(ME && ME.tonNano) || 0) < lot.nano;
   }
 
   function initOwnedTools() {
@@ -5192,7 +5196,11 @@
   // Окно своего подарка перерисовываем по свежему счёту
   function refreshOwned(nftId) {
     const fresh = OWNED.upg.find((one) => one.nft.id === nftId);
-    if (fresh && ownSheet && ownGift && ownGift.nft && ownGift.nft.id === nftId) fillOwned(fresh);
+    if (fresh && ownSheet && ownGift && ownGift.nft && ownGift.nft.id === nftId) {
+      fillOwned(fresh);
+      // Сняли с продажи — вернулась «Вывести», её значок заводим сейчас
+      playTickerIcons();
+    }
   }
 
   // --- Покупка лота ---
@@ -5202,6 +5210,12 @@
   function buyLot(gift) {
     const lot = gift && gift.lot;
     if (!lot || buying || isMine(lot)) return;
+    // Не хватает на балансе — подсказываем пополнить, а не молчим
+    if ((Number(ME && ME.tonNano) || 0) < lot.nano) {
+      haptic('light');
+      toast(t('market.low'));
+      return;
+    }
     const button = document.getElementById('owned-buy');
     buying = true;
     button.classList.add('is-loading');
@@ -5284,8 +5298,12 @@
   let VIEWED = { name: '', gifts: [], upg: [] };
   let viewAsk = 0;
 
+  // Выставленный на маркет подарок в чужом профиле открывается лотом —
+  // с ценой и «Купить», как в маркете
   const viewList = ownedList('vw', (kind) => (kind === 'gifts' ? VIEWED.gifts.concat(VIEWED.upg) : []),
-    (gift) => ownSheet.open(gift), viewCard);
+    (gift) => ownSheet.open(gift.nft && gift.nft.lot
+      ? lotView({ id: gift.nft.lot, nano: gift.nft.lotNano, nft: gift.nft, seller: { id: VIEWED.id, name: VIEWED.name } })
+      : gift), viewCard);
 
   function personName(person) {
     return [person.firstName, person.lastName].filter(Boolean).join(' ') ||

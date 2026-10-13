@@ -2073,3 +2073,21 @@
   fill: currentColor;
   stroke: none;
 }
+
+/* Ценность улучшенного: «+ Ценность» или поле с крестиком */
+.ad-nft-value-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ad-nft-value-slot .ad-nft-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.ad-nft-add {
+  height: 32px;
+  font-size: 13px;
+}

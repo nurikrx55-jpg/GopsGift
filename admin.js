@@ -1068,7 +1068,7 @@
         upForm,
         models,
         addModel,
-        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное. Номер #N идёт от остатка: купили первый из 1000 — улучшенный получит #999. Ценность в рублях ставится каждому улучшенному отдельно — в «Люди», у владельца.')
+        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное. Номер #N идёт от остатка: купили первый из 1000 — улучшенный получит #999. Ценность в рублях добавляется каждому улучшенному отдельно — в «Люди», у владельца, кнопкой «+ Ценность».')
       ));
 
       const sync = () => {
@@ -1813,15 +1813,42 @@
             const done = () => toast('id скопирован');
             if (navigator.clipboard) navigator.clipboard.writeText(nft.id).then(done, done);
           });
-          const value = input(nftValues[nft.id] || '', { type: 'number', placeholder: 'Ценность, ₽' });
-          value.addEventListener('input', () => {
-            nftValues[nft.id] = Math.max(0, parseInt(value.value, 10) || 0);
-          });
-          // Ценность — в рублях: значок ₽ вместо звезды
-          const valueBox = el('span', 'ad-affix ad-affix--rub');
-          valueBox.append(el('i', null, '₽'), value);
-          valueBox.classList.add('ad-nft-value');
-          name.append(idLine, valueBox);
+          name.appendChild(idLine);
+
+          /* Ценность — строка в таблице подарка у человека. Её нет, пока
+             админ не добавил: «+ Ценность» открывает поле, крестик убирает
+             поле и строку. Изменение уйдёт кнопкой «Сохранить» */
+          const valueSlot = el('div', 'ad-nft-value-slot');
+          const drawValue = (open) => {
+            valueSlot.textContent = '';
+            if (!open) {
+              const add = el('button', 'ad-chip ad-nft-add', '+ Ценность');
+              add.type = 'button';
+              add.addEventListener('click', () => {
+                haptic('pick');
+                drawValue(true);
+                valueSlot.querySelector('input').focus();
+              });
+              valueSlot.appendChild(add);
+              return;
+            }
+            const value = input(nftValues[nft.id] || '', { type: 'number', placeholder: 'Ценность, ₽' });
+            value.addEventListener('input', () => {
+              nftValues[nft.id] = Math.max(0, parseInt(value.value, 10) || 0);
+            });
+            // Ценность — в рублях: значок ₽ вместо звезды
+            const valueBox = el('span', 'ad-affix ad-affix--rub');
+            valueBox.append(el('i', null, '₽'), value);
+            valueBox.classList.add('ad-nft-value');
+            const drop = iconButton('close', 'Убрать ценность', () => {
+              nftValues[nft.id] = 0;
+              haptic('pick');
+              drawValue(false);
+            });
+            valueSlot.append(valueBox, drop);
+          };
+          drawValue(nftValues[nft.id] > 0);
+          name.appendChild(valueSlot);
 
           const mini = el('div', 'ad-mini');
           mini.appendChild(iconButton('trash', 'Забрать', () => {
