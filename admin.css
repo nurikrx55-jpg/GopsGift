@@ -1924,3 +1924,29 @@
 .ad-switch[aria-pressed="true"] .ad-toggle::after {
   transform: translateX(20px);
 }
+
+/* Улучшенный подарок у человека: id под названием и поле ценности */
+.ad-own--nft {
+  align-items: flex-start;
+}
+
+.ad-nft-id {
+  justify-self: start;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ad-nft-value {
+  margin-top: 8px;
+}
+
+.ad-nft-value .ad-input {
+  height: 40px;
+  font-size: 15px;
+}

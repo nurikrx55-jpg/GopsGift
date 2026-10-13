@@ -934,7 +934,6 @@
          символ выпадают из общих наборов memgift. Пока моделей нет, кнопка
          «Улучшить» у людей приглушена */
       const upPrice = input(draft.upgradePrice || 0, { type: 'number' });
-      const eclipse = input(draft.eclipseValue || 0, { type: 'number' });
       const models = el('div', 'ad-models');
 
       const drawModels = () => {
@@ -998,15 +997,12 @@
       dropTarget(addModel, takeModel);
 
       const upForm = el('div', 'ad-form');
-      upForm.append(
-        field('Цена улучшения', affix(upPrice, 'star-img'), true),
-        field('Ценность с чёрным фоном (Eclipse)', affix(eclipse, 'star-img'), true)
-      );
+      upForm.append(field('Цена улучшения', affix(upPrice, 'star-img'), true));
       body.appendChild(group('Улучшение',
         upForm,
         models,
         addModel,
-        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное. Ценность видна в окне подарка, которому выпал чёрный фон Eclipse; 0 — прочерк.')
+        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное. Номер #N идёт от остатка: купили первый из 1000 — улучшенный получит #999. Ценность ставится каждому улучшенному отдельно — в «Люди», у владельца.')
       ));
 
       const sync = () => {
@@ -1062,7 +1058,6 @@
               left: Number(left.value) || 0,
               status: status.value.trim(),
               upgradePrice: Number(upPrice.value) || 0,
-              eclipseValue: Number(eclipse.value) || 0,
               models: draft.models
                 .filter((one) => one.art)
                 .map((one) => ({ id: one.id, name: String(one.name || '').trim() || 'Model', art: one.art, artType: one.artType, rate: one.rate || 0 }))
@@ -1629,6 +1624,9 @@
     const gifts = (person.gifts || []).filter((id) => byId.has(id));
     // Улучшенные — каждый свой, со своей моделью и номером; их можно только забрать
     const nfts = (person.nfts || []).slice();
+    // Ценность каждого улучшенного — по его id; уйдёт на сервер при «Сохранить»
+    const nftValues = {};
+    nfts.forEach((one) => { nftValues[one.id] = one.value || 0; });
 
     openSheet('Пользователь', (body, foot) => {
       // Шапка: кто это
@@ -1741,6 +1739,22 @@
             el('span', null, [nft.model && nft.model.name, nft.backdrop, nft.symbol].filter(Boolean).join(' · '))
           );
 
+          // id и ценность — строкой под названием
+          const idLine = el('button', 'ad-nft-id', nft.id);
+          idLine.type = 'button';
+          idLine.title = 'Скопировать id';
+          idLine.addEventListener('click', () => {
+            const done = () => toast('id скопирован');
+            if (navigator.clipboard) navigator.clipboard.writeText(nft.id).then(done, done);
+          });
+          const value = input(nftValues[nft.id] || '', { type: 'number', placeholder: 'Ценность' });
+          value.addEventListener('input', () => {
+            nftValues[nft.id] = Math.max(0, parseInt(value.value, 10) || 0);
+          });
+          const valueBox = affix(value, 'star-img');
+          valueBox.classList.add('ad-nft-value');
+          name.append(idLine, valueBox);
+
           const mini = el('div', 'ad-mini');
           mini.appendChild(iconButton('trash', 'Забрать', () => {
             nfts.splice(nfts.indexOf(nft), 1);
@@ -1748,6 +1762,7 @@
             drawOwned();
           }, 'ad-icon--danger'));
           row.append(thumb, name, mini);
+          row.classList.add('ad-own--nft');
           ownedList.appendChild(row);
         });
 
@@ -1830,6 +1845,7 @@
               coupons: coupons.read(),
               gifts: gifts,
               nfts: nfts.map((one) => one.id),
+              nftValues: nftValues,
               rigBackdrop: rig
             }
           }, (data) => {

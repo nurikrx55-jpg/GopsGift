@@ -1674,12 +1674,13 @@
       put('owned-bd-pct', pct(backdrop && backdrop.rate));
     }
 
-    // Ценность — у улучшенного на чёрном фоне Eclipse; сколько, задаёт админка
-    const eclipse = upg && gift.nft.backdrop === 'Eclipse';
-    document.getElementById('owned-value-row').hidden = !eclipse;
-    if (eclipse) {
-      const base = giftById(gift.id);
-      const worth = base && base.eclipseValue;
+    /* Ценность — своя у каждого улучшенного, ставит админка по его id.
+       На чёрном фоне Eclipse строка есть всегда (пока не задана — прочерк),
+       у остальных — только когда ценность задана */
+    const worth = upg ? gift.nft.value || 0 : 0;
+    const showWorth = upg && (gift.nft.backdrop === 'Eclipse' || worth > 0);
+    document.getElementById('owned-value-row').hidden = !showWorth;
+    if (showWorth) {
       const value = document.getElementById('owned-value');
       value.textContent = '';
       if (worth) {

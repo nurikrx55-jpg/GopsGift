@@ -16,6 +16,7 @@
    gg:tontx:<hash>    — отметка, что этот перевод TON уже зачислен
    gg:upgseq          — сколько раз улучшали каждый подарок: отсюда номер #N
    gg:rig:<id>        — фон, который админ подкрутил на следующее улучшение
+   gg:upglow:<gift>   — последний выданный номер #N у подарка с тиражом
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -45,6 +46,7 @@ const K = {
   tontx: (hash) => 'gg:tontx:' + hash,
   upgseq: 'gg:upgseq',
   rig: (id) => 'gg:rig:' + id,
+  upglow: (gift) => 'gg:upglow:' + gift,
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -137,10 +139,7 @@ export function cleanGift(input) {
     // Улучшение, как у memgift: модели подарка и цена в звёздах. Пока
     // моделей нет, кнопка «Улучшить» в профиле приглушена
     models: cleanModels(input.models),
-    upgradePrice: int(input.upgradePrice, 0, 100000),
-    // Ценность улучшенного подарка на чёрном фоне Eclipse, в звёздах. Её
-    // показывает строка «Ценность» в окне такого подарка
-    eclipseValue: int(input.eclipseValue, 0, 1000000000)
+    upgradePrice: int(input.upgradePrice, 0, 100000)
   };
 
   if (!gift.name) throw new InputError('Без названия подарок не сохранить');
@@ -304,7 +303,9 @@ function cleanNft(one) {
     backdrop: str(one.backdrop, 32),
     symbol: str(one.symbol, 32),
     num: int(one.num, 0, 1e9),
-    at: int(one.at, 0, 1e15)
+    at: int(one.at, 0, 1e15),
+    // Ценность этого конкретного подарка в звёздах — ставит админка
+    value: int(one.value, 0, 1e9)
   };
   return nft.id && nft.gift ? nft : null;
 }
@@ -459,9 +460,15 @@ export async function saveAccount(id, input, content) {
     gifts: cleanGiftList(input.gifts, known),
     // Улучшенные админка только забирает: присылает, какие оставить.
     // Новых она не создаёт — те появляются только улучшением
-    nfts: Array.isArray(input.nfts)
+    nfts: (Array.isArray(input.nfts)
       ? before.nfts.filter((one) => input.nfts.map(String).indexOf(one.id) !== -1)
-      : before.nfts,
+      : before.nfts).map((one) => {
+      // Ценность админка ставит каждому улучшенному по его id
+      const values = input.nftValues && typeof input.nftValues === 'object' ? input.nftValues : {};
+      return Object.prototype.hasOwnProperty.call(values, one.id)
+        ? Object.assign({}, one, { value: int(values[one.id], 0, 1e9) })
+        : one;
+    }),
     tonNano: before.tonNano,
     sent: before.sent,
     bought: before.bought,
@@ -653,7 +660,7 @@ async function rollUpgrade(userId, giftId, content) {
   const backdrop = rigged || weighted(attrs.backdrops);
   if (rig) await command('DEL', K.rig(id));
   const symbol = weighted(attrs.symbols);
-  const num = await command('ZINCRBY', K.upgseq, 1, giftId);
+  const num = await nextNumber(gift);
 
   const nft = {
     id: newId('nft'),
@@ -669,6 +676,22 @@ async function rollUpgrade(userId, giftId, content) {
   acct.nfts.push(nft);
   await command('SET', K.acct(id), JSON.stringify(acct));
   return nft;
+}
+
+/* Номер #N считается от остатка тиража: вышло 1000, купили один —
+   осталось 999, и улучшенный получает #999. Каждый следующий номер меньше
+   предыдущего, поэтому не повторяется, даже если между улучшениями никто
+   ничего не купил. У подарка без тиража номера идут по порядку: #1, #2… */
+async function nextNumber(gift) {
+  if (typeof gift.left !== 'number' || !gift.total) {
+    return int(await command('ZINCRBY', K.upgseq, 1, gift.id), 1, 1e9);
+  }
+
+  const raw = await command('GET', K.upglow(gift.id));
+  const last = raw ? int(raw, 0, 1e9) : Infinity;
+  const num = Math.max(1, Math.min(gift.left, last - 1));
+  await command('SET', K.upglow(gift.id), String(num));
+  return num;
 }
 
 // Бесплатное улучшение (цена ноль или админ) — сразу, без счёта
