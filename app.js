@@ -1830,12 +1830,52 @@
     else window.open(url, '_blank', 'noopener');
   }
 
+  /* Свой подарок из профиля делится иначе: ссылка открывает профиль того,
+     кто поделился, и сразу окно этого подарка (startapp=p_<id>_<подарок>).
+     Улучшенный узнаётся по своему номеру, обычный — по подарку витрины */
+  function ownedLink(gift) {
+    const user = tgUser();
+    const owner = gift.ownerName ? VIEWED.id : user && user.id;
+    if (!owner) return giftLink(gift);
+    return BOT_LINK + '?startapp=p_' + owner + '_' + encodeURIComponent(gift.nft ? gift.nft.id : gift.id);
+  }
+
+  function shareOwned(gift) {
+    haptic('light');
+    const name = gift.nft ? gift.name + ' #' + gift.nft.num : gift.name;
+    const url = 'https://t.me/share/url?url=' + encodeURIComponent(ownedLink(gift)) +
+      '&text=' + encodeURIComponent(t(gift.ownerName ? 'gift.shareText' : 'gift.shareMine', { name: name }));
+    if (tg && tg.openTelegramLink && tg.initData) tg.openTelegramLink(url);
+    else window.open(url, '_blank', 'noopener');
+  }
+
+  // Подарок из своего профиля: обычный — по id витрины, улучшенный — по номеру
+  function findOwned(list, key) {
+    return list.find((one) => one.nft && one.nft.id === key) ||
+      list.find((one) => !one.nft && one.id === key) || null;
+  }
+
   // Пришли по такой ссылке — сразу открываем страницу подарка
   function openStartGift() {
     let start = String((tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || '');
     if (!start && tg && tg.initData) {
       try { start = new URLSearchParams(tg.initData).get('start_param') || ''; } catch (_) {}
     }
+    // Чужой (или свой) подарок из профиля: профиль человека и окно подарка
+    const shared = /^p_(\d{1,20})_([a-z0-9-]+)$/.exec(start);
+    if (shared) {
+      const me = tgUser();
+      if (me && String(me.id) === shared[1]) {
+        const at = tabs.findIndex((tab) => tab.dataset.section === 'profile');
+        if (at !== -1) selectTab(at);
+        const mine = findOwned(OWNED.gifts.concat(OWNED.upg), shared[2]);
+        if (mine && ownSheet) ownSheet.open(mine);
+      } else {
+        openView({ id: shared[1], focus: shared[2] });
+      }
+      return;
+    }
+
     const match = /^gift_([a-z0-9-]+)$/.exec(start);
     const gift = match && giftById(match[1]);
     if (gift && buySheet) buySheet.open(gift);
@@ -1857,12 +1897,12 @@
 
     document.getElementById('owned-upgrade').addEventListener('click', upgradeOwned);
     document.getElementById('owned-share').addEventListener('click', () => {
-      if (ownGift) shareGift(ownGift);
+      if (ownGift) shareOwned(ownGift);
     });
 
     document.getElementById('owned-copy').addEventListener('click', () => {
       if (!ownGift) return;
-      copyText(giftLink(ownGift), 'profile.linkCopied');
+      copyText(ownedLink(ownGift), 'profile.linkCopied');
     });
   }
 
@@ -4183,6 +4223,10 @@
 
         paintViewHead(name, user.photo, user.id, VIEWED.gifts.length + VIEWED.upg.length);
         renderOwned(viewList);
+
+        // Пришли по ссылке «Поделиться» — сразу открываем тот самый подарок
+        const focus = person.focus && findOwned(VIEWED.gifts.concat(VIEWED.upg), person.focus);
+        if (focus && ownSheet) ownSheet.open(focus);
       })
       .catch(() => {});
   }

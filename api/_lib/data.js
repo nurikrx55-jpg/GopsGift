@@ -454,8 +454,11 @@ export async function saveAccount(id, input, content) {
     stars: int(input.stars, 0, 1e9),
     coupons: int(input.coupons, 0, 1e9),
     gifts: cleanGiftList(input.gifts, known),
-    // Улучшенные подарки админка не правит — они живут своей жизнью
-    nfts: before.nfts,
+    // Улучшенные админка только забирает: присылает, какие оставить.
+    // Новых она не создаёт — те появляются только улучшением
+    nfts: Array.isArray(input.nfts)
+      ? before.nfts.filter((one) => input.nfts.map(String).indexOf(one.id) !== -1)
+      : before.nfts,
     tonNano: before.tonNano,
     sent: before.sent,
     bought: before.bought,

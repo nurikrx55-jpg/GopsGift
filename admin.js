@@ -1622,6 +1622,8 @@
     // Снятые с витрины подарки в счёте не показываем: при сохранении сервер
     // их всё равно отбросит, а сырой id в списке только путает
     const gifts = (person.gifts || []).filter((id) => byId.has(id));
+    // Улучшенные — каждый свой, со своей моделью и номером; их можно только забрать
+    const nfts = (person.nfts || []).slice();
 
     openSheet('Пользователь', (body, foot) => {
       // Шапка: кто это
@@ -1678,6 +1680,21 @@
       const ownedHead = el('div', 'ad-card__head');
       const ownedTitle = el('h3');
       ownedHead.appendChild(ownedTitle);
+
+      // Забрать всё разом — обычные и улучшенные. Уйдёт на сервер при «Сохранить»
+      const wipe = button('Обнулить', {
+        kind: 'danger',
+        extra: 'ad-btn--top',
+        onClick: async () => {
+          if (!gifts.length && !nfts.length) return;
+          if (!(await ask('Забрать у ' + nameOf(person) + ' все подарки, включая улучшенные? Изменение сохранится кнопкой «Сохранить».'))) return;
+          gifts.length = 0;
+          nfts.length = 0;
+          haptic('pick');
+          drawOwned();
+        }
+      });
+      ownedHead.appendChild(wipe);
       owned.appendChild(ownedHead);
       const ownedList = el('div', 'ad-owned');
       owned.appendChild(ownedList);
@@ -1698,12 +1715,36 @@
         ownedList.textContent = '';
         const counted = new Map();
         gifts.forEach((giftId) => counted.set(giftId, (counted.get(giftId) || 0) + 1));
-        ownedTitle.textContent = 'Подарки · ' + num(gifts.length);
+        ownedTitle.textContent = 'Подарки · ' + num(gifts.length + nfts.length);
+        wipe.hidden = !gifts.length && !nfts.length;
 
-        if (!counted.size) {
+        if (!counted.size && !nfts.length) {
           ownedList.appendChild(el('p', 'ad-note', 'Подарков нет'));
           return;
         }
+
+        // Улучшенные — строкой на каждый: модель, номер, фон и символ
+        nfts.slice().reverse().forEach((nft) => {
+          const gift = byId.get(nft.gift);
+          const row = el('div', 'ad-own');
+          const thumb = el('span', 'ad-thumb');
+          if (nft.model && nft.model.art) showArt(thumb, nft.model);
+
+          const name = el('span', 'ad-own__name');
+          name.append(
+            el('b', null, (gift ? gift.name : nft.gift) + ' #' + nft.num),
+            el('span', null, [nft.model && nft.model.name, nft.backdrop, nft.symbol].filter(Boolean).join(' · '))
+          );
+
+          const mini = el('div', 'ad-mini');
+          mini.appendChild(iconButton('trash', 'Забрать', () => {
+            nfts.splice(nfts.indexOf(nft), 1);
+            haptic('pick');
+            drawOwned();
+          }, 'ad-icon--danger'));
+          row.append(thumb, name, mini);
+          ownedList.appendChild(row);
+        });
 
         counted.forEach((count, giftId) => {
           const gift = byId.get(giftId);
@@ -1783,6 +1824,7 @@
               stars: stars.read(),
               coupons: coupons.read(),
               gifts: gifts,
+              nfts: nfts.map((one) => one.id),
               rigBackdrop: rig
             }
           }, (data) => {
