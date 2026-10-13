@@ -591,6 +591,46 @@
     return { center: one ? one.center : '#666', around: one ? one.around : '#1a1a1a' };
   }
 
+  /* Лента «on sale» — `saleRibbonStyle` memgift: цвет фона подарка,
+     насыщеннее на треть; от светлее к темнее по диагонали */
+  let saleSeq = 0;
+
+  function hexToRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+    const v = m ? parseInt(m[1], 16) : 0x4a4a52;
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+  }
+
+  function rgbToHex(rgb) {
+    return '#' + rgb.map((c) => Math.round(Math.min(255, Math.max(0, c))).toString(16).padStart(2, '0')).join('');
+  }
+
+  function saturateColor(hex, part) {
+    const rgb = hexToRgb(hex);
+    const grey = (rgb[0] + rgb[1] + rgb[2]) / 3;
+    return rgbToHex(rgb.map((c) => c + (c - grey) * part));
+  }
+
+  function darkenColor(hex, part) {
+    return rgbToHex(hexToRgb(hex).map((c) => c * (1 - part)));
+  }
+
+  function paintSale(badge, center, bare) {
+    const base = saturateColor(center || '#4A4A52', 0.34);
+    const id = 'sale-' + (++saleSeq);
+    badge.style.setProperty('--ribbon-fill', 'url(#' + id + ')');
+    badge.innerHTML = '<svg class="gift__ribbon" viewBox="-2 -2 124 36" aria-hidden="true">' +
+      '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop stop-color="' + boostColor(base, 0.14) + '"></stop>' +
+      '<stop offset="1" stop-color="' + darkenColor(base, 0.26) + '"></stop>' +
+      '</linearGradient></defs><use href="#ribbon-shape"></use></svg>';
+    if (bare) return;
+    const label = document.createElement('span');
+    label.className = 'gift__label';
+    label.textContent = 'on sale';
+    badge.appendChild(label);
+  }
+
   // Карточка улучшенного в профиле — `.item._gift.is-upgraded` memgift
   function nftCard(gift, onPick) {
     const card = document.createElement('article');
@@ -616,11 +656,11 @@
     num.textContent = '#' + gift.nft.num;
     card.appendChild(num);
 
-    // Выставлен на маркете — пометка в углу, как лента «Sale» у memgift
+    // Выставлен на маркете — лента «on sale», как у memgift
     if (gift.nft.lot) {
       const sale = document.createElement('span');
-      sale.className = 'gift__sale';
-      sale.innerHTML = '<svg viewBox="0 -1 24 24" aria-hidden="true"><use href="#market"></use></svg>';
+      sale.className = 'gift__badge gift__badge--sale';
+      paintSale(sale, colors.center);
       card.appendChild(sale);
     }
 
@@ -2907,10 +2947,18 @@
     unlinkSheet = createSheet(document.getElementById('unlink'));
 
     document.getElementById('prf-walletpage').addEventListener('click', openWalletPage);
-    ['hdr-gram-btn', 'prf-gram-btn', 'mkt-gram-btn', 'owned-balance-btn'].forEach((id) => {
+    ['hdr-gram-btn', 'prf-gram-btn', 'mkt-gram-btn'].forEach((id) => {
       const node = document.getElementById(id);
       if (node) node.addEventListener('click', openWalletPage);
     });
+    // Баланс над окном лота — как у memgift: окно закрывается, открывается кошелёк
+    const lotBalance = document.getElementById('owned-balance-btn');
+    if (lotBalance) {
+      lotBalance.addEventListener('click', () => {
+        if (ownSheet) ownSheet.close();
+        openWalletPage();
+      });
+    }
 
     document.getElementById('prf-wallet').addEventListener('click', () => {
       if (walletAddr) {
@@ -5373,6 +5421,22 @@
     art.className = 'vw-gift__nft';
     card.appendChild(art);
     showShot(art, artOf(gift));
+
+    // Выставлен на маркете — лента «on sale» той же формы
+    if (upg && gift.nft.lot) {
+      const rib = document.createElement('div');
+      rib.className = 'vw-gift__rarity';
+      const image = document.createElement('span');
+      image.className = 'gift__badge vw-gift__ribbon';
+      paintSale(image, backdropColors(gift).center, true);
+      const text = document.createElement('div');
+      text.className = 'vw-gift__text';
+      const label = document.createElement('span');
+      label.textContent = 'on sale';
+      text.appendChild(label);
+      rib.append(image, text);
+      card.appendChild(rib);
+    }
 
     const sold = !upg && gift.left === 0;
     if (!upg && (gift.badge || sold)) {
