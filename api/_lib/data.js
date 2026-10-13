@@ -21,6 +21,7 @@
    gg:wd:<id>         — заявка на вывод TON: кто, сколько и на какой кошелёк
    gg:wds             — все заявки на вывод по времени
    gg:wds:open        — заявки, которые админ ещё не отправил и не отклонил
+   gg:inbox:<id>      — подарки, полученные от других и ещё не показанные
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -54,6 +55,7 @@ const K = {
   wd: (id) => 'gg:wd:' + id,
   wds: 'gg:wds',
   wdsOpen: 'gg:wds:open',
+  inbox: (id) => 'gg:inbox:' + id,
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -1002,7 +1004,7 @@ export async function listWithdrawals(options) {
   const open = (options && options.filter) !== 'all';
   const key = open ? K.wdsOpen : K.wds;
   const offset = int(options && options.offset, 0, 1e7);
-  const limit = int(options && options.limit, 1, 100);
+  const limit = int((options && options.limit) || 50, 1, 100);
 
   // Открытые — старые первыми, их отправляют по очереди; вся история — свежие первыми
   const [ids, total] = await pipeline([
@@ -1061,6 +1063,12 @@ export async function resolveWithdraw(wdId, action, adminId) {
   });
 }
 
+// Язык человека из Telegram — на нём бот ему и пишет
+export async function userLang(userId) {
+  const raw = await command('GET', K.user(String(userId)));
+  return raw ? (JSON.parse(raw).lang || '') : '';
+}
+
 // --- Рефералы ---
 
 // Кого человек привёл: свежие первыми, наружу только имя и фото
@@ -1117,10 +1125,12 @@ export async function transferGift(fromId, toId, giftId, nftId) {
 
   if (!to || to === from) throw new InputError('Вы не можете отправить самому себе.');
 
-  const [rawFrom, rawTo, rawUser] = await pipeline([
+  const [rawFrom, rawTo, rawUser, rawSender, rawInbox] = await pipeline([
     ['GET', K.acct(from)],
     ['GET', K.acct(to)],
-    ['GET', K.user(to)]
+    ['GET', K.user(to)],
+    ['GET', K.user(from)],
+    ['GET', K.inbox(to)]
   ]);
   if (!rawUser) throw new InputError('Пользователь не найден');
 
@@ -1130,10 +1140,12 @@ export async function transferGift(fromId, toId, giftId, nftId) {
   sender.sent += 1;
 
   // Улучшенный уходит целиком, со своей моделью, фоном и номером
+  let moved = null;
   if (nft) {
     const at = sender.nfts.findIndex((one) => one.id === nft);
     if (at === -1) throw new InputError('Подарок вам больше не принадлежит');
-    recipient.nfts.push(sender.nfts.splice(at, 1)[0]);
+    moved = sender.nfts.splice(at, 1)[0];
+    recipient.nfts.push(moved);
   } else {
     const at = sender.gifts.indexOf(gift);
     if (at === -1) throw new InputError('Подарок вам больше не принадлежит');
@@ -1141,16 +1153,49 @@ export async function transferGift(fromId, toId, giftId, nftId) {
     recipient.gifts.push(gift);
   }
 
+  /* Получатель увидит подарок при следующем заходе — страницей «Подарок
+     получен» с конфетти. До тех пор подарок ждёт во входящих */
+  const who = rawSender ? JSON.parse(rawSender) : {};
+  const fromView = {
+    id: from,
+    name: [who.firstName, who.lastName].filter(Boolean).join(' ') || (who.username ? '@' + who.username : ''),
+    username: who.username || ''
+  };
+  const inbox = rawInbox ? JSON.parse(rawInbox) : [];
+  inbox.push({ gift: moved ? moved.gift : gift, nft: moved ? moved.id : '', from: fromView, at: Date.now() });
+
   await pipeline([
     ['SET', K.acct(from), JSON.stringify(sender)],
-    ['SET', K.acct(to), JSON.stringify(recipient)]
+    ['SET', K.acct(to), JSON.stringify(recipient)],
+    ['SET', K.inbox(to), JSON.stringify(inbox.slice(-INBOX_MAX))]
   ]);
 
   const person = JSON.parse(rawUser);
   return {
     name: [person.firstName, person.lastName].filter(Boolean).join(' ') || person.username || to,
-    gifts: sender.gifts
+    gifts: sender.gifts,
+    // Для уведомления от бота: кому, от кого и что
+    to: { id: to, lang: person.lang || '' },
+    from: fromView,
+    gift: moved ? moved.gift : gift,
+    nft: moved
   };
+}
+
+const INBOX_MAX = 20;
+
+// Что получено и ещё не показано — приложение покажет это при заходе
+export async function readInbox(userId) {
+  const raw = await command('GET', K.inbox(String(userId)));
+  return raw ? JSON.parse(raw) : [];
+}
+
+// Показали — убираем. Только то, что было показано: подарок, пришедший
+// в ту же секунду, дождётся следующего захода
+export async function clearInbox(userId, until) {
+  const id = String(userId);
+  const left = (await readInbox(id)).filter((one) => one.at > int(until, 0, 1e15));
+  await command(left.length ? 'SET' : 'DEL', ...(left.length ? [K.inbox(id), JSON.stringify(left)] : [K.inbox(id)]));
 }
 
 // --- Топ покупателей ---

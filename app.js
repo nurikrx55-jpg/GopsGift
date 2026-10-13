@@ -2877,14 +2877,20 @@
 
   let wonEntry = null;
 
-  function wonOpen(gift, many) {
+  /* got — подарок не купили, а получили от другого: тот же экран, но
+     «Подарок получен» и от кого. got.from — имя отправителя */
+  function wonOpen(gift, many, got) {
     if (wonEntry) wonEntry.at = ++openSeq;
     const root = document.getElementById('won');
     if (!root || !root.hidden) return;
 
     // Взяли несколько — и заголовок, и подпись во множественном числе
-    document.getElementById('won-title').textContent = t(many ? 'won.many' : 'won.one');
-    document.getElementById('won-note').textContent = t(many ? 'won.noteMany' : 'won.noteOne');
+    document.getElementById('won-title').textContent = got
+      ? t(many ? 'won.gotMany' : 'won.gotOne')
+      : t(many ? 'won.many' : 'won.one');
+    document.getElementById('won-note').textContent = got
+      ? (got.from ? t(many ? 'won.fromMany' : 'won.from', { name: got.from }) : t('won.gotNote'))
+      : t(many ? 'won.noteMany' : 'won.noteOne');
 
     root.hidden = false;
     // Пересчёт стилей форсируем чтением размера — иначе перехода не будет
@@ -2955,6 +2961,35 @@
       const at = tabs.findIndex((tab) => tab.dataset.section === 'profile');
       if (at !== -1) selectTab(at);
     });
+  }
+
+  /* Подарки от других, которые человек ещё не видел: при заходе — экран
+     «Подарок получен» с конфетти. Показываем последний; если их несколько,
+     заголовок во множественном числе. После показа сервер их забывает */
+  function openInbox() {
+    const inbox = (ME && Array.isArray(ME.inbox)) ? ME.inbox : [];
+    if (!inbox.length || !Store.live()) return;
+
+    const last = inbox[inbox.length - 1];
+    const nft = last.nft ? (ME.nfts || []).find((one) => one.id === last.nft) : null;
+    const view = nft ? nftView(nft) : giftById(last.gift);
+    // Подарок успели отправить дальше или сняли с витрины — показывать нечего
+    if (!view) return;
+
+    const until = inbox.reduce((max, one) => Math.max(max, Number(one.at) || 0), 0);
+    ME.inbox = [];
+
+    // Заставка ещё уходит — даём ей исчезнуть, потом поздравляем
+    setTimeout(() => {
+      haptic('success');
+      wonOpen(artOf(view), inbox.length > 1, { from: last.from && last.from.name });
+    }, SPLASH_MIN_MS);
+
+    fetch('/api/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: (tg && tg.initData) || '', action: 'seen', until: until })
+    }).catch(() => {});
   }
 
   // --- Покупка за звёзды ---
@@ -4694,6 +4729,7 @@
 
       initSlider(buildBanners());
       openStartGift();
+      openInbox();
     })
     .catch((error) => {
       console.warn('Содержимое не загрузилось:', error);

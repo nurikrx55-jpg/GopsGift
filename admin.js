@@ -1968,7 +1968,9 @@
     const data = await run(node, 'withdraw.resolve', { id: wd.id, action: action });
     if (!data) return;
     if (stats) stats.withdrawals = data.open;
-    toast(action === 'done' ? 'Вывод отмечен отправленным' : 'Вывод отклонён, сумма вернулась');
+    // Сообщение от бота не дойдёт, если человек ни разу не запускал бота
+    toast((action === 'done' ? 'Вывод отмечен отправленным' : 'Вывод отклонён, сумма вернулась') +
+      (data.told ? ' · человеку пришло сообщение' : ' · сообщение от бота не дошло'), data.told ? 'ok' : undefined);
     go('withdrawals');
   }
 

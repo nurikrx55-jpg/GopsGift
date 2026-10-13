@@ -7,8 +7,9 @@ import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
   readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, TON_RECEIVER, InputError,
   listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile,
-  listWithdrawals, resolveWithdraw, openWithdrawals
+  listWithdrawals, resolveWithdraw, openWithdrawals, userLang
 } from './_lib/data.js';
+import { withdrawClosed } from './_lib/notify.js';
 import { json, body } from './_lib/http.js';
 
 // Админская подпись не старше суток: утёкшая ссылка не даст доступа навсегда
@@ -180,7 +181,9 @@ const actions = {
     const action = payload.action === 'done' ? 'done' : payload.action === 'reject' ? 'reject' : '';
     if (!action) throw new InputError('Неизвестное действие');
     const wd = await resolveWithdraw(payload.id, action, ctx.user.id);
-    return { withdrawal: wd, open: await openWithdrawals() };
+    // Человеку — сообщение от бота: отправлено или отказ с возвратом
+    const told = await withdrawClosed(wd, await userLang(wd.userId));
+    return { withdrawal: wd, open: await openWithdrawals(), told: told };
   },
 
   // --- Люди ---

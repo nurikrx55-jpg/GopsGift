@@ -263,6 +263,11 @@
       'won.noteOne': 'Отправьте свой подарок!',
       'won.noteMany': 'Отправьте свои подарки!',
       'won.go': 'Открыть профиль',
+      'won.gotOne': 'Подарок получен',
+      'won.gotMany': 'Подарки получены',
+      'won.from': 'От {name}',
+      'won.fromMany': 'Последний — от {name}',
+      'won.gotNote': 'Подарок уже в вашем профиле',
 
       'pay.noDb': 'Оплата заработает, когда подключена база',
       'pay.oldApp': 'Обновите Telegram — оплата из приложения ему пока не по силам',
@@ -512,6 +517,11 @@
       'won.noteOne': 'Send your gift!',
       'won.noteMany': 'Send your gifts!',
       'won.go': 'Open profile',
+      'won.gotOne': 'Gift received',
+      'won.gotMany': 'Gifts received',
+      'won.from': 'From {name}',
+      'won.fromMany': 'The latest one is from {name}',
+      'won.gotNote': 'The gift is already in your profile',
 
       'pay.noDb': 'Payments will work once the database is connected',
       'pay.oldApp': 'Update Telegram — it cannot pay inside the app yet',
