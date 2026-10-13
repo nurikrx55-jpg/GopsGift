@@ -1623,11 +1623,20 @@
 
     sheet.addEventListener('touchmove', (event) => {
       if (startY === null) return;
-      shift = Math.max(0, event.touches[0].clientY - startY);
-      if (shift <= 0) return;
+      const delta = event.touches[0].clientY - startY;
+      // Повели вверх — это прокрутка листа, а не утягивание
+      if (delta < 0 && !shift) {
+        startY = null;
+        return;
+      }
+      shift = Math.max(0, delta);
+      // Тянем вниз — едет весь лист целиком. Без этого iOS ещё и
+      // оттягивал содержимое внутри листа «резинкой», и над карточкой
+      // открывался пустой фон
+      event.preventDefault();
       root.classList.add('is-dragging');
       root.style.transform = 'translate(-50%, ' + shift + 'px)';
-    }, { passive: true });
+    }, { passive: false });
 
     sheet.addEventListener('touchend', () => {
       if (startY === null) return;
