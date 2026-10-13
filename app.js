@@ -4596,13 +4596,13 @@
     }));
   }
 
-  /* Защита: GapsGift открывается только в приложении Telegram на
-     компьютере — Telegram Desktop (Windows, Linux), Telegram для macOS и
-     Unigram. Телефоны, браузер и веб-версия Telegram (web.telegram.org,
-     platform weba/webk/web) видят экран с QR-кодом: его сканируют и
-     открывают приложение на компьютере. Без подписанных initData не
-     пускаем вовсе: такие заходы — это обычный браузер */
-  const APP_PLATFORMS = ['tdesktop', 'macos', 'unigram'];
+  /* Защита: GapsGift открывается только в приложении Telegram — на
+     компьютере (Telegram Desktop, macOS, Unigram) и на телефоне (iOS,
+     Android). Браузер и веб-версия Telegram (web.telegram.org, platform
+     weba/webk/web) видят экран с QR-кодом: его сканируют и открывают
+     приложение. Без подписанных initData не пускаем вовсе: такие заходы —
+     это обычный браузер */
+  const APP_PLATFORMS = ['tdesktop', 'macos', 'unigram', 'ios', 'android', 'android_x'];
   const APP_LINK = 'https://t.me/GapsGiftBot/app';
 
   function outsideApp() {
