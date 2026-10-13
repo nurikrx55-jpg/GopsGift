@@ -1002,7 +1002,7 @@
         upForm,
         models,
         addModel,
-        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное. Номер #N идёт от остатка: купили первый из 1000 — улучшенный получит #999. Ценность ставится каждому улучшенному отдельно — в «Люди», у владельца.')
+        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное. Номер #N идёт от остатка: купили первый из 1000 — улучшенный получит #999. Ценность в рублях ставится каждому улучшенному отдельно — в «Люди», у владельца.')
       ));
 
       const sync = () => {
@@ -1747,11 +1747,13 @@
             const done = () => toast('id скопирован');
             if (navigator.clipboard) navigator.clipboard.writeText(nft.id).then(done, done);
           });
-          const value = input(nftValues[nft.id] || '', { type: 'number', placeholder: 'Ценность' });
+          const value = input(nftValues[nft.id] || '', { type: 'number', placeholder: 'Ценность, ₽' });
           value.addEventListener('input', () => {
             nftValues[nft.id] = Math.max(0, parseInt(value.value, 10) || 0);
           });
-          const valueBox = affix(value, 'star-img');
+          // Ценность — в рублях: значок ₽ вместо звезды
+          const valueBox = el('span', 'ad-affix ad-affix--rub');
+          valueBox.append(el('i', null, '₽'), value);
           valueBox.classList.add('ad-nft-value');
           name.append(idLine, valueBox);
 

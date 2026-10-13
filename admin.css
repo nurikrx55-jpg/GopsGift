@@ -1950,3 +1950,19 @@
   height: 40px;
   font-size: 15px;
 }
+
+/* Поле в рублях: знак ₽ на месте значка */
+.ad-affix--rub > i {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--hint);
+  font-style: normal;
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.ad-affix--rub > .ad-input {
+  padding-left: 40px;
+}

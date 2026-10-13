@@ -5781,13 +5781,9 @@ body {
   height: 100% !important;
 }
 
-/* «Вывести» и «Крафт» пока ничего не делают */
-.mgm-card__tickers-i.is-soon {
-  cursor: default;
-}
-
-.mgm-card__tickers-i.is-soon:active {
-  transform: none;
+/* Анимированная иконка у приглушённой кнопки гаснет так же, как svg */
+.mgm-card__tickers-i.disabled .mgm-card__lottie-ico {
+  opacity: 0.55;
 }
 
 /* Ценность: звезда перед числом, как у цены */

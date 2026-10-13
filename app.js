@@ -1683,12 +1683,9 @@
     if (showWorth) {
       const value = document.getElementById('owned-value');
       value.textContent = '';
+      // Ценность — в рублях
       if (worth) {
-        const star = document.createElement('img');
-        star.src = 'gifts/star.png';
-        star.alt = '';
-        star.draggable = false;
-        value.append(star, formatPrice(worth));
+        value.textContent = formatPrice(worth) + ' ₽';
       } else {
         value.textContent = '—';
       }
