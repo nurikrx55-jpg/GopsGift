@@ -16,6 +16,42 @@ import { readContent, readOrder, settleOrder } from './_lib/data.js';
 import { call, hasBot } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
 
+// Приветствие на /start. Значки — премиум-эмодзи из набора, который выбрал
+// ШЕП: самолётик Telegram и подарок. Внутри тега — обычный эмодзи на случай,
+// если у человека премиум-эмодзи не отображаются
+const APP_URL = process.env.APP_URL || 'https://gapsgift.online/';
+const CHANNEL_URL = 'https://t.me/GapsGift_Community';
+const PLANE = '<tg-emoji emoji-id="6028346797368283073">✈️</tg-emoji>';
+const GIFT = '<tg-emoji emoji-id="6037175527846975726">🎁</tg-emoji>';
+
+function welcomeText(fancy) {
+  return (fancy ? PLANE : '✈️') + ' Welcome to GapsGift!\n\n' +
+    (fancy ? GIFT : '🎁') + ' Send unique gifts to your friends, sell your gifts';
+}
+
+async function welcome(message) {
+  const payload = {
+    chat_id: message.chat.id,
+    parse_mode: 'HTML',
+    link_preview_options: { is_disabled: true },
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: 'Open', web_app: { url: APP_URL } }],
+        [{ text: 'GapsGift Community', url: CHANNEL_URL }]
+      ]
+    }
+  };
+
+  try {
+    await call('sendMessage', Object.assign({ text: welcomeText(true) }, payload));
+  } catch (error) {
+    // Telegram может не пустить премиум-эмодзи от бота — тогда шлём тот же
+    // текст с обычными, чтобы человек не остался без ответа
+    console.warn('bot: приветствие без премиум-эмодзи —', error.message);
+    await call('sendMessage', Object.assign({ text: welcomeText(false) }, payload));
+  }
+}
+
 function sameSecret(given, secret) {
   const a = Buffer.from(String(given || ''));
   const b = Buffer.from(secret);
@@ -66,6 +102,11 @@ export default {
         const done = await settleOrder(payment.invoice_payload, payment);
         // Заказа нет — повторять нечего, иначе Telegram будет стучаться вечно
         if (!done) console.warn('bot: платёж без заказа', payment.invoice_payload);
+      } else if (update.message && update.message.chat && update.message.chat.type === 'private' &&
+        /^\/start(\s|$)/.test(String(update.message.text || ''))) {
+        // Приветствие не повторяем: упади отправка — Telegram пришлёт /start
+        // снова, и человек получил бы два одинаковых сообщения
+        await welcome(update.message).catch((error) => console.error('bot: приветствие не ушло —', error.message));
       }
     } catch (error) {
       // Ответ не «принял» заставит Telegram прислать событие ещё раз — для
