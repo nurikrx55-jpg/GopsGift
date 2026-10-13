@@ -2284,6 +2284,30 @@
 
     cols.appendChild(ton);
 
+    // Маркет: сколько процентов берём с продажи и дешевле какой цены не выставить
+    const market = el('section', 'ad-card');
+    market.appendChild(el('h3', null, 'Маркет'));
+    market.appendChild(el('p', 'ad-note', 'Комиссия — процент с каждой продажи, продавец получает цену за её вычетом. Минимальная цена — дешевле выставить нельзя.'));
+    const settings = content.market || { fee: 5, min: 0.1 };
+    const mktForm = el('div', 'ad-form');
+    const fee = input(settings.fee, { type: 'number' });
+    fee.step = '0.1';
+    const min = input(settings.min, { type: 'number' });
+    min.step = '0.01';
+    mktForm.append(field('Комиссия, %', fee, true), field('Минимальная цена, TON', min, true));
+    market.appendChild(mktForm);
+    market.appendChild(button('Сохранить', {
+      icon: 'check',
+      onClick: (event) => {
+        const next = {
+          fee: Number(String(fee.value).replace(',', '.')) || 0,
+          min: Number(String(min.value).replace(',', '.')) || 0.1
+        };
+        run(event.currentTarget, 'market.save', { market: next }, () => toast('Маркет сохранён'));
+      }
+    }));
+    cols.appendChild(market);
+
     view.appendChild(cols);
 
     const back = el('a', 'ad-btn ad-btn--ghost');

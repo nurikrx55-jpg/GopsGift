@@ -24,6 +24,11 @@ const TEXT = {
     wdRejectNote: 'Сумма вернулась на ваш баланс в GapsGift.',
     wdAmount: '💎 Сумма: <b>{n} TON</b>',
     wdWallet: '👛 Кошелёк: <code>{w}</code>',
+    soldTitle: '💰 <b>Ваш подарок продан!</b>',
+    soldPrice: '💎 Цена: <b>{n} TON</b>',
+    soldPayout: '👛 Вам зачислено: <b>{n} TON</b>',
+    soldBuyer: '👤 Покупатель: {who}',
+    soldNote: 'Деньги уже на вашем балансе в GapsGift.',
     open: 'Открыть GapsGift'
   },
   en: {
@@ -37,6 +42,11 @@ const TEXT = {
     wdRejectNote: 'The amount is back on your GapsGift balance.',
     wdAmount: '💎 Amount: <b>{n} TON</b>',
     wdWallet: '👛 Wallet: <code>{w}</code>',
+    soldTitle: '💰 <b>Your gift was sold!</b>',
+    soldPrice: '💎 Price: <b>{n} TON</b>',
+    soldPayout: '👛 You got: <b>{n} TON</b>',
+    soldBuyer: '👤 Buyer: {who}',
+    soldNote: 'The money is already on your GapsGift balance.',
     open: 'Open GapsGift'
   }
 };
@@ -116,4 +126,27 @@ export function withdrawClosed(wd, lang) {
   ].join('\n');
 
   return send(wd.userId, text, w.open);
+}
+
+// Подарок купили на маркете: продавцу — что, за сколько и сколько дошло
+export function giftSold(sale, gift) {
+  const w = words(sale.seller.lang);
+  const nft = sale.lot.nft;
+  const name = esc((gift && gift.name) || (nft.model && nft.model.name) || '');
+  const who = sale.buyer.username
+    ? '<b>' + esc(sale.buyer.name) + '</b> (@' + esc(sale.buyer.username) + ')'
+    : '<b>' + esc(sale.buyer.name) + '</b>';
+
+  const text = [
+    w.soldTitle,
+    '',
+    '<blockquote>🎀 <b>' + name + '</b> · ' + esc(nft.model && nft.model.name) + ' <b>#' + esc(nft.num) + '</b>\n' +
+      fill(w.soldPrice, { n: ton(sale.lot.nano, sale.seller.lang) }) + '\n' +
+      fill(w.soldPayout, { n: ton(sale.payout, sale.seller.lang) }) + '\n' +
+      fill(w.soldBuyer, { who: who }) + '</blockquote>',
+    '',
+    w.soldNote
+  ].join('\n');
+
+  return send(sale.seller.id, text, w.open);
 }

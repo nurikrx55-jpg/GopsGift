@@ -146,6 +146,8 @@
 
     nav.style.setProperty('--active-index', String(index));
     stage.dataset.section = tabs[index].dataset.section;
+    // Маркет живой: при каждом входе — свежие лоты и история
+    if (stage.dataset.section === 'market') loadMarket();
     // Шапка едет вместе со страницей, поэтому новый раздел открываем сверху
     stage.scrollTop = 0;
   }
@@ -613,6 +615,14 @@
     num.className = 'gift__num';
     num.textContent = '#' + gift.nft.num;
     card.appendChild(num);
+
+    // Выставлен на маркете — пометка в углу, как лента «Sale» у memgift
+    if (gift.nft.lot) {
+      const sale = document.createElement('span');
+      sale.className = 'gift__sale';
+      sale.innerHTML = '<svg viewBox="0 -1 24 24" aria-hidden="true"><use href="#market"></use></svg>';
+      card.appendChild(sale);
+    }
 
     const art = document.createElement('div');
     art.className = 'gift__art';
@@ -1691,10 +1701,9 @@
       }
     }
 
-    // «Вывести» и «Крафт» — только у улучшенного, иконки-анимации
-    ['owned-withdraw', 'owned-craft'].forEach((id) => {
-      document.getElementById(id).hidden = !upg;
-    });
+    // «Вывести» и «Продать» — только у улучшенного
+    document.getElementById('owned-withdraw').hidden = !upg;
+    paintOwnedMarket(gift);
 
     paintRarity(card, gift);
     // Готовый цвет — сразу; иначе подложка остаётся запасной, пока не
@@ -2313,8 +2322,69 @@
     });
   }
 
+  /* Маркет в окне подарка. Свой улучшенный: «Продать», а если уже
+     выставлен — «Снять» и плашка «Выставлен на маркете». Лот из маркета:
+     продавец, а внизу «Купить за … TON» или «Снять с продажи», если свой */
+  function paintOwnedMarket(gift) {
+    const upg = Boolean(gift && gift.nft);
+    const lot = gift && gift.lot;
+    const listed = Boolean(upg && !lot && gift.nft.lot);
+
+    const sell = document.getElementById('owned-sell');
+    sell.hidden = !upg || Boolean(lot);
+    document.getElementById('owned-sell-text').textContent = t(listed ? 'market.unlist' : 'market.sell');
+
+    // Выставленный не отправить — кнопка приглушена, как у memgift
+    document.getElementById('owned-send').classList.toggle('disabled', listed);
+
+    const banner = document.getElementById('owned-onmarket');
+    banner.hidden = !listed;
+    if (listed) {
+      document.getElementById('owned-onmarket-text').textContent =
+        t('market.onMarket', { n: formatTon(gift.nft.lotNano) });
+    }
+
+    document.getElementById('owned-seller-row').hidden = !lot;
+    if (lot) document.getElementById('owned-seller').textContent = lot.seller.name;
+
+    const buy = document.getElementById('owned-buy');
+    buy.hidden = !lot;
+    document.getElementById('owned-close').hidden = Boolean(lot);
+    if (lot) {
+      buy.classList.toggle('is-mine', isMine(lot));
+      document.getElementById('owned-buy-text').textContent = isMine(lot)
+        ? t('market.unlistLot')
+        : t('market.buyFor', { n: formatTon(lot.nano) });
+    }
+  }
+
   function initOwnedTools() {
     if (!owned) return;
+
+    document.getElementById('owned-sell').addEventListener('click', () => {
+      if (!ownGift || !ownGift.nft) return;
+      haptic('light');
+      if (ownGift.nft.lot) unlistOwned(ownGift);
+      else openSell(ownGift);
+    });
+
+    document.getElementById('owned-onmarket').addEventListener('click', () => {
+      haptic('light');
+      ownSheet.close();
+      goMarket();
+    });
+
+    document.getElementById('owned-buy').addEventListener('click', () => {
+      if (ownGift) buyLot(ownGift);
+    });
+
+    // Продавец лота — его профиль, как строка топа покупателей
+    document.getElementById('owned-seller').addEventListener('click', () => {
+      if (!ownGift || !ownGift.lot) return;
+      haptic('light');
+      const seller = ownGift.lot.seller;
+      openView({ id: seller.id, name: seller.name, photo: seller.photo });
+    });
 
     const soon = (key) => () => {
       haptic('light');
@@ -2324,6 +2394,10 @@
     document.getElementById('owned-send').addEventListener('click', () => {
       if (!ownGift) return;
       haptic('light');
+      if (ownGift.nft && ownGift.nft.lot) {
+        toast(t('market.noSend'));
+        return;
+      }
       sendSheet.open(ownGift);
     });
 
@@ -2463,8 +2537,10 @@
 
     const modal = document.getElementById('wmod-wallet');
     if (modal) {
-      modal.hidden = !on;
-      document.getElementById('wmod-connect').hidden = on;
+      // Продаже кошелёк не нужен: деньги придут на баланс
+      const selling = wmodKind === 'sell';
+      modal.hidden = !on || selling;
+      document.getElementById('wmod-connect').hidden = on || selling;
       document.getElementById('wmod-addr').textContent = shortAddr(walletAddr);
       paintWmod();
     }
@@ -2578,6 +2654,23 @@
   function paintWmod() {
     const amount = wmodNumber();
     document.getElementById('wmod-amount').textContent = wmodAmount || '0';
+
+    // Продажа: минимум, комиссия и сколько дойдёт до продавца — как у memgift
+    if (wmodKind === 'sell') {
+      const market = marketSettings();
+      const nano = Math.round(sellPayout(amount) * NANO);
+      document.getElementById('wmod-balance').textContent = t('market.sellInfo', {
+        min: formatTon(Math.round(market.min * NANO)),
+        fee: String(market.fee).replace('.', window.I18N.lang() === 'ru' ? ',' : '.'),
+        get: formatTon(nano)
+      });
+      document.getElementById('wmod-submit-text').textContent = amount > 0
+        ? t('market.sellBtn', { n: wmodAmount })
+        : t('market.sell');
+      document.getElementById('wmod-submit').disabled = wmodBusy || amount < market.min;
+      return;
+    }
+
     // Баланс мог обновиться, пока окно открыто: пришло пополнение
     document.getElementById('wmod-balance').textContent =
       t('wallet.balance') + ' · ' + formatTon(Number(ME && ME.tonNano) || 0) + ' TON';
@@ -2619,9 +2712,11 @@
     wmodKind = kind;
     wmodAmount = '';
     const deposit = kind === 'deposit';
-    document.getElementById('wmod-title').textContent = t(deposit ? 'wallet.depositTitle' : 'wallet.withdrawTitle');
+    document.getElementById('wmod-title').textContent = kind === 'sell'
+      ? t('market.sellTitle')
+      : t(deposit ? 'wallet.depositTitle' : 'wallet.withdrawTitle');
     document.getElementById('wmod-balance').hidden = deposit;
-    document.getElementById('wmod-info').hidden = deposit;
+    document.getElementById('wmod-info').hidden = deposit || kind === 'sell';
     paintWallet();
 
     document.getElementById('wmod-overlay').classList.add('is-open');
@@ -2737,7 +2832,7 @@
     const tab = (document.querySelector('.wl-filters__item.active') || {}).dataset;
     const kind = tab ? tab.tab : 'all';
     const shown = log.filter((one) => kind === 'all' ||
-      (kind === 'gifts' && one.type === 'gift') ||
+      (kind === 'gifts' && (one.type === 'gift' || one.type === 'market_buy' || one.type === 'market_sell')) ||
       (kind === 'deposits' && one.type === 'deposit') ||
       (kind === 'withdrawals' && one.type === 'withdraw'));
 
@@ -2751,7 +2846,8 @@
 
       const nft = document.createElement('div');
       nft.className = 'nft';
-      const gift = one.type === 'gift' ? giftById(one.giftId) : null;
+      const market = one.type === 'market_buy' || one.type === 'market_sell';
+      const gift = one.type === 'gift' || market ? giftById(one.giftId) : null;
       if (gift) {
         showShot(nft, gift);
       } else {
@@ -2763,7 +2859,9 @@
       mid.className = 'mid';
       const name = document.createElement('h4');
       name.className = 'name';
-      name.textContent = gift ? gift.name + (one.qty > 1 ? ' × ' + one.qty : '') : t(one.type === 'deposit' ? 'wallet.statusDeposit' : 'wallet.statusWithdraw');
+      name.textContent = gift
+        ? gift.name + (one.num ? ' #' + one.num : '') + (one.qty > 1 ? ' × ' + one.qty : '')
+        : t(one.type === 'deposit' ? 'wallet.statusDeposit' : 'wallet.statusWithdraw');
       const meta = document.createElement('div');
       meta.className = 'meta-row';
       const time = document.createElement('span');
@@ -2774,8 +2872,9 @@
       dot.className = 'dot';
       dot.textContent = '·';
       const price = document.createElement('span');
-      price.className = 'price ' + (one.type === 'deposit' ? 'is-plus' : one.status === 'rejected' ? '' : 'is-minus');
-      price.textContent = (one.type === 'deposit' ? '+' : '−') + formatTon(one.nano) + ' TON';
+      const plus = one.type === 'deposit' || one.type === 'market_sell';
+      price.className = 'price ' + (plus ? 'is-plus' : one.status === 'rejected' ? '' : 'is-minus');
+      price.textContent = (plus ? '+' : '−') + formatTon(one.nano) + ' TON';
       meta.append(time, dot, price);
       mid.append(name, meta);
 
@@ -2783,7 +2882,9 @@
       right.className = 'right';
       const status = document.createElement('span');
       status.className = 'status';
-      status.textContent = t(one.type === 'gift' ? 'wallet.statusGift'
+      status.textContent = t(one.type === 'market_buy' ? 'wallet.statusMarketBuy'
+        : one.type === 'market_sell' ? 'wallet.statusMarketSell'
+        : one.type === 'gift' ? 'wallet.statusGift'
         : one.type === 'deposit' ? 'wallet.statusDeposit'
           // У вывода — где заявка: ждёт админа, отправлена или отклонена
           : one.status === 'pending' ? 'wallet.wdPending'
@@ -2857,6 +2958,10 @@
       haptic('light');
       if (wmodKind === 'deposit') {
         sendDeposit();
+        return;
+      }
+      if (wmodKind === 'sell') {
+        sendSell();
         return;
       }
       sendWithdraw();
@@ -4089,7 +4194,8 @@
     if (c.symbols.length) list = list.filter((gift) => c.symbols.indexOf(gift.symbol) !== -1);
     if (c.backdrops.length) list = list.filter((gift) => c.backdrops.indexOf(gift.backdrop) !== -1);
 
-    if (c.sort === 'on_market') return [];
+    if (c.num) list = list.filter((gift) => gift.nft && String(gift.nft.num).indexOf(c.num) === 0);
+    if (c.sort === 'on_market') list = list.filter((gift) => gift.nft && gift.nft.lot);
     if (c.sort === 'upgraded') list = list.filter((gift) => gift.nft);
     if (c.sort === 'not_upgraded') list = list.filter((gift) => !gift.nft);
     if (c.sort === 'price_low') list.sort((a, b) => a.price - b.price);
@@ -4315,7 +4421,7 @@
     if (c.tab === 'nft' && c.id === 'prf') list.appendChild(gemsSoon());
 
     if (!items.length) {
-      list.appendChild(emptyState(c.tab));
+      list.appendChild(c.empty ? c.empty() : emptyState(c.tab));
       return;
     }
 
@@ -4330,7 +4436,7 @@
       const grid = document.createElement('div');
       grid.className = 'gifts';
       // Из профиля открывается карточка уже купленного подарка, а не покупка
-      if (c.card) grid.className = 'vw-grid';
+      if (c.card) grid.className = c.grid || 'vw-grid';
       page.forEach((gift) => grid.appendChild(c.card
         ? c.card(gift, c.open)
         : gift.nft ? nftCard(gift, c.open) : buildGift(gift, c.open)));
@@ -4386,7 +4492,7 @@
     on('sort', () => open({
       title: t('osort.title'),
       icon: { href: '#sort-lines', box: '0 0 18 11', sort: true },
-      items: OWN_SORTS.map((id) => ({ id: id, label: t('osort.' + id) })),
+      items: (c.sorts || OWN_SORTS).map((id) => ({ id: id, label: t('osort.' + id) })),
       selected: c.sort,
       onApply: (id) => { c.sort = id || ''; reload(); }
     }));
@@ -4630,6 +4736,396 @@
     }
 
     renderOwned(ownList);
+  }
+
+  // --- Маркет ---
+
+  /* Как у memgift (`/m`): вкладки «Подарки» и «Активность», тот же ряд
+     отбора, что в профиле, и поиск по номеру. Продают только улучшенные
+     подарки, цена в TON, платят с баланса. Карточка лота своя — у memgift
+     она тесная и пёстрая: здесь фон подарка во всю карточку, номер на
+     стекле, имя с моделью и цена отдельной кнопкой снизу */
+  const MARKET_API = '/api/market';
+  const MARKET_SORTS = ['latest', 'oldest', 'price_low', 'price_high'];
+  let LOTS = [];
+  let MKT_LOG = [];
+  let marketTab = 'gifts';
+  let marketLoaded = false;
+  let marketBusy = false;
+
+  function marketPost(payload) {
+    return fetch(MARKET_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ initData: (tg && tg.initData) || '' }, payload))
+    }).then((response) => response.json().catch(() => ({})).then((data) => {
+      if (!response.ok) {
+        const error = new Error(data.message || t('pay.sorry'));
+        error.code = data.code || '';
+        throw error;
+      }
+      return data;
+    }));
+  }
+
+  function marketSettings() {
+    const state = Store.state() || {};
+    return Object.assign({ fee: 5, min: 0.1 }, state.market || {});
+  }
+
+  // Лот выглядит как улучшенный подарок: тот же отбор и то же окно
+  function lotView(lot) {
+    const base = giftById(lot.nft.gift) || { id: lot.nft.gift, name: lot.nft.model.name };
+    return Object.assign({}, base, {
+      nft: lot.nft,
+      symbol: lot.nft.symbol,
+      backdrop: lot.nft.backdrop,
+      // Для порядка «по цене» — цена лота, а не звёзды витрины
+      price: lot.nano,
+      ownerName: lot.seller.name,
+      lot: lot
+    });
+  }
+
+  function isMine(lot) {
+    const me = tgUser();
+    return Boolean(me && lot && String(lot.seller.id) === String(me.id));
+  }
+
+  function marketCard(gift, onPick) {
+    const card = document.createElement('article');
+    card.className = 'mkt-card';
+    const colors = backdropColors(gift);
+    card.style.setProperty('--center-color', colors.center);
+    card.style.setProperty('--around-color', colors.around);
+
+    const symbol = symbolOf(gift.nft.symbol);
+    if (symbol) {
+      const box = document.createElement('div');
+      box.className = 'mkt-card__symbols';
+      const img = document.createElement('img');
+      img.src = symbol.image;
+      img.alt = '';
+      img.draggable = false;
+      box.appendChild(img);
+      card.appendChild(box);
+    }
+
+    const num = document.createElement('span');
+    num.className = 'mkt-card__num';
+    num.textContent = '#' + gift.nft.num;
+    card.appendChild(num);
+
+    const art = document.createElement('div');
+    art.className = 'mkt-card__art';
+    showShot(art, artOf(gift));
+    card.appendChild(art);
+
+    const foot = document.createElement('div');
+    foot.className = 'mkt-card__foot';
+    const name = document.createElement('b');
+    name.className = 'mkt-card__name';
+    name.textContent = gift.name;
+    const model = document.createElement('span');
+    model.className = 'mkt-card__model';
+    model.textContent = gift.nft.model.name;
+    const price = document.createElement('span');
+    price.className = 'mkt-card__price' + (isMine(gift.lot) ? ' is-mine' : '');
+    price.innerHTML = '<svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>';
+    price.append(formatTon(gift.lot.nano));
+    foot.append(name, model, price);
+    card.appendChild(foot);
+
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', gift.name + ' #' + gift.nft.num);
+    const show = () => {
+      haptic('light');
+      if (onPick) onPick(gift);
+    };
+    card.addEventListener('click', show);
+    card.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      show();
+    });
+    return card;
+  }
+
+  function marketEmpty() {
+    const box = document.createElement('div');
+    box.className = 'prf__empty';
+    const art = document.createElement('div');
+    art.className = 'prf__empty-art';
+    art.innerHTML = '<img src="gifts/profile-empty.svg" alt="" draggable="false">';
+    const title = document.createElement('b');
+    title.textContent = t(LOTS.length ? 'market.none' : 'market.empty');
+    const line = document.createElement('p');
+    line.textContent = t(LOTS.length ? 'market.noneNote' : 'market.emptyNote');
+    box.append(art, title, line);
+    return box;
+  }
+
+  const mktList = Object.assign(ownedList('mkt', () => LOTS.map(lotView), (gift) => ownSheet.open(gift), marketCard), {
+    sorts: MARKET_SORTS,
+    grid: 'mkt-grid',
+    empty: marketEmpty,
+    num: ''
+  });
+
+  // История: выставлен, продан, снят — как вкладка «Активность» memgift
+  function renderActivity() {
+    const box = document.getElementById('mkt-activity');
+    if (!box) return;
+    box.textContent = '';
+
+    if (!MKT_LOG.length) {
+      const empty = document.createElement('div');
+      empty.className = 'wl-empty';
+      const text = document.createElement('p');
+      text.textContent = t('market.actEmpty');
+      empty.appendChild(text);
+      box.appendChild(empty);
+      return;
+    }
+
+    MKT_LOG.forEach((one) => {
+      const view = lotView({ nft: one.nft, nano: one.nano, seller: one.seller || { id: '', name: '' } });
+      const row = document.createElement('div');
+      row.className = 'item';
+
+      const thumb = document.createElement('div');
+      thumb.className = 'nft mkt-act__thumb';
+      const colors = backdropColors(view);
+      thumb.style.background = 'radial-gradient(circle, ' + colors.center + ', ' + colors.around + ')';
+      showShot(thumb, artOf(view));
+
+      const mid = document.createElement('div');
+      mid.className = 'mid';
+      const name = document.createElement('h4');
+      name.className = 'name';
+      name.textContent = view.name + ' #' + one.nft.num;
+      const meta = document.createElement('div');
+      meta.className = 'meta-row';
+      const time = document.createElement('span');
+      time.textContent = new Date(one.at).toLocaleString(window.I18N.lang() === 'ru' ? 'ru-RU' : 'en-GB', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+      });
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.textContent = '·';
+      const price = document.createElement('span');
+      price.className = 'price';
+      price.textContent = formatTon(one.nano) + ' TON';
+      meta.append(time, dot, price);
+      mid.append(name, meta);
+
+      const right = document.createElement('div');
+      right.className = 'right';
+      const status = document.createElement('span');
+      status.className = 'status mkt-act__status is-' + one.type;
+      status.textContent = t('market.st.' + one.type);
+      right.appendChild(status);
+
+      row.append(thumb, mid, right);
+      box.appendChild(row);
+    });
+  }
+
+  function paintMarket() {
+    const gifts = marketTab === 'gifts';
+    document.getElementById('mkt-filter').hidden = !gifts;
+    document.getElementById('mkt-list').hidden = !gifts;
+    document.getElementById('mkt-activity').hidden = gifts;
+    if (gifts) renderOwned(mktList);
+    else renderActivity();
+  }
+
+  function loadMarket() {
+    if (!Store.live() || marketBusy) return Promise.resolve();
+    marketBusy = true;
+    if (!marketLoaded) {
+      const list = document.getElementById('mkt-list');
+      list.innerHTML = '<div class="mkt-loading"><span class="mkt-spinner" aria-hidden="true"></span></div>';
+    }
+    return Promise.all([marketPost({ action: 'list' }), marketPost({ action: 'activity' })])
+      .then(([lots, act]) => {
+        LOTS = lots.lots || [];
+        MKT_LOG = act.log || [];
+        marketLoaded = true;
+        paintMarket();
+      })
+      .catch(() => {
+        if (!marketLoaded) document.getElementById('mkt-list').textContent = '';
+        toast(t('market.loadFail'));
+      })
+      .then(() => { marketBusy = false; });
+  }
+
+  // После покупки или продажи: счёт, профиль, шапка — и маркет заново
+  function applyMe(me) {
+    Store.apply(null, me);
+    fillFromStore();
+    initHeader();
+    paintProfile();
+  }
+
+  function goMarket() {
+    const at = tabs.findIndex((tab) => tab.dataset.section === 'market');
+    if (at !== -1) selectTab(at);
+  }
+
+  // --- Продажа: окно с клавиатурой, то же, что «Внести» и «Вывести» ---
+
+  let sellGift = null;
+
+  function sellPayout(amount) {
+    const fee = marketSettings().fee;
+    return Math.max(0, amount - amount * fee / 100);
+  }
+
+  function openSell(gift) {
+    if (!gift || !gift.nft) return;
+    if (!Store.live()) {
+      toast(t('pay.noDb'));
+      return;
+    }
+    sellGift = gift;
+    wmodOpen('sell');
+  }
+
+  function sendSell() {
+    const gift = sellGift;
+    const amount = wmodNumber();
+    if (!gift || wmodBusy || amount < marketSettings().min) return;
+
+    wmodBusy = true;
+    paintWmod();
+    marketPost({ action: 'sell', nft: gift.nft.id, price: wmodAmount })
+      .then((data) => {
+        applyMe(data.me);
+        haptic('success');
+        toast(t('market.listed'));
+        wmodClose();
+        refreshOwned(gift.nft.id);
+        marketLoaded = false;
+        if (current === tabs.findIndex((tab) => tab.dataset.section === 'market')) loadMarket();
+      })
+      .catch((error) => toast(error.message))
+      .then(() => {
+        wmodBusy = false;
+        paintWmod();
+      });
+  }
+
+  function unlistOwned(gift) {
+    if (!gift || !gift.nft || !gift.nft.lot || marketBusy) return;
+    const button = document.getElementById('owned-sell');
+    button.classList.add('loading');
+    marketPost({ action: 'unlist', lot: gift.nft.lot })
+      .then((data) => {
+        applyMe(data.me);
+        haptic('success');
+        toast(t('market.unlisted'));
+        refreshOwned(gift.nft.id);
+        marketLoaded = false;
+      })
+      .catch((error) => toast(error.message))
+      .then(() => button.classList.remove('loading'));
+  }
+
+  // Окно своего подарка перерисовываем по свежему счёту
+  function refreshOwned(nftId) {
+    const fresh = OWNED.upg.find((one) => one.nft.id === nftId);
+    if (fresh && ownSheet && ownGift && ownGift.nft && ownGift.nft.id === nftId) fillOwned(fresh);
+  }
+
+  // --- Покупка лота ---
+
+  let buying = false;
+
+  function buyLot(gift) {
+    const lot = gift && gift.lot;
+    if (!lot || buying) return;
+
+    if (isMine(lot)) {
+      // Свой лот из маркета — снять с продажи
+      buying = true;
+      marketPost({ action: 'unlist', lot: lot.id })
+        .then((data) => {
+          applyMe(data.me);
+          haptic('success');
+          toast(t('market.unlisted'));
+          ownSheet.close();
+          LOTS = LOTS.filter((one) => one.id !== lot.id);
+          paintMarket();
+          loadMarket();
+        })
+        .catch((error) => toast(error.message))
+        .then(() => { buying = false; });
+      return;
+    }
+
+    if ((Number(ME && ME.tonNano) || 0) < lot.nano) {
+      toast(t('market.low'));
+      return;
+    }
+
+    buying = true;
+    const button = document.getElementById('owned-buy');
+    button.classList.add('is-busy');
+    marketPost({ action: 'buy', lot: lot.id })
+      .then((data) => {
+        applyMe(data.me);
+        LOTS = LOTS.filter((one) => one.id !== lot.id);
+        ownSheet.close();
+        paintMarket();
+        haptic('success');
+        // Тот же экран, что после покупки на витрине: «Подарок куплен» с конфетти
+        setTimeout(() => wonOpen(artOf(gift), false), 360);
+        loadMarket();
+      })
+      .catch((error) => {
+        toast(error.message);
+        // Лот ушёл к другому — убираем его и из списка
+        if (!/TON/.test(error.message)) {
+          ownSheet.close();
+          loadMarket();
+        }
+      })
+      .then(() => {
+        buying = false;
+        button.classList.remove('is-busy');
+      });
+  }
+
+  function initMarket() {
+    const tabsBox = document.getElementById('mkt-tabs');
+    if (!tabsBox) return;
+
+    const buttons = Array.from(tabsBox.querySelectorAll('.prf-tabs__tab'));
+    buttons.forEach((button, index) => {
+      button.addEventListener('click', () => {
+        if (button.classList.contains('is-active')) return;
+        haptic('select');
+        buttons.forEach((other) => other.classList.toggle('is-active', other === button));
+        tabsBox.style.setProperty('--prf-index', String(index));
+        marketTab = button.dataset.mktTab;
+        paintMarket();
+      });
+    });
+
+    // Поиск по номеру: цифры — и сразу отбор
+    const num = document.getElementById('mkt-num');
+    num.addEventListener('input', () => {
+      num.value = num.value.replace(/\D/g, '').slice(0, 9);
+      mktList.num = num.value;
+      mktList.shown = PAGE;
+      renderOwned(mktList);
+    });
+
+    initOwnFilters(mktList);
+    paintMarket();
   }
 
   // --- Чужой профиль ---
@@ -5112,6 +5608,7 @@
       initProfile();
       initOwnFilters(ownList);
       initView();
+      initMarket();
       initLang();
 
       initSlider(buildBanners());

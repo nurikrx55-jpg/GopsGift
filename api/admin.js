@@ -5,7 +5,7 @@
 import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
-  readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, TON_RECEIVER, InputError,
+  readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, cleanMarket, TON_RECEIVER, InputError,
   listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile,
   listWithdrawals, resolveWithdraw, openWithdrawals, userLang
 } from './_lib/data.js';
@@ -45,6 +45,16 @@ const actions = {
       return state;
     });
 
+    return { content: content };
+  },
+
+  // --- Маркет: комиссия и минимальная цена ---
+
+  async 'market.save'(payload) {
+    const content = await writeContent((state) => {
+      state.market = cleanMarket(payload.market);
+      return state;
+    });
     return { content: content };
   },
 

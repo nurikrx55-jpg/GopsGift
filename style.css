@@ -6044,3 +6044,362 @@ body {
   gap: 10px;
   will-change: transform;
 }
+
+/* --- Маркет --- */
+
+.stage[data-section="market"] .pane[data-pane="market"] {
+  display: block;
+}
+
+.mkt-tabs {
+  margin-top: 6px;
+}
+
+/* Поиск по номеру — `filtersSearch` memgift: «#» и поле в одну плашку */
+.mkt-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  margin: 10px 16px 0;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: #1e1e1e;
+  box-shadow: var(--glass-edge);
+}
+
+.mkt-search__hash {
+  font-size: 16px;
+  font-weight: 600;
+  color: #8e8e93;
+}
+
+.mkt-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: #f5f5f7;
+  font: inherit;
+  font-size: 15px;
+}
+
+.mkt-search input::placeholder {
+  color: #6b6b70;
+}
+
+.mkt-list {
+  padding-bottom: 120px;
+}
+
+/* Сетка лотов: две в ряд — карточке нужно место под имя и цену */
+.mkt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 2px 16px;
+}
+
+/* Карточка лота. Фон подарка во всю карточку, узор символа, номер на
+   стекле, модель по центру; снизу на затемнении — имя, модель и цена */
+.mkt-card {
+  position: relative;
+  aspect-ratio: 0.7;
+  overflow: hidden;
+  border-radius: 22px;
+  background: radial-gradient(circle at 50% 36%, var(--center-color, #666) 0%, var(--around-color, #1a1a1a) 78%);
+  box-shadow: var(--glass-edge);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .15s ease;
+}
+
+.mkt-card:active {
+  transform: scale(.97);
+}
+
+.mkt-card__symbols {
+  position: absolute;
+  inset: 0 0 30% 0;
+  z-index: 1;
+  overflow: hidden;
+  opacity: .22;
+  mix-blend-mode: luminosity;
+  pointer-events: none;
+}
+
+.mkt-card__symbols img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 120%;
+  height: 120%;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+}
+
+.mkt-card__num {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 99px;
+  background: color-mix(in srgb, #1e1e1e 45%, transparent);
+  -webkit-backdrop-filter: blur(13px) saturate(1.4);
+  backdrop-filter: blur(13px) saturate(1.4);
+  box-shadow: var(--glass-edge);
+  color: #f5f5f7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mkt-card__art {
+  position: absolute;
+  left: 50%;
+  top: 9%;
+  z-index: 2;
+  width: 58%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+}
+
+.mkt-card__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .28));
+}
+
+.mkt-card__foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 26px 10px 10px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .42) 45%);
+}
+
+.mkt-card__name {
+  overflow: hidden;
+  padding: 0 2px;
+  color: #f5f5f7;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mkt-card__model {
+  overflow: hidden;
+  padding: 0 2px;
+  color: rgba(245, 245, 247, .62);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mkt-card__price {
+  height: 34px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 99px;
+  background: #f5f5f7;
+  color: #111;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mkt-card__price svg {
+  width: 15px;
+  height: 13px;
+  fill: currentColor;
+}
+
+/* Свой лот — цена на тёмном стекле: видно, что купить его нельзя */
+.mkt-card__price.is-mine {
+  background: color-mix(in srgb, #1e1e1e 55%, transparent);
+  box-shadow: var(--glass-edge);
+  color: #f5f5f7;
+}
+
+.mkt-loading {
+  display: flex;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+.mkt-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid rgba(245, 245, 247, .15);
+  border-top-color: #f5f5f7;
+  border-radius: 50%;
+  animation: mkt-spin .8s linear infinite;
+}
+
+@keyframes mkt-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* История маркета — ряды как в истории кошелька */
+.mkt-act {
+  padding: 4px 16px 120px;
+}
+
+.mkt-act__thumb img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+
+.mkt-act__status.is-listed {
+  color: #5b9bf6;
+}
+
+.mkt-act__status.is-sold {
+  color: #34c759;
+}
+
+.mkt-act__status.is-removed {
+  color: #8e8e93;
+}
+
+/* Выставлен на маркете — плашка memgift `.pgm-market` в окне подарка */
+.pgm-market {
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(59, 130, 246, .12);
+  color: #5b9bf6;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pgm-market[hidden] {
+  display: none;
+}
+
+.pgm-market__tile {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, .18);
+}
+
+.pgm-market__tile svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.pgm-market__title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pgm-market__go svg {
+  display: block;
+  width: 8px;
+  height: 14px;
+}
+
+/* «Купить за … TON» — синяя, как у memgift; свой лот — «Снять с продажи» */
+.mkt-buy {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.mkt-buy svg {
+  width: 17px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.mkt-buy.is-mine {
+  background: rgba(255, 95, 95, .14);
+  color: #ff6b63;
+}
+
+.mkt-buy.is-mine svg {
+  display: none;
+}
+
+.mkt-buy.is-busy {
+  opacity: .6;
+  pointer-events: none;
+}
+
+.pgm-footer__btn[hidden],
+.mgm-info__row[hidden] {
+  display: none;
+}
+
+.mkt-seller {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #5b9bf6;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mgm-card__market-ico {
+  width: 18px;
+  height: 17px;
+}
+
+/* Улучшенный в профиле, выставленный на маркет: значок в углу */
+.gift__sale {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 7;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .34);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.gift__sale svg {
+  width: 12px;
+  height: 12px;
+  fill: #f5f5f7;
+}
+
+/* На вкладке «Активность» отбора и сетки нет */
+.prf-filter[hidden],
+.prf__list[hidden],
+.mkt-act[hidden] {
+  display: none;
+}

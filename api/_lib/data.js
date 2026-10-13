@@ -22,6 +22,9 @@
    gg:wds             — все заявки на вывод по времени
    gg:wds:open        — заявки, которые админ ещё не отправил и не отклонил
    gg:inbox:<id>      — подарки, полученные от других и ещё не показанные
+   gg:lot:<id>        — лот маркета: какой улучшенный подарок, чей и за сколько
+   gg:lots            — лоты на продаже по времени выставления
+   gg:mktlog          — история маркета: выставлен, продан, снят
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -56,6 +59,9 @@ const K = {
   wds: 'gg:wds',
   wdsOpen: 'gg:wds:open',
   inbox: (id) => 'gg:inbox:' + id,
+  lot: (id) => 'gg:lot:' + id,
+  lots: 'gg:lots',
+  mktlog: 'gg:mktlog',
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -191,6 +197,18 @@ export function tonPrice(stars, rate) {
   return rate > 0 ? Math.ceil(stars * NANO / rate) : 0;
 }
 
+/* Маркет: комиссия в процентах с продажи и минимальная цена лота в TON.
+   Задаёт админка */
+export function cleanMarket(input) {
+  const src = input || {};
+  const fee = Math.round(Math.min(Math.max(Number(src.fee), 0), 50) * 10) / 10;
+  const min = Math.round(Math.min(Math.max(Number(src.min), 0.01), 1e6) * 100) / 100;
+  return {
+    fee: Number.isFinite(fee) ? fee : 5,
+    min: Number.isFinite(min) ? min : 0.1
+  };
+}
+
 const TASK_TYPES = ['link', 'subscribe', 'send', 'buy', 'invite'];
 
 // Канал для задания «подписаться»: @name, t.me/name или просто name.
@@ -276,6 +294,7 @@ export async function readContent(fresh) {
 
   // Курс TON появился позже самой витрины: у старых записей его нет
   if (!value.ton) value.ton = { rate: 0 };
+  if (!value.market) value.market = cleanMarket({});
 
   contentCache = { at: Date.now(), value: value };
   return value;
@@ -298,6 +317,7 @@ export function publicContent(content) {
     banners: content.banners || [],
     tasks: content.tasks || [],
     ton: { address: TON_RECEIVER, rate: (content.ton && content.ton.rate) || 0 },
+    market: cleanMarket(content.market),
     updatedAt: content.updatedAt || 0
   };
 }
@@ -328,7 +348,11 @@ function cleanNft(one) {
     num: int(one.num, 0, 1e9),
     at: int(one.at, 0, 1e15),
     // Ценность этого конкретного подарка в звёздах — ставит админка
-    value: int(one.value, 0, 1e9)
+    value: int(one.value, 0, 1e9),
+    // Выставлен на маркет: номер лота и цена в нанотонах. Пока лот висит,
+    // подарок не отправить — сперва снять с продажи
+    lot: str(one.lot, 32),
+    lotNano: int(one.lotNano, 0, 1e15)
   };
   return nft.id && nft.gift ? nft : null;
 }
@@ -1069,6 +1093,189 @@ export async function userLang(userId) {
   return raw ? (JSON.parse(raw).lang || '') : '';
 }
 
+// --- Маркет ---
+
+/* Как у memgift: продают только улучшенные подарки, цена в TON, платит
+   покупатель с баланса TON. Продавец получает цену за вычетом комиссии.
+   Пока подарок на продаже, он остаётся в профиле продавца с пометкой лота —
+   отправить его нельзя, пока не снят.
+
+   Покупка трогает два счёта сразу. Оба берём в очередь в порядке id —
+   так две встречные покупки не будут ждать друг друга вечно, а две покупки
+   одного лота пройдут по очереди, и вторая увидит, что лота уже нет */
+const MKT_LOG = 200;
+
+function nameOfProfile(person, id) {
+  return [person.firstName, person.lastName].filter(Boolean).join(' ') ||
+    (person.username ? '@' + person.username : 'ID ' + id);
+}
+
+function bothQueued(a, b, run) {
+  const [first, second] = [String(a), String(b)].sort();
+  return queued(first, () => queued(second, run));
+}
+
+async function addMarketLog(entry) {
+  const raw = await command('GET', K.mktlog);
+  const log = raw ? JSON.parse(raw) : [];
+  log.unshift(Object.assign({ at: Date.now() }, entry));
+  await command('SET', K.mktlog, JSON.stringify(log.slice(0, MKT_LOG)));
+}
+
+// Снимок подарка для лота и истории: что показывать, не заглядывая в счёт
+function lotNft(nft) {
+  return { id: nft.id, gift: nft.gift, model: nft.model, backdrop: nft.backdrop, symbol: nft.symbol, num: nft.num };
+}
+
+export async function createLot(userId, nftId, priceTon, content) {
+  const id = String(userId);
+  const settings = cleanMarket(content.market);
+  const nano = Math.round(Number(priceTon) * NANO);
+  if (!Number.isFinite(nano) || nano <= 0) throw new InputError('Укажите цену');
+  if (nano < Math.round(settings.min * NANO)) throw new InputError('Минимальная цена — ' + String(settings.min).replace('.', ',') + ' TON');
+  if (nano > 1e6 * NANO) throw new InputError('Слишком высокая цена');
+
+  return queued(id, async () => {
+    const [rawAcct, rawProfile] = await pipeline([['GET', K.acct(id)], ['GET', K.user(id)]]);
+    const acct = normalAccount(rawAcct);
+    const nft = acct.nfts.find((one) => one.id === str(nftId, 32));
+    if (!nft) throw new InputError('Этого подарка у вас нет');
+    if (nft.lot) throw new InputError('Подарок уже выставлен на маркете');
+
+    const now = Date.now();
+    const profile = rawProfile ? JSON.parse(rawProfile) : {};
+    const lot = { id: newId('lot'), nftId: nft.id, sellerId: id, nano: nano, createdAt: now, nft: lotNft(nft) };
+    nft.lot = lot.id;
+    nft.lotNano = nano;
+
+    await pipeline([
+      ['SET', K.acct(id), JSON.stringify(acct)],
+      ['SET', K.lot(lot.id), JSON.stringify(lot)],
+      ['ZADD', K.lots, now, lot.id]
+    ]);
+    await addMarketLog({ type: 'listed', lot: lot.id, nano: nano, nft: lot.nft, seller: { id: id, name: nameOfProfile(profile, id) } });
+    return lot;
+  });
+}
+
+export async function removeLot(userId, lotId) {
+  const id = String(userId);
+  const raw = await command('GET', K.lot(str(lotId, 32)));
+  if (!raw) throw new InputError('Лота уже нет');
+  const lot = JSON.parse(raw);
+  if (lot.sellerId !== id) throw new InputError('Это не ваш лот');
+
+  return queued(id, async () => {
+    if (!(await command('GET', K.lot(lot.id)))) throw new InputError('Лота уже нет');
+    const [rawAcct, rawProfile] = await pipeline([['GET', K.acct(id)], ['GET', K.user(id)]]);
+    const acct = normalAccount(rawAcct);
+    const nft = acct.nfts.find((one) => one.id === lot.nftId);
+    if (nft) {
+      nft.lot = '';
+      nft.lotNano = 0;
+    }
+    await pipeline([
+      ['SET', K.acct(id), JSON.stringify(acct)],
+      ['DEL', K.lot(lot.id)],
+      ['ZREM', K.lots, lot.id]
+    ]);
+    const profile = rawProfile ? JSON.parse(rawProfile) : {};
+    await addMarketLog({ type: 'removed', lot: lot.id, nano: lot.nano, nft: lot.nft, seller: { id: id, name: nameOfProfile(profile, id) } });
+    return lot;
+  });
+}
+
+/* Покупка. Возвращает, что купили и сколько получил продавец — для
+   уведомления от бота */
+export async function buyLot(buyerId, lotId, content) {
+  const buyer = String(buyerId);
+  const raw = await command('GET', K.lot(str(lotId, 32)));
+  if (!raw) throw new InputError('Подарок уже купили или сняли с продажи');
+  const seller = JSON.parse(raw).sellerId;
+  if (seller === buyer) throw new InputError('Это ваш лот');
+  const fee = cleanMarket(content.market).fee;
+
+  return bothQueued(buyer, seller, async () => {
+    const rawLot = await command('GET', K.lot(str(lotId, 32)));
+    if (!rawLot) throw new InputError('Подарок уже купили или сняли с продажи');
+    const lot = JSON.parse(rawLot);
+
+    const [rawBuyer, rawSeller, rawBuyerProfile, rawSellerProfile] = await pipeline([
+      ['GET', K.acct(buyer)],
+      ['GET', K.acct(seller)],
+      ['GET', K.user(buyer)],
+      ['GET', K.user(seller)]
+    ]);
+    const to = normalAccount(rawBuyer);
+    const from = normalAccount(rawSeller);
+
+    // Подарок могли забрать из админки — тогда и лот не нужен
+    const at = from.nfts.findIndex((one) => one.id === lot.nftId && one.lot === lot.id);
+    if (at === -1) {
+      await pipeline([['DEL', K.lot(lot.id)], ['ZREM', K.lots, lot.id]]);
+      throw new InputError('Подарок уже купили или сняли с продажи');
+    }
+    if (to.tonNano < lot.nano) {
+      const error = new InputError('Недостаточно TON на балансе');
+      error.code = 'market.low';
+      throw error;
+    }
+
+    const payout = lot.nano - Math.round(lot.nano * fee / 100);
+    const nft = from.nfts.splice(at, 1)[0];
+    nft.lot = '';
+    nft.lotNano = 0;
+    to.nfts.push(nft);
+    to.tonNano -= lot.nano;
+    from.tonNano += payout;
+
+    await pipeline([
+      ['SET', K.acct(buyer), JSON.stringify(to)],
+      ['SET', K.acct(seller), JSON.stringify(from)],
+      ['DEL', K.lot(lot.id)],
+      ['ZREM', K.lots, lot.id]
+    ]);
+
+    const buyerProfile = rawBuyerProfile ? JSON.parse(rawBuyerProfile) : {};
+    const sellerProfile = rawSellerProfile ? JSON.parse(rawSellerProfile) : {};
+    await addTonLog(buyer, { type: 'market_buy', nano: lot.nano, giftId: lot.nft.gift, num: lot.nft.num });
+    await addTonLog(seller, { type: 'market_sell', nano: payout, giftId: lot.nft.gift, num: lot.nft.num });
+    await addMarketLog({
+      type: 'sold',
+      lot: lot.id,
+      nano: lot.nano,
+      nft: lot.nft,
+      seller: { id: seller, name: nameOfProfile(sellerProfile, seller) },
+      buyer: { id: buyer, name: nameOfProfile(buyerProfile, buyer) }
+    });
+
+    return { lot: lot, payout: payout, seller: { id: seller, lang: sellerProfile.lang || '' }, buyer: { id: buyer, name: nameOfProfile(buyerProfile, buyer), username: buyerProfile.username || '' } };
+  });
+}
+
+// Все лоты на продаже с именем и фото продавца — отбор делает приложение
+export async function listLots() {
+  const ids = (await command('ZREVRANGE', K.lots, 0, 499)) || [];
+  if (!ids.length) return [];
+  const lots = (await mgetJson(ids.map(K.lot))).map((raw) => (raw ? JSON.parse(raw) : null)).filter(Boolean);
+  const profiles = await mgetJson(lots.map((one) => K.user(one.sellerId)));
+  return lots.map((lot, index) => {
+    const person = profiles[index] ? JSON.parse(profiles[index]) : {};
+    return {
+      id: lot.id,
+      nano: lot.nano,
+      createdAt: lot.createdAt,
+      nft: lot.nft,
+      seller: { id: lot.sellerId, name: nameOfProfile(person, lot.sellerId), username: person.username || '', photo: person.photo || '' }
+    };
+  });
+}
+
+export async function marketLog() {
+  const raw = await command('GET', K.mktlog);
+  return raw ? JSON.parse(raw) : [];
+}
+
 // --- Рефералы ---
 
 // Кого человек привёл: свежие первыми, наружу только имя и фото
@@ -1144,6 +1351,7 @@ export async function transferGift(fromId, toId, giftId, nftId) {
   if (nft) {
     const at = sender.nfts.findIndex((one) => one.id === nft);
     if (at === -1) throw new InputError('Подарок вам больше не принадлежит');
+    if (sender.nfts[at].lot) throw new InputError('Подарок выставлен на маркете — сначала снимите его с продажи');
     moved = sender.nfts.splice(at, 1)[0];
     recipient.nfts.push(moved);
   } else {
