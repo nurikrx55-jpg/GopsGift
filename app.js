@@ -2330,36 +2330,37 @@
     const lot = gift && gift.lot;
     const listed = Boolean(upg && !lot && gift.nft.lot);
 
+    // Тикер как у memgift: «Продать» со значком маркета, у выставленного —
+    // «Снять» с перечёркнутым. «Вывести» у выставленного нет
     const sell = document.getElementById('owned-sell');
     sell.hidden = !upg || Boolean(lot);
     document.getElementById('owned-sell-text').textContent = t(listed ? 'market.unlist' : 'market.sell');
+    const ico = document.getElementById('owned-sell-ico');
+    ico.setAttribute('viewBox', listed ? '0 0 29 29' : '0 -1 24 24');
+    ico.querySelector('use').setAttribute('href', listed ? '#market-off' : '#market');
+    if (upg && !lot) document.getElementById('owned-withdraw').hidden = listed;
 
-    // Выставленный не отправить — кнопка приглушена, как у memgift
+    // Выставленный не отправить — кнопка приглушена
     document.getElementById('owned-send').classList.toggle('disabled', listed);
 
-    const banner = document.getElementById('owned-onmarket');
-    banner.hidden = !listed;
-    if (listed) {
-      document.getElementById('owned-onmarket-text').textContent =
-        t('market.onMarket', { n: formatTon(gift.nft.lotNano) });
-    }
+    document.getElementById('owned-onmarket').hidden = !listed;
+
+    // Цена под названием — и у лота в маркете, и у своего выставленного
+    const price = lot ? lot.nano : listed ? gift.nft.lotNano : 0;
+    document.getElementById('owned-price').hidden = !price;
+    if (price) document.getElementById('owned-price-text').textContent = formatTon(price);
 
     document.getElementById('owned-chrome').hidden = !lot;
-    document.getElementById('owned-price').hidden = !lot;
     document.getElementById('owned-lotfoot').hidden = !lot;
     document.getElementById('owned-close').parentNode.hidden = Boolean(lot);
     if (!lot) return;
 
     paintGram();
-    document.getElementById('owned-price-text').textContent = formatTon(lot.nano);
-    const mine = isMine(lot);
     const buy = document.getElementById('owned-buy');
-    buy.classList.toggle('is-mine', mine);
-    document.getElementById('owned-buy-label').textContent = t(mine ? 'market.unlistLot' : 'market.buy');
-    document.getElementById('owned-buy-gram').style.display = mine ? 'none' : '';
-    document.getElementById('owned-buy-price').textContent = mine ? '' : formatTon(lot.nano);
-    // Не хватает на балансе — кнопка гаснет, как `checkBalanceAndPrice` memgift
-    buy.disabled = !mine && (Number(ME && ME.tonNano) || 0) < lot.nano;
+    document.getElementById('owned-buy-price').textContent = formatTon(lot.nano);
+    // Свой лот не купить, и не хватает на балансе — кнопка гаснет,
+    // как `checkBalanceAndPrice` memgift
+    buy.disabled = isMine(lot) || (Number(ME && ME.tonNano) || 0) < lot.nano;
   }
 
   function initOwnedTools() {
@@ -5098,6 +5099,8 @@
       toast(t('pay.noDb'));
       return;
     }
+    // Как у memgift: окно подарка закрывается, открывается окно продажи
+    ownSheet.close();
     sellSheet.open(gift);
   }
 
@@ -5189,23 +5192,18 @@
 
   function buyLot(gift) {
     const lot = gift && gift.lot;
-    if (!lot || buying) return;
+    if (!lot || buying || isMine(lot)) return;
     const button = document.getElementById('owned-buy');
     buying = true;
     button.classList.add('is-loading');
 
-    // Свой лот из маркета — снять с продажи
-    const request = isMine(lot)
-      ? marketPost({ action: 'unlist', lot: lot.id })
-      : marketPost({ action: 'buy', lot: lot.id });
-
-    request
+    marketPost({ action: 'buy', lot: lot.id })
       .then((data) => {
         applyMe(data.me);
         LOTS = LOTS.filter((one) => one.id !== lot.id);
         haptic('success');
         // Как у memgift: уведомление и окно закрывается
-        toast(t(isMine(lot) ? 'market.unlisted' : 'market.bought'));
+        toast(t('market.bought'));
         ownSheet.close();
         paintMarket();
         loadMarket();
