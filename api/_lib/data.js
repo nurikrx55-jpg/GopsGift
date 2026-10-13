@@ -137,7 +137,10 @@ export function cleanGift(input) {
     // Улучшение, как у memgift: модели подарка и цена в звёздах. Пока
     // моделей нет, кнопка «Улучшить» в профиле приглушена
     models: cleanModels(input.models),
-    upgradePrice: int(input.upgradePrice, 0, 100000)
+    upgradePrice: int(input.upgradePrice, 0, 100000),
+    // Ценность улучшенного подарка на чёрном фоне Eclipse, в звёздах. Её
+    // показывает строка «Ценность» в окне такого подарка
+    eclipseValue: int(input.eclipseValue, 0, 1000000000)
   };
 
   if (!gift.name) throw new InputError('Без названия подарок не сохранить');

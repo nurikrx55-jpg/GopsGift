@@ -934,6 +934,7 @@
          символ выпадают из общих наборов memgift. Пока моделей нет, кнопка
          «Улучшить» у людей приглушена */
       const upPrice = input(draft.upgradePrice || 0, { type: 'number' });
+      const eclipse = input(draft.eclipseValue || 0, { type: 'number' });
       const models = el('div', 'ad-models');
 
       const drawModels = () => {
@@ -997,12 +998,15 @@
       dropTarget(addModel, takeModel);
 
       const upForm = el('div', 'ad-form');
-      upForm.append(field('Цена улучшения', affix(upPrice, 'star-img'), true));
+      upForm.append(
+        field('Цена улучшения', affix(upPrice, 'star-img'), true),
+        field('Ценность с чёрным фоном (Eclipse)', affix(eclipse, 'star-img'), true)
+      );
       body.appendChild(group('Улучшение',
         upForm,
         models,
         addModel,
-        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное.')
+        el('p', 'ad-note', 'Модель выпадает с учётом шанса в процентах; пусто — шанс у всех равный. Фон и символ выпадают случайно из наборов memgift. Цена 0 — улучшение бесплатное. Ценность видна в окне подарка, которому выпал чёрный фон Eclipse; 0 — прочерк.')
       ));
 
       const sync = () => {
@@ -1058,6 +1062,7 @@
               left: Number(left.value) || 0,
               status: status.value.trim(),
               upgradePrice: Number(upPrice.value) || 0,
+              eclipseValue: Number(eclipse.value) || 0,
               models: draft.models
                 .filter((one) => one.art)
                 .map((one) => ({ id: one.id, name: String(one.name || '').trim() || 'Model', art: one.art, artType: one.artType, rate: one.rate || 0 }))

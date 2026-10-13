@@ -1674,6 +1674,30 @@
       put('owned-bd-pct', pct(backdrop && backdrop.rate));
     }
 
+    // Ценность — у улучшенного на чёрном фоне Eclipse; сколько, задаёт админка
+    const eclipse = upg && gift.nft.backdrop === 'Eclipse';
+    document.getElementById('owned-value-row').hidden = !eclipse;
+    if (eclipse) {
+      const base = giftById(gift.id);
+      const worth = base && base.eclipseValue;
+      const value = document.getElementById('owned-value');
+      value.textContent = '';
+      if (worth) {
+        const star = document.createElement('img');
+        star.src = 'gifts/star.png';
+        star.alt = '';
+        star.draggable = false;
+        value.append(star, formatPrice(worth));
+      } else {
+        value.textContent = '—';
+      }
+    }
+
+    // «Вывести» и «Крафт» — только у улучшенного, иконки-анимации
+    ['owned-withdraw', 'owned-craft'].forEach((id) => {
+      document.getElementById(id).hidden = !upg;
+    });
+
     paintRarity(card, gift);
     // Готовый цвет — сразу; иначе подложка остаётся запасной, пока не
     // досчитается, и перекрашивается уже под закрытым листом
@@ -1798,6 +1822,7 @@
           fillOwned(fresh);
           closeArt(document.getElementById('owned-art'), ownPlayer);
           ownPlayer = openArt(document.getElementById('owned-art'), artOf(fresh));
+          playTickerIcons();
         }
 
         haptic('success');
@@ -1879,6 +1904,30 @@
     const match = /^gift_([a-z0-9-]+)$/.exec(start);
     const gift = match && giftById(match[1]);
     if (gift && buySheet) buySheet.open(gift);
+  }
+
+  /* Иконки «Вывести» и «Крафт» — анимации .tgs: проигрываются разок,
+     когда открывается окно улучшенного подарка, и замирают */
+  const tickerIcons = new Map();
+
+  function playTickerIcons() {
+    if (!window.lottie) return;
+    owned.querySelectorAll('[data-icon]').forEach((box) => {
+      let player = tickerIcons.get(box);
+      if (!player) {
+        player = window.lottie.loadAnimation({
+          container: box,
+          renderer: 'canvas',
+          loop: false,
+          rendererSettings: { dpr: Math.min(window.devicePixelRatio || 1, 2) },
+          autoplay: false,
+          path: box.dataset.icon
+        });
+        tickerIcons.set(box, player);
+      }
+      if (prefersStill()) player.goToAndStop(player.totalFrames - 1 || 0, true);
+      else player.goToAndPlay(0, true);
+    });
   }
 
   function initOwnedTools() {
@@ -2997,6 +3046,7 @@
       fill: fillOwned,
       opened: (gift) => {
         ownPlayer = openArt(document.getElementById('owned-art'), artOf(gift));
+        if (gift && gift.nft) playTickerIcons();
       },
       closed: () => {
         closeArt(document.getElementById('owned-art'), ownPlayer);

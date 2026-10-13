@@ -5765,3 +5765,39 @@ body {
 .vw-gift__rarity .vw-gift__ribbon {
   z-index: 1;
 }
+
+/* Иконка-анимация в кнопке карточки — того же размера, что svg-значки */
+.mgm-card__lottie-ico {
+  width: 22px;
+  height: 22px;
+  display: block;
+  /* Анимация крупнее svg-значка на 5px — подпись не должна съезжать */
+  margin: -2.5px 0;
+}
+
+.mgm-card__lottie-ico canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* «Вывести» и «Крафт» пока ничего не делают */
+.mgm-card__tickers-i.is-soon {
+  cursor: default;
+}
+
+.mgm-card__tickers-i.is-soon:active {
+  transform: none;
+}
+
+/* Ценность: звезда перед числом, как у цены */
+.mgm-info__val--price {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mgm-info__val--price img {
+  width: 16px;
+  height: 16px;
+}
