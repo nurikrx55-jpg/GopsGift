@@ -6,8 +6,8 @@
   const FULLSCREEN_API = '8.0';
   // За сколько пикселей движения жест считаем перетаскиванием, а не тапом
   const DRAG_THRESHOLD = 6;
-  // Сколько экран загрузки держится минимум — чтобы не мигнуть и исчезнуть
-  const SPLASH_MIN_MS = 1100;
+  // Столько держится заставка: ровно пока собирается знак
+  const SPLASH_MIN_MS = 1900;
   // Дольше этого заставку не держим даже без ответа: лучше показать пустое
   // приложение с объяснением, чем логотип без конца
   const SPLASH_MAX_MS = 12000;
@@ -138,34 +138,9 @@
     nav.style.setProperty('--menu-indicator-w', box.width + 'px');
   }
 
-  /* Раздел въезжает только в первый свой показ за сеанс — так у memgift
-     (их `mg:menu-tabs-visited`). Иначе быстрые тычки по панели гоняли бы
-     анимацию без конца и экран дёргался бы на каждом нажатии */
-  const VISITED = 'gg:menu-tabs-visited';
-  let visited = new Set();
-  try { visited = new Set(JSON.parse(sessionStorage.getItem(VISITED) || '[]')); } catch (_) {}
-
-  function enterSection(section, from, to) {
-    const pane = stage.querySelector('.pane[data-pane="' + section + '"]');
-    if (!pane) return;
-
-    pane.classList.remove('is-entering', 'is-entering--forward', 'is-entering--back');
-    if (visited.has(section)) return;
-
-    visited.add(section);
-    try { sessionStorage.setItem(VISITED, JSON.stringify(Array.from(visited))); } catch (_) {}
-
-    // Пересчёт стилей форсируем чтением размера — иначе анимация не начнётся
-    void pane.offsetHeight;
-    pane.classList.add('is-entering');
-    if (to > from) pane.classList.add('is-entering--forward');
-    else if (to < from) pane.classList.add('is-entering--back');
-  }
-
   function selectTab(index) {
     if (index < 0 || index >= tabs.length) return;
 
-    const from = current;
     current = index;
     paint(index);
 
@@ -174,7 +149,6 @@
 
     placeIndicator();
     stage.dataset.section = tabs[index].dataset.section;
-    enterSection(stage.dataset.section, from, index);
     // Маркет живой: при каждом входе — свежие лоты и история
     if (stage.dataset.section === 'market') loadMarket();
     // Шапка едет вместе со страницей, поэтому новый раздел открываем сверху
@@ -305,6 +279,9 @@
   function initSlider(slides) {
     if (!sliderTrack || !sliderDots) return;
     if (!slides || slides.length < 2) return;
+
+    // На месте точек стоял скелет — его сменяют настоящие
+    sliderDots.textContent = '';
 
     const dots = slides.map((slide, index) => {
       const dot = document.createElement('button');
@@ -483,15 +460,6 @@
 
     // У купленного подарка цены нет — она имеет смысл только на витрине
     if (withPrice) {
-      // Имя на карточке — как у memgift: у них подпись есть, у нас не было,
-      // и подарок опознавался только по картинке
-      card.classList.add('gift--named');
-
-      const name = document.createElement('span');
-      name.className = 'gift__name';
-      name.textContent = gift.name || '';
-      card.appendChild(name);
-
       const price = document.createElement('span');
       price.className = 'gift__price';
 
@@ -4202,6 +4170,9 @@
     const root = document.getElementById('tasks');
     if (!root) return;
 
+    // На первом показе здесь стоит скелет — его место занимают задания
+    root.textContent = '';
+
     TASK_BLOCKS.forEach((group) => {
     const block = document.createElement('section');
     block.className = 'tasks__block';
@@ -4742,6 +4713,10 @@
     const tabs = document.getElementById('prf-tabs');
     if (!tabs) return;
 
+    // Шапка профиля заполнена — скелет под ней больше не нужен
+    const pu = document.querySelector('.pu');
+    if (pu) pu.classList.remove('is-skel');
+
     const user = tgUser();
     const owned = OWNED.gifts.length + OWNED.nft.length + OWNED.upg.length;
 
@@ -5188,6 +5163,55 @@
 
   let marketLoading = null;
   let marketStamp = '';
+
+  /* Заставка уходит, как только собрался знак, — не дожидаясь содержимого.
+     Чтобы под ней был не пустой экран, витрина и задания сразу встают
+     скелетом: те же размеры, что у будущих карточек */
+  function bootSkeletons() {
+    const grid = document.getElementById('gifts');
+    const tasks = document.getElementById('tasks');
+
+    // Плиты кладём прямо в сетку витрины: своя обёртка попала бы в одну
+    // её колонку и встала бы столбиком
+    if (grid) {
+      grid.innerHTML = new Array(4).fill('<i class="gifts-skel__card skel" aria-hidden="true"></i>').join('');
+    }
+
+    // Баннеры и точки под ними
+    if (sliderTrack) {
+      sliderTrack.innerHTML = new Array(2).fill('<i class="slider-skel__slide skel" aria-hidden="true"></i>').join('');
+    }
+    if (sliderDots) {
+      sliderDots.innerHTML = '<i class="slider-skel__dot slider-skel__dot--on skel" aria-hidden="true"></i>' +
+        '<i class="slider-skel__dot skel" aria-hidden="true"></i>';
+    }
+
+    // Профиль: аватар, имя и строка под ним рисуются плитами из стилей,
+    // сетка подарков — своими квадратами
+    const pu = document.querySelector('.pu');
+    if (pu) pu.classList.add('is-skel');
+
+    const own = document.getElementById('prf-list');
+    if (own) {
+      own.innerHTML = '<div class="gifts" aria-hidden="true">' +
+        new Array(6).fill('<i class="prf-skel__card skel"></i>').join('') + '</div>';
+    }
+
+    if (tasks) {
+      const row = '<div class="task">' +
+        '<i class="tasks-skel__avatar skel"></i>' +
+        '<div class="tasks-skel__lines">' +
+        '<i class="tasks-skel__line skel"></i>' +
+        '<i class="tasks-skel__line tasks-skel__line--short skel"></i>' +
+        '</div>' +
+        '<i class="tasks-skel__btn skel"></i></div>';
+      tasks.innerHTML = '<section class="tasks__block" aria-hidden="true">' +
+        '<div class="tasks__head"><i class="tasks-skel__head skel"></i></div>' +
+        new Array(3).fill(row).join('') + '</section>';
+    }
+
+    marketSkeleton();
+  }
 
   /* Пока лоты и история едут с сервера, на их месте стоят плиты с бликом —
      скелет memgift. Размеры те же, что у готовых карточек: страница не
@@ -5950,6 +5974,9 @@
   initTelegram();
   initNav();
   initSplash();
+  bootSkeletons();
+  // Заставка держится ровно столько, сколько собирается знак
+  hideSplash();
 
   // Фоны и символы нужны до первой отрисовки: из них собраны улучшенные
   // подарки в профиле. Не загрузились — профиль всё равно откроется
@@ -5992,8 +6019,5 @@
     .catch((error) => {
       console.warn('Содержимое не загрузилось:', error);
       showLoadFailure();
-    })
-    // Заставка уходит в обоих случаях: и когда витрина готова, и когда
-    // стало ясно, что её не будет
-    .then(hideSplash, hideSplash);
+    });
 })();
