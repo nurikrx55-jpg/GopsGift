@@ -1,10 +1,35 @@
-/* SF Rounded Semibold — единственное начертание в проекте. Диапазон весов указан
-   целиком намеренно: иначе браузер доутолщал бы глифы там, где в стилях стоит
-   700, и буквы бы поплыли. */
+/* SF Rounded — те же файлы и те же начертания, что у memgift. Раньше в
+   проекте лежал один Semibold с диапазоном весов 100–900: браузер сам
+   доутолщал глифы, и 500 от 600 не отличалось. Теперь каждый вес —
+   свой файл, как у образца. */
+@font-face {
+  font-family: "SF Rounded";
+  src: url("fonts/sf-rounded-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Rounded";
+  src: url("fonts/sf-rounded-medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "SF Rounded";
   src: url("fonts/sf-rounded-semibold.woff2") format("woff2");
-  font-weight: 100 900;
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SF Rounded";
+  src: url("fonts/sf-rounded-bold.woff2") format("woff2");
+  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
@@ -159,7 +184,7 @@ body {
 
 .slider__track {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   /* Боковые отступы живут на дорожке, иначе крайние слайды липнут к краю экрана */
   padding: 0 16px;
   overflow-x: auto;
@@ -175,10 +200,10 @@ body {
 }
 
 .slider__slide {
-  /* Слайд уже дорожки — следующий выглядывает справа */
-  flex: 0 0 calc(100% - 56px);
-  aspect-ratio: 696 / 259;
-  border-radius: 20px;
+  /* Размер memgift: слайд уже дорожки, следующий выглядывает справа */
+  flex: 0 0 300px;
+  height: 108px;
+  border-radius: 22px;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -194,8 +219,9 @@ body {
 .slider__dots {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  margin-top: 14px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 21px;
 }
 
 .slider__dot {
@@ -205,15 +231,20 @@ body {
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.22);
   /* Заливка не должна вылезать за скругление вытянутой точки */
   overflow: hidden;
   cursor: pointer;
-  transition: width 0.3s var(--ease);
+  transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.18s ease, background 0.18s ease;
+}
+
+.slider__dot:active {
+  transform: scale(0.96);
 }
 
 .slider__dot.is-active {
   width: 22px;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 /* Белая заливка — это и есть таймер: дошла до края, баннер сменился */
@@ -221,6 +252,7 @@ body {
   display: block;
   width: 0;
   height: 100%;
+  transition: width 0.04s linear;
   border-radius: inherit;
   background: #fff;
 }
@@ -229,6 +261,43 @@ body {
 .slider__dot:not(.is-active) .slider__fill {
   width: 0;
   transition: none;
+}
+
+/* Въезд раздела — кадры memgift (`menu-page-enter-*`). Ставится только на
+   первый показ раздела за сеанс: кто перещёлкивает панель туда-сюда,
+   видит мгновенную смену, а не дёрганье */
+.pane.is-entering {
+  animation: pane-enter-neutral 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pane.is-entering--forward {
+  animation-name: pane-enter-forward;
+}
+
+.pane.is-entering--back {
+  animation-name: pane-enter-back;
+}
+
+@keyframes pane-enter-neutral {
+  0%   { opacity: 0; filter: blur(10px); transform: translateY(16px) scale(0.96); }
+  55%  { opacity: 1; filter: blur(0);    transform: translateY(-3px) scale(1.008); }
+  100% { opacity: 1; filter: blur(0);    transform: translateY(0) scale(1); }
+}
+
+@keyframes pane-enter-forward {
+  0%   { opacity: 0; filter: blur(8px); transform: translateX(28px) translateY(8px) scale(0.97); }
+  60%  { opacity: 1; filter: blur(0);   transform: translateX(-4px) translateY(-2px) scale(1.006); }
+  100% { opacity: 1; filter: blur(0);   transform: translateX(0) translateY(0) scale(1); }
+}
+
+@keyframes pane-enter-back {
+  0%   { opacity: 0; filter: blur(8px); transform: translateX(-28px) translateY(8px) scale(0.97); }
+  60%  { opacity: 1; filter: blur(0);   transform: translateX(4px) translateY(-2px) scale(1.006); }
+  100% { opacity: 1; filter: blur(0);   transform: translateX(0) translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane.is-entering { animation: none; }
 }
 
 /* Навигационная панель — код memgift как есть (их `.menu`) */
@@ -662,6 +731,33 @@ body {
   height: 70%;
 }
 
+/* На витрине под подарком стоит имя — подарок приподнимается, освобождая
+   ему строку. В профиле имени нет: там карточка подписана в окне */
+.gift--named .gift__art {
+  top: 4%;
+  height: 58%;
+}
+
+/* Имя подарка — подпись memgift (`.item .name`): одна строка, хвост
+   срезан многоточием */
+.gift__name {
+  position: absolute;
+  z-index: 10;
+  left: 12px;
+  right: 12px;
+  bottom: 54px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.3px;
+  color: #f5f5f7;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
 .gift__art canvas,
 .gift__art svg,
 .gift__art img {
@@ -775,8 +871,8 @@ body {
 .sheet {
   position: fixed;
   inset: 0;
-  /* Выше плавающей навигации */
-  z-index: 200;
+  /* Выше плавающей навигации: у memgift листы кроют её собой, а не сгоняют */
+  z-index: 1000;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -3006,8 +3102,8 @@ body {
 .won {
   position: fixed;
   inset: 0;
-  /* Выше листов, ниже уведомления */
-  z-index: 250;
+  /* Поздравление кроет всё, кроме заставки: оно само — целый экран */
+  z-index: 1350;
   display: grid;
   grid-template-rows: 1fr auto;
   background: #0d0d10;
@@ -6203,23 +6299,67 @@ body {
   color: #f5f5f7;
 }
 
-.mkt-loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px 0;
+/* Скелеты загрузки — рецепт memgift (`._load-shimmer`): плита #252528 и
+   блик, пробегающий по ней слева направо. Пустое место под будущие
+   карточки понятнее крутящегося колеса: сразу видно, сколько придёт */
+.skel {
+  background-color: #252528;
+  background-image: linear-gradient(90deg, #252528, rgba(255, 255, 255, 0.07), #252528 90%);
+  background-size: 220% 100%;
+  animation: load-shimmer 1.85s ease-in-out infinite;
 }
 
-.mkt-spinner {
-  width: 28px;
-  height: 28px;
-  border: 2.5px solid rgba(245, 245, 247, .15);
-  border-top-color: #f5f5f7;
-  border-radius: 50%;
-  animation: mkt-spin .8s linear infinite;
+@keyframes load-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
 }
 
-@keyframes mkt-spin {
-  to { transform: rotate(360deg); }
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+}
+
+/* Лоты: те же две в ряд и то же скругление, что у готовых карточек */
+.mkt-skel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 2px 16px;
+  opacity: .4;
+}
+
+.mkt-skel__card {
+  display: block;
+  aspect-ratio: .7;
+  border-radius: 22px;
+}
+
+/* История: плитка подарка и две строки текста под неё */
+.mkt-skel__thumb {
+  display: block;
+  flex-shrink: 0;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+
+.mkt-skel__lines {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.mkt-skel__line {
+  display: block;
+  width: 70%;
+  height: 14px;
+  border-radius: 6px;
+}
+
+.mkt-skel__line--short {
+  width: 40%;
+  height: 12px;
 }
 
 /* Выставлен на маркете — плашка memgift `.pgm-market` в окне подарка */
@@ -6361,7 +6501,7 @@ body {
 
 .mkt-logotype svg {
   width: 22px;
-  height: 21px;
+  height: 22px;
   fill: #f5f5f7;
 }
 

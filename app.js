@@ -138,9 +138,34 @@
     nav.style.setProperty('--menu-indicator-w', box.width + 'px');
   }
 
+  /* Раздел въезжает только в первый свой показ за сеанс — так у memgift
+     (их `mg:menu-tabs-visited`). Иначе быстрые тычки по панели гоняли бы
+     анимацию без конца и экран дёргался бы на каждом нажатии */
+  const VISITED = 'gg:menu-tabs-visited';
+  let visited = new Set();
+  try { visited = new Set(JSON.parse(sessionStorage.getItem(VISITED) || '[]')); } catch (_) {}
+
+  function enterSection(section, from, to) {
+    const pane = stage.querySelector('.pane[data-pane="' + section + '"]');
+    if (!pane) return;
+
+    pane.classList.remove('is-entering', 'is-entering--forward', 'is-entering--back');
+    if (visited.has(section)) return;
+
+    visited.add(section);
+    try { sessionStorage.setItem(VISITED, JSON.stringify(Array.from(visited))); } catch (_) {}
+
+    // Пересчёт стилей форсируем чтением размера — иначе анимация не начнётся
+    void pane.offsetHeight;
+    pane.classList.add('is-entering');
+    if (to > from) pane.classList.add('is-entering--forward');
+    else if (to < from) pane.classList.add('is-entering--back');
+  }
+
   function selectTab(index) {
     if (index < 0 || index >= tabs.length) return;
 
+    const from = current;
     current = index;
     paint(index);
 
@@ -149,6 +174,7 @@
 
     placeIndicator();
     stage.dataset.section = tabs[index].dataset.section;
+    enterSection(stage.dataset.section, from, index);
     // Маркет живой: при каждом входе — свежие лоты и история
     if (stage.dataset.section === 'market') loadMarket();
     // Шапка едет вместе со страницей, поэтому новый раздел открываем сверху
@@ -164,25 +190,23 @@
   }
 
 
-  /* У memgift панель уезжает вниз, когда поверх открыт целый экран или окно.
-     У нас такие экраны — заставка, страница подарка, окна и поздравление:
-     пока открыто что-то из них, панели на экране нет */
-  const MENU_COVERS = '.sheet.is-open, .mgm-dock.is-open, .wmod-dock.is-open';
-
+  /* У memgift панель уезжает вниз только под целым экраном (их маршруты с
+     noLayout). Листы и окна её не трогают — они просто лежат выше и кроют
+     её собой. Раньше панель пряталась под каждое окно и после каждого
+     закрытия заново выезжала снизу; теперь уезжает она лишь под
+     поздравлением — единственным нашим экраном во весь рост */
   function syncMenu() {
     const menu = document.querySelector('.menu');
     if (!menu) return;
     const won = document.getElementById('won');
-    const covered = Boolean(document.querySelector(MENU_COVERS)) ||
-      Boolean(won && !won.hidden);
-    menu.classList.toggle('is-hidden', covered);
+    menu.classList.toggle('is-hidden', Boolean(won && !won.hidden));
   }
 
   function watchMenu() {
-    const watch = new MutationObserver(syncMenu);
-    document.querySelectorAll('.sheet, .mgm-dock, .wmod-dock, #won, #splash').forEach((node) => {
-      watch.observe(node, { attributes: true, attributeFilter: ['class', 'hidden'] });
-    });
+    const won = document.getElementById('won');
+    if (won) {
+      new MutationObserver(syncMenu).observe(won, { attributes: true, attributeFilter: ['class', 'hidden'] });
+    }
     syncMenu();
   }
 
@@ -459,6 +483,15 @@
 
     // У купленного подарка цены нет — она имеет смысл только на витрине
     if (withPrice) {
+      // Имя на карточке — как у memgift: у них подпись есть, у нас не было,
+      // и подарок опознавался только по картинке
+      card.classList.add('gift--named');
+
+      const name = document.createElement('span');
+      name.className = 'gift__name';
+      name.textContent = gift.name || '';
+      card.appendChild(name);
+
       const price = document.createElement('span');
       price.className = 'gift__price';
 
@@ -5156,15 +5189,36 @@
   let marketLoading = null;
   let marketStamp = '';
 
+  /* Пока лоты и история едут с сервера, на их месте стоят плиты с бликом —
+     скелет memgift. Размеры те же, что у готовых карточек: страница не
+     прыгает, когда данные приходят */
+  function marketSkeleton() {
+    const list = document.getElementById('mkt-list');
+    const act = document.getElementById('mkt-activity');
+
+    if (list) {
+      list.innerHTML = '<div class="mkt-skel" aria-hidden="true">' +
+        new Array(6).fill('<i class="mkt-skel__card skel"></i>').join('') + '</div>';
+    }
+
+    if (act) {
+      const row = '<div class="listings-row">' +
+        '<i class="mkt-skel__thumb skel"></i>' +
+        '<div class="mkt-skel__lines">' +
+        '<i class="mkt-skel__line skel"></i>' +
+        '<i class="mkt-skel__line mkt-skel__line--short skel"></i>' +
+        '</div></div>';
+      act.innerHTML = '<div class="listings-card" aria-hidden="true"><div class="listings-list">' +
+        new Array(6).fill(row).join('') + '</div></div>';
+    }
+  }
+
   function loadMarket() {
     if (!Store.live()) return Promise.resolve();
     // Уже грузится — ждём ту же загрузку, а не отвечаем пустым сразу
     if (marketBusy && marketLoading) return marketLoading;
     marketBusy = true;
-    if (!marketLoaded) {
-      const list = document.getElementById('mkt-list');
-      list.innerHTML = '<div class="mkt-loading"><span class="mkt-spinner" aria-hidden="true"></span></div>';
-    }
+    if (!marketLoaded) marketSkeleton();
     marketLoading = Promise.all([marketPost({ action: 'list' }), marketPost({ action: 'activity' })])
       .then(([lots, act]) => {
         LOTS = lots.lots || [];
