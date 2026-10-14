@@ -3119,41 +3119,45 @@ body {
 
 /* Всплывающее уведомление */
 
-.toast[hidden] {
-  display: none;
+/* Уведомления — как у memgift: столбик в правом верхнем углу, каждое
+   приезжает из-за правого края и через три секунды уезжает обратно */
+
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: calc(var(--safe-area-top) + var(--content-top) - 9px);
+  /* Перехватывать нажатия не должно — оно только сообщает */
+  pointer-events: none;
 }
 
 .toast {
-  position: fixed;
-  top: calc(var(--safe-area-top) + var(--content-top) + 12px);
-  left: 50%;
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: calc(100% - 32px);
-  padding: 11px 18px;
-  border-radius: 99em;
+  max-width: 300px;
+  margin-bottom: 10px;
+  padding: 0.75rem 1.25rem;
+  border-radius: 18px;
+  color: #f5f5f7;
   font-size: 15px;
-  /* Длинная фраза переносится: в одну строку она вылезала за края капсулы */
-  text-align: center;
-  /* Перехватывать нажатия не должно — оно только сообщает */
-  pointer-events: none;
+  font-weight: 600;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.toast.success {
+  background-color: #1e1e1e;
+}
+
+.toast.error {
+  background-color: #ef4444;
+}
+
+/* Пока уведомление не встало на место и когда уходит — отведено вправо */
+.toast.is-off {
   opacity: 0;
-  transform: translate(-50%, -14px);
-  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.toast.is-on {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
-.toast__icon {
-  width: 18px;
-  height: 18px;
-  flex: none;
-  color: #4cd964;
+  transform: translateX(100%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3319,6 +3323,9 @@ body {
 }
 
 .tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   padding: 0 16px;
 }
 
@@ -3332,14 +3339,20 @@ body {
 
 .tasks__head {
   display: flex;
-  align-items: baseline;
-  gap: 7px;
-  padding: 0 2px 4px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
 }
 
 .tasks__head h4 {
-  font-size: 21px;
-  font-weight: inherit;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Счётчик заданий в заголовке — приглушённый, как у образца */
+.tasks__head h4 b {
+  font-weight: 500;
+  color: #6d6d6d;
 }
 
 .task {
@@ -3352,32 +3365,34 @@ body {
 /* Иконка задания в серой плитке */
 .task__avatar {
   flex: none;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: #242424;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(245, 245, 247, 0.06);
   display: grid;
   place-items: center;
-  color: #6f6f6f;
 }
 
 .task__avatar svg {
-  width: 18px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
+  color: #f5f5f7;
+  opacity: 0.5;
 }
 
 .task__info {
   flex: 1 1 auto;
   min-width: 0;
   display: grid;
-  gap: 7px;
+  gap: 10px;
   justify-items: start;
 }
 
 .task__name {
-  font-size: 15px;
-  font-weight: inherit;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.2;
+  color: #f5f5f7;
   /* Длинное название не должно распирать строку */
   max-width: 100%;
   overflow: hidden;
@@ -3387,42 +3402,32 @@ body {
 
 /* Награда — купоны, тем же глифом, что в шапке */
 .task__reward {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  padding: 2px 10px 2px 7px;
-  border-radius: 999px;
-  background: #a3e04c;
-  color: #0e0e0e;
-  font-size: 15px;
-  line-height: 1.2;
+  width: fit-content;
+  height: 22px;
+  padding: 6px 8px 6px 5px;
+  border-radius: 60px;
+  background: #84ef38;
+  color: #000;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  /* Плашка сидит чуть выше строки — так в образце */
+  transform: translateY(-2px);
 }
 
 .task__reward svg {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
   fill: currentColor;
 }
 
-/* Счётчик выполнения: пока задание не закрыто, нажимать нечего */
-.task__count {
-  flex: none;
-  min-width: 52px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #212121;
-  color: #f5f5f7;
-  font-size: 15px;
-  line-height: 1.2;
-  text-align: center;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-}
-
-/* Задание закрыто — счётчик подхватывает цвет награды */
-.task__count[data-done="true"] {
-  background: rgba(163, 224, 76, 0.16);
-  color: #a3e04c;
-  box-shadow: none;
+.task__reward span {
+  margin-left: -2px;
 }
 
 .tasks__empty {

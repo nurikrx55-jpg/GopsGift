@@ -1060,12 +1060,8 @@
     <button class="won__go glass" type="button" id="won-go" data-i18n="won.go">Открыть профиль</button>
   </div>
 
-  <div class="toast glass" id="toast" role="status" aria-live="polite" hidden>
-    <svg class="toast__icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5 12.5 10 17.5 19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    <span id="toast-text"></span>
-  </div>
+  <!-- Уведомления memgift: столбик справа сверху, каждое само уезжает -->
+  <div class="toast-container" id="toast-container" role="status" aria-live="polite"></div>
 
   <!-- TON Connect — подключение кошельков, та же библиотека, что у memgift -->
   <script src="https://unpkg.com/@tonconnect/ui@2.2.0/dist/tonconnect-ui.min.js" defer></script>

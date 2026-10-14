@@ -12,7 +12,7 @@
   // приложение с объяснением, чем логотип без конца
   const SPLASH_MAX_MS = 12000;
   // Сколько висит всплывающее уведомление
-  const TOAST_MS = 1900;
+  const TOAST_MS = 3000;
   // Сколько баннер стоит, прежде чем смениться сам
   const SLIDE_MS = 5000;
 
@@ -76,28 +76,24 @@
     else tg.HapticFeedback.impactOccurred('light');
   }
 
-  // Всплывающее уведомление: показывается у верхнего края и само уходит
-  let toastHide = null;
-  let toastDrop = null;
+  /* Уведомления — столбик memgift в правом верхнем углу. Каждое живёт
+     само: новое не гасит предыдущее, а встаёт под ним */
+  function toast(text, kind) {
+    const root = document.getElementById('toast-container');
+    if (!root) return;
 
-  function toast(text) {
-    const node = document.getElementById('toast');
-    if (!node) return;
+    const node = document.createElement('div');
+    node.className = 'toast is-off ' + (kind === 'error' ? 'error' : 'success');
+    node.textContent = text;
+    root.appendChild(node);
 
-    document.getElementById('toast-text').textContent = text;
-    clearTimeout(toastHide);
-    clearTimeout(toastDrop);
-
-    node.hidden = false;
     // Пересчёт стилей форсируем чтением размера — иначе перехода не будет
     void node.offsetHeight;
-    node.classList.add('is-on');
+    node.classList.remove('is-off');
 
-    toastHide = setTimeout(() => {
-      node.classList.remove('is-on');
-      toastDrop = setTimeout(() => {
-        node.hidden = true;
-      }, 320);
+    setTimeout(() => {
+      node.classList.add('is-off');
+      setTimeout(() => node.remove(), 400);
     }, TOAST_MS);
   }
 
@@ -4118,10 +4114,13 @@
       });
     }
 
-    const count = document.createElement('span');
-    count.className = 'task__count';
-    count.textContent = formatPrice(Math.min(have, task.goal)) + '/' + formatPrice(task.goal);
-    return count;
+    /* Счётное задание ещё не набрано: вместо кнопки — счётчик «2/5». У
+       memgift он той же стеклянной кнопкой и уводит туда, где задание и
+       выполняют: подарки покупают на витрине, отправляют из профиля */
+    return taskButton('count', formatPrice(Math.min(have, task.goal)) + '/' + formatPrice(task.goal), () => {
+      haptic('select');
+      selectTab(task.type === 'buy' ? 0 : 3);
+    });
   }
 
   function taskPost(action, task, button) {
@@ -4178,6 +4177,14 @@
     head.className = 'tasks__head';
     const title = document.createElement('h4');
     title.textContent = group.title;
+    /* Разовые задания memgift считает прямо в заголовке — «Одноразовые (3)».
+       У счётных блоков счёта нет: там важен не список, а прогресс */
+    const once = group.items.length && group.items.every((task) => task.type === 'link' || task.type === 'subscribe');
+    if (once) {
+      const count = document.createElement('b');
+      count.textContent = ' (' + group.items.length + ')';
+      title.appendChild(count);
+    }
     head.appendChild(title);
 
     const list = document.createElement('div');
@@ -4204,10 +4211,8 @@
 
 
   /* Пусто — как у memgift в обеих вкладках: картинка, «Нет подарков(» и
-     «Подарки можно покупать в [Market]», плашка ведёт на витрину */
-  // Где покупают NFT — на GetGems: туда и ведёт плашка во вкладке NFT
-  const GETGEMS_URL = 'https://getgems.io/';
-
+     «Подарки можно покупать в [Market]». В подарках плашка ведёт на
+     витрину, в NFT — отвечает «Очень скоро..»: GetGems не подключён */
   function emptyState(tab) {
     const nft = tab === 'nft';
     const box = document.createElement('div');
@@ -4239,8 +4244,8 @@
         selectTab(0);
         return;
       }
-      if (tg && tg.openLink) tg.openLink(GETGEMS_URL);
-      else window.open(GETGEMS_URL, '_blank', 'noopener');
+      // GetGems ещё не подключён — отвечаем тем же, что и кнопка в навбаре
+      toast(t('soon.gems'));
     });
 
     line.appendChild(market);
