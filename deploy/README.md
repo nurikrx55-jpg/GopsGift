@@ -79,6 +79,32 @@ deploy/push.sh
 ssh root@2.27.22.4 'rm -rf /opt/gapsgift && mv /opt/gapsgift.old /opt/gapsgift && systemctl restart gapsgift'
 ```
 
+## Синхронизация с телефоном
+
+Проект правят с двух сторон: из сессии на ноутбуке и из облачной сессии с
+телефона. Общая копия одна — GitHub. Чтобы ноутбук узнавал о правках с телефона
+сам, на нём работает `deploy/mac-sync.sh`: раз в минуту он забирает новое с
+GitHub. Если в папке есть несохранённые правки или неотправленные коммиты, он
+не трогает ничего — об этом пишет в журнал.
+
+Включается один раз:
+
+```bash
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/online.gapsgift.sync.plist
+```
+
+Проверить и выключить:
+
+```bash
+tail -5 ~/Library/Logs/gapsgift-sync.log               # что и когда подтянулось
+launchctl print gui/$UID/online.gapsgift.sync | head   # жива ли служба
+launchctl bootout gui/$UID/online.gapsgift.sync        # выключить
+```
+
+Ноутбук забирает правки, только когда включён: при входе в систему и дальше
+каждую минуту. Обратная сторона работает руками — закончил правку, отправь её
+на GitHub, иначе телефон о ней не узнает.
+
 ## Если что-то не так
 
 ```bash
