@@ -5,8 +5,6 @@
   // requestFullscreen появился в Bot API 8.0
   const FULLSCREEN_API = '8.0';
   const NAV_PADDING = 4;
-  // Просвет между вкладками внутри капсулы — как у образца
-  const NAV_GAP = 2;
   // За сколько пикселей движения жест считаем перетаскиванием, а не тапом
   const DRAG_THRESHOLD = 6;
   // Сколько экран загрузки держится минимум — чтобы не мигнуть и исчезнуть
@@ -137,53 +135,17 @@
     });
   }
 
-  /* Подложка активной вкладки обнимает её по месту: ширину и сдвиг берём у
-     самой вкладки, а не делим капсулу поровну. Пока шрифты не встали, размеры
-     бывают нулевыми — тогда просто попробуем ещё раз на следующем кадре */
-  function placeIndicator() {
-    const tab = tabs[current];
-    if (!tab || !nav) return;
-    if (!tab.offsetWidth) {
-      requestAnimationFrame(placeIndicator);
-      return;
-    }
-    nav.style.setProperty('--menu-indicator-w', tab.offsetWidth + 'px');
-    nav.style.setProperty('--menu-indicator-x', tab.offsetLeft + 'px');
-  }
-
-  /* Экран появляется, как у образца: всплывает из размытия. Вперёд и назад
-     разъезжаются в разные стороны. Класс снимаем по окончании — иначе на
-     странице навсегда останется фильтр, а он сбивает вложенные элементы с
-     фиксированным положением */
-  function playPageEnter(section, direction) {
-    const pane = document.querySelector('.pane[data-pane="' + section + '"]');
-    if (!pane) return;
-
-    pane.classList.remove('page-enter', 'page-enter--forward', 'page-enter--back');
-    // Перезапуск анимации: без этого второй заход в тот же раздел не играет
-    void pane.offsetWidth;
-    pane.classList.add('page-enter');
-    if (direction > 0) pane.classList.add('page-enter--forward');
-    else if (direction < 0) pane.classList.add('page-enter--back');
-
-    pane.addEventListener('animationend', () => {
-      pane.classList.remove('page-enter', 'page-enter--forward', 'page-enter--back');
-    }, { once: true });
-  }
-
   function selectTab(index) {
     if (index < 0 || index >= tabs.length) return;
 
-    const direction = index - current;
     current = index;
     paint(index);
 
     // Заголовок меняется ровно вместе со страницей — на входе в раздел
     paintSection();
 
-    placeIndicator();
+    nav.style.setProperty('--active-index', String(index));
     stage.dataset.section = tabs[index].dataset.section;
-    playPageEnter(stage.dataset.section, direction);
     // Маркет живой: при каждом входе — свежие лоты и история
     if (stage.dataset.section === 'market') loadMarket();
     // Шапка едет вместе со страницей, поэтому новый раздел открываем сверху
@@ -199,13 +161,7 @@
   }
 
   function slotWidth() {
-    const inner = nav.getBoundingClientRect().width - NAV_PADDING * 2 - NAV_GAP * (tabs.length - 1);
-    return inner / tabs.length;
-  }
-
-  // От начала одной вкладки до начала следующей
-  function slotStep() {
-    return slotWidth() + NAV_GAP;
+    return (nav.getBoundingClientRect().width - NAV_PADDING * 2) / tabs.length;
   }
 
   function initDrag() {
@@ -225,7 +181,7 @@
       if (pointerId !== null) return;
 
       pointerId = event.pointerId;
-      slot = slotStep();
+      slot = slotWidth();
       origin = nav.getBoundingClientRect().left + NAV_PADDING;
       startX = event.clientX;
       offset = current * slot;
@@ -254,7 +210,7 @@
 
       const max = (tabs.length - 1) * slot;
       offset = Math.min(Math.max(event.clientX - origin - grab, 0), max);
-      indicator.style.transform = `translateX(${NAV_PADDING + offset}px)`;
+      indicator.style.transform = `translateX(${offset}px)`;
 
       // Иконки подсвечиваются ещё на лету, до отпускания
       const near = nearest();
@@ -278,7 +234,7 @@
       if (!dragging) return;
       dragging = false;
 
-      // Снимаем ручные стили — дальше место подложке задаёт сама вкладка
+      // Снимаем ручные стили — дальше позицию задаёт --active-index
       indicator.style.transition = '';
       indicator.style.transform = '';
       selectTab(nearest());
@@ -321,11 +277,6 @@
     const initial = tabs.findIndex((tab) => tab.classList.contains('active'));
     selectTab(initial === -1 ? 0 : initial);
     initDrag();
-
-    // Поворот экрана и смена языка меняют ширину вкладок — подложку
-    // переставляем заново
-    window.addEventListener('resize', placeIndicator);
-    placeIndicator();
   }
 
   function initTelegram() {
@@ -4995,11 +4946,6 @@
     card.style.setProperty('--center-color', colors.center);
     card.style.setProperty('--around-color', colors.around);
 
-    // Цвет подарка проявляется поверх плитки, как у образца
-    const grad = document.createElement('div');
-    grad.className = 'mkt-card__grad';
-    card.appendChild(grad);
-
     const symbol = symbolOf(gift.nft.symbol);
     if (symbol) {
       const box = document.createElement('div');
@@ -5022,12 +4968,20 @@
     showShot(art, artOf(gift));
     card.appendChild(art);
 
-    // Цена кнопкой снизу — имя и модель видно уже в самом окне подарка
+    const foot = document.createElement('div');
+    foot.className = 'mkt-card__foot';
+    const name = document.createElement('b');
+    name.className = 'mkt-card__name';
+    name.textContent = gift.name;
+    const model = document.createElement('span');
+    model.className = 'mkt-card__model';
+    model.textContent = gift.nft.model.name;
     const price = document.createElement('span');
     price.className = 'mkt-card__price' + (isMine(gift.lot) ? ' is-mine' : '');
     price.innerHTML = '<svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>';
     price.append(formatTon(gift.lot.nano));
-    card.appendChild(price);
+    foot.append(name, model, price);
+    card.appendChild(foot);
 
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
