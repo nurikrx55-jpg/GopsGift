@@ -4,8 +4,6 @@
   const BG = '#0d0d10';
   // requestFullscreen появился в Bot API 8.0
   const FULLSCREEN_API = '8.0';
-  const NAV_PADDING = 4;
-  const NAV_GAP = 2;
   // За сколько пикселей движения жест считаем перетаскиванием, а не тапом
   const DRAG_THRESHOLD = 6;
   // Сколько экран загрузки держится минимум — чтобы не мигнуть и исчезнуть
@@ -169,97 +167,28 @@
     if (title && named) title.textContent = t(named);
   }
 
-  function slotWidth() {
-    const inner = nav.getBoundingClientRect().width - NAV_PADDING * 2 - NAV_GAP * (tabs.length - 1);
-    return inner / tabs.length + NAV_GAP;
+
+  /* У memgift панель уезжает вниз, когда поверх открыт целый экран или окно.
+     У нас такие экраны — заставка, страница подарка, окна и поздравление:
+     пока открыто что-то из них, панели на экране нет */
+  const MENU_COVERS = '.sheet.is-open, .mgm-dock.is-open, .wmod-dock.is-open';
+
+  function syncMenu() {
+    const menu = document.querySelector('.menu');
+    if (!menu) return;
+    const won = document.getElementById('won');
+    const covered = Boolean(document.querySelector(MENU_COVERS)) ||
+      Boolean(won && !won.hidden) ||
+      Boolean(splash && !splash.classList.contains('is-done'));
+    menu.classList.toggle('is-hidden', covered);
   }
 
-  function initDrag() {
-    let pointerId = null;
-    let startX = 0;
-    let grab = 0;
-    let slot = 0;
-    let origin = 0;
-    let offset = 0;
-    let dragging = false;
-
-    function nearest() {
-      return Math.min(Math.max(Math.round(offset / slot), 0), tabs.length - 1);
-    }
-
-    nav.addEventListener('pointerdown', (event) => {
-      if (pointerId !== null) return;
-
-      pointerId = event.pointerId;
-      slot = slotWidth();
-      origin = nav.getBoundingClientRect().left + NAV_PADDING;
-      startX = event.clientX;
-      offset = current * slot;
-      dragging = false;
-
-      // Если палец лёг мимо капсулы — берём её за середину
-      grab = event.clientX - origin - offset;
-      if (grab < 0 || grab > slot) grab = slot / 2;
+  function watchMenu() {
+    const watch = new MutationObserver(syncMenu);
+    document.querySelectorAll('.sheet, .mgm-dock, .wmod-dock, #won, #splash').forEach((node) => {
+      watch.observe(node, { attributes: true, attributeFilter: ['class', 'hidden'] });
     });
-
-    nav.addEventListener('pointermove', (event) => {
-      if (event.pointerId !== pointerId) return;
-
-      if (!dragging) {
-        if (Math.abs(event.clientX - startX) < DRAG_THRESHOLD) return;
-        dragging = true;
-        indicator.style.transition = 'none';
-
-        // Захват берём только когда жест начался: взятый на нажатии, он
-        // переадресовал бы на капсулу и клик мышью, и вкладка не нажималась.
-        // Без захвата жест просто оборвётся за пределами панели
-        try {
-          nav.setPointerCapture(pointerId);
-        } catch (_) {}
-      }
-
-      const max = (tabs.length - 1) * slot;
-      offset = Math.min(Math.max(event.clientX - origin - grab, 0), max);
-      indicator.style.transform = `translateX(${NAV_PADDING + offset}px)`;
-
-      // Иконки подсвечиваются ещё на лету, до отпускания
-      const near = nearest();
-      if (near !== current) {
-        current = near;
-        paint(near);
-        haptic('select');
-      }
-    });
-
-    function finish(event) {
-      if (event.pointerId !== pointerId) return;
-
-      try {
-        if (nav.hasPointerCapture(pointerId)) {
-          nav.releasePointerCapture(pointerId);
-        }
-      } catch (_) {}
-      pointerId = null;
-
-      if (!dragging) return;
-      dragging = false;
-
-      // Снимаем ручные стили — дальше позицию задаёт --active-index
-      indicator.style.transition = '';
-      indicator.style.transform = '';
-      selectTab(nearest());
-    }
-
-    nav.addEventListener('pointerup', finish);
-    nav.addEventListener('pointercancel', finish);
-
-    // Клик после перетаскивания гасим, чтобы вкладка не перебила выбор
-    nav.addEventListener('click', (event) => {
-      if (dragging) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    }, true);
+    syncMenu();
   }
 
   function initNav() {
@@ -286,9 +215,9 @@
 
     const initial = tabs.findIndex((tab) => tab.classList.contains('active'));
     selectTab(initial === -1 ? 0 : initial);
-    initDrag();
     window.addEventListener('resize', placeIndicator);
     placeIndicator();
+    watchMenu();
   }
 
   function initTelegram() {

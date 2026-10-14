@@ -232,7 +232,17 @@ body {
 }
 
 /* Навигационная панель — код memgift как есть (их `.menu`) */
+
+/* Панель уезжает вниз, когда поверх открыт экран или окно — их `menu-slide` */
+.menu.is-hidden {
+  opacity: 0;
+  transform: translate(-50%) translateY(24px);
+  transition: opacity .18s ease, transform .18s ease;
+  pointer-events: none;
+}
+
 .menu {
+  transition: opacity .4s ease, transform .4s cubic-bezier(.34, 1.56, .64, 1);
   position: fixed;
   left: 50%;
   bottom: max(22px, env(safe-area-inset-bottom, 0px));
