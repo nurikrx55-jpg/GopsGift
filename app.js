@@ -173,13 +173,21 @@
      пока открыто что-то из них, панели на экране нет */
   const MENU_COVERS = '.sheet.is-open, .mgm-dock.is-open, .wmod-dock.is-open';
 
+  // Панель выезжает не раньше, чем уйдёт заставка: на ней её быть не должно
+  let menuReady = false;
+
+  function showMenu() {
+    menuReady = true;
+    syncMenu();
+  }
+
   function syncMenu() {
     const menu = document.querySelector('.menu');
     if (!menu) return;
     const won = document.getElementById('won');
-    const covered = Boolean(document.querySelector(MENU_COVERS)) ||
-      Boolean(won && !won.hidden) ||
-      Boolean(splash && !splash.classList.contains('is-done'));
+    const covered = !menuReady ||
+      Boolean(document.querySelector(MENU_COVERS)) ||
+      Boolean(won && !won.hidden);
     menu.classList.toggle('is-hidden', covered);
   }
 
@@ -5776,7 +5784,11 @@
       if (done) return;
       done = true;
       const wait = Math.max(0, SPLASH_MIN_MS - (performance.now() - started));
-      setTimeout(() => splash.classList.add('is-done'), wait);
+      setTimeout(() => {
+        splash.classList.add('is-done');
+        // Заставка тает 0,45 с — панель выезжает уже на чистый экран
+        setTimeout(showMenu, 480);
+      }, wait);
     };
 
     setTimeout(hideSplash, SPLASH_MAX_MS);
