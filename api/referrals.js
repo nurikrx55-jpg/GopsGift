@@ -39,6 +39,8 @@ export default {
         link: bot ? 'https://t.me/' + bot + '?startapp=ref_' + user.id : '',
         total: list.total,
         items: list.items,
+        // Сколько человек получил с пополнений приглашённых, всего
+        earned: list.earned,
         more: (Number(input.offset) || 0) + list.items.length < list.total
       });
     } catch (error) {

@@ -2550,6 +2550,39 @@
 
     cols.appendChild(ton);
 
+    const fees = content.fees || { referral: 10, transfer: 0 };
+    const saveFees = (node, next, done) => run(node, 'fees.save', { fees: next }, () => toast(done));
+    const number = (node) => Number(String(node.value).replace(',', '.')) || 0;
+
+    // Рефералка: сколько процентов с пополнения друга получает пригласивший
+    const ref = el('section', 'ad-card');
+    ref.appendChild(el('h3', null, 'Реферальная программа'));
+    ref.appendChild(el('p', 'ad-note', 'Когда приглашённый пополняет баланс TON, пригласивший получает этот процент сверху — друг получает своё пополнение целиком. Ноль — бонус выключен.'));
+    const refForm = el('div', 'ad-form');
+    const percent = input(fees.referral, { type: 'number' });
+    percent.step = '0.1';
+    refForm.appendChild(field('С пополнения друга, %', percent, true));
+    ref.appendChild(refForm);
+    ref.appendChild(button('Сохранить', {
+      icon: 'check',
+      onClick: (event) => saveFees(event.currentTarget, { referral: number(percent) }, 'Рефералка сохранена')
+    }));
+    cols.appendChild(ref);
+
+    // Передача: сколько Gram стоит отправить подарок другому человеку
+    const transfer = el('section', 'ad-card');
+    transfer.appendChild(el('h3', null, 'Передача подарка'));
+    transfer.appendChild(el('p', 'ad-note', 'Сколько Gram списывается с баланса за отправку подарка другому человеку — обычного и улучшенного. Ноль — бесплатно.'));
+    const transferForm = el('div', 'ad-form');
+    const cost = input(fees.transfer, { type: 'number' });
+    cost.step = '0.01';
+    transferForm.appendChild(field('Цена передачи, GRAM', cost, true));
+    transfer.appendChild(transferForm);
+    transfer.appendChild(button('Сохранить', {
+      icon: 'check',
+      onClick: (event) => saveFees(event.currentTarget, { transfer: number(cost) }, 'Цена передачи сохранена')
+    }));
+    cols.appendChild(transfer);
 
     view.appendChild(cols);
 

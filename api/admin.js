@@ -5,7 +5,7 @@
 import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
-  readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, cleanMarket, TON_RECEIVER, InputError,
+  readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, cleanMarket, cleanFees, TON_RECEIVER, InputError,
   listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile,
   listWithdrawals, resolveWithdraw, openWithdrawals, userLang, marketLog, lotCount, clearMarketLog, listLots, removeLot
 } from './_lib/data.js';
@@ -53,6 +53,16 @@ const actions = {
   async 'market.save'(payload) {
     const content = await writeContent((state) => {
       state.market = cleanMarket(payload.market);
+      return state;
+    });
+    return { content: content };
+  },
+
+  // --- Рефералка и цена передачи ---
+
+  async 'fees.save'(payload) {
+    const content = await writeContent((state) => {
+      state.fees = cleanFees(Object.assign({}, state.fees, payload.fees));
       return state;
     });
     return { content: content };

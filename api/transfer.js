@@ -25,7 +25,7 @@ export default {
       }
 
       if (input.action === 'send') {
-        const done = await transferGift(user.id, input.to, input.gift, input.nft);
+        const done = await transferGift(user.id, input.to, input.gift, input.nft, await readContent(true));
         // Получателю — сообщение от бота. Ответа не ждём: подарок уже у него
         readContent().then((content) => {
           const gift = (content.gifts || []).find((one) => one.id === done.gift) || null;

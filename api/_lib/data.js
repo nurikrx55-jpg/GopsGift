@@ -25,6 +25,8 @@
    gg:lot:<id>        — лот маркета: какой улучшенный подарок, чей и за сколько
    gg:lots            — лоты на продаже по времени выставления
    gg:mktlog          — история маркета: выставлен, продан, снят
+   gg:refearn:<id>    — сколько человек получил с пополнений каждого приглашённого
+   gg:refearned       — сколько каждый получил по рефералке всего
 
    Профиль пишет только сам заход в приложение, счёт — только админка.
    Ключи разные нарочно: иначе заход, прочитавший счёт за миг до правки
@@ -62,6 +64,8 @@ const K = {
   lot: (id) => 'gg:lot:' + id,
   lots: 'gg:lots',
   mktlog: 'gg:mktlog',
+  refEarn: (id) => 'gg:refearn:' + id,
+  refEarned: 'gg:refearned',
   buyersFilled: 'gg:buyers:filled'
 };
 
@@ -209,6 +213,20 @@ export function cleanMarket(input) {
   };
 }
 
+/* Рефералка и передача. referral — процент с каждого пополнения
+   приглашённого, который получает пригласивший (сверху, из наших: друг
+   получает пополнение целиком). transfer — цена отправки подарка другому
+   человеку в Gram, 0 — бесплатно. Задаёт админка */
+export function cleanFees(input) {
+  const src = input || {};
+  const referral = Math.round(Math.min(Math.max(Number(src.referral), 0), 50) * 10) / 10;
+  const transfer = Math.round(Math.min(Math.max(Number(src.transfer), 0), 1e4) * 100) / 100;
+  return {
+    referral: Number.isFinite(referral) ? referral : 10,
+    transfer: Number.isFinite(transfer) ? transfer : 0
+  };
+}
+
 const TASK_TYPES = ['link', 'subscribe', 'send', 'buy', 'invite'];
 
 // Канал для задания «подписаться»: @name, t.me/name или просто name.
@@ -295,6 +313,7 @@ export async function readContent(fresh) {
   // Курс TON появился позже самой витрины: у старых записей его нет
   if (!value.ton) value.ton = { rate: 0 };
   if (!value.market) value.market = cleanMarket({});
+  if (!value.fees) value.fees = cleanFees({});
 
   contentCache = { at: Date.now(), value: value };
   return value;
@@ -318,6 +337,7 @@ export function publicContent(content) {
     tasks: content.tasks || [],
     ton: { address: TON_RECEIVER, rate: (content.ton && content.ton.rate) || 0 },
     market: cleanMarket(content.market),
+    fees: cleanFees(content.fees),
     updatedAt: content.updatedAt || 0
   };
 }
@@ -958,6 +978,7 @@ export async function checkDeposits() {
   }
   if (!data || !data.ok || !Array.isArray(data.result)) return 0;
 
+  const fees = cleanFees((await readContent()).fees);
   let credited = 0;
   for (const tx of data.result) {
     const message = tx.in_msg || {};
@@ -967,19 +988,46 @@ export async function checkDeposits() {
     if (!value || !message.source || !hash || !mark) continue;
 
     const userId = mark[1];
-    if (!(await command('GET', K.user(userId)))) continue;
+    const rawProfile = await command('GET', K.user(userId));
+    if (!rawProfile) continue;
 
     const first = await command('SET', K.tontx(hash), userId, 'NX');
     if (!first) continue;
 
-    const acct = normalAccount(await command('GET', K.acct(userId)));
-    acct.tonNano += value;
-    await command('SET', K.acct(userId), JSON.stringify(acct));
-    await addTonLog(userId, { type: 'deposit', nano: value, hash: hash });
+    // Счёт меняем в очереди этого человека — как покупки и вывод
+    await queued(userId, async () => {
+      const acct = normalAccount(await command('GET', K.acct(userId)));
+      acct.tonNano += value;
+      await command('SET', K.acct(userId), JSON.stringify(acct));
+      await addTonLog(userId, { type: 'deposit', nano: value, hash: hash });
+    });
     credited += 1;
+
+    const profile = JSON.parse(rawProfile);
+    if (profile.ref) await payReferral(profile.ref, userId, profile, value, fees.referral);
   }
 
   return credited;
+}
+
+// Пригласившему — процент с пополнения друга. Платим сверху: друг
+// получил своё целиком
+async function payReferral(inviterId, friendId, friend, value, percent) {
+  const bonus = Math.floor(value * percent / 100);
+  if (bonus <= 0) return;
+  const inviter = String(inviterId);
+  if (!(await command('GET', K.user(inviter)))) return;
+
+  await queued(inviter, async () => {
+    const acct = normalAccount(await command('GET', K.acct(inviter)));
+    acct.tonNano += bonus;
+    await pipeline([
+      ['SET', K.acct(inviter), JSON.stringify(acct)],
+      ['ZINCRBY', K.refEarn(inviter), bonus, String(friendId)],
+      ['ZINCRBY', K.refEarned, bonus, inviter]
+    ]);
+    await addTonLog(inviter, { type: 'ref_bonus', nano: bonus, from: nameOfProfile(friend, String(friendId)) });
+  });
 }
 
 // --- Вывод TON ---
@@ -1363,10 +1411,17 @@ export async function clearMarketLog() {
 export async function listReferrals(userId, offset, limit) {
   const from = int(offset, 0, 1e7);
   const size = int(limit, 1, 50);
-  const [ids, total] = await pipeline([
+  const [ids, total, earnedAll] = await pipeline([
     ['ZREVRANGE', K.refs(String(userId)), from, from + size - 1],
-    ['ZCARD', K.refs(String(userId))]
+    ['ZCARD', K.refs(String(userId))],
+    ['ZRANGE', K.refEarn(String(userId)), 0, -1, 'WITHSCORES']
   ]);
+
+  // Сколько принёс каждый: «id, сумма, id, сумма…»
+  const earnedBy = new Map();
+  for (let i = 0; i < (earnedAll || []).length; i += 2) earnedBy.set(earnedAll[i], Number(earnedAll[i + 1]) || 0);
+  let earned = 0;
+  earnedBy.forEach((nano) => { earned += nano; });
 
   const profiles = (ids || []).length ? await mgetJson(ids.map(K.user)) : [];
   const items = (ids || []).map((id, index) => {
@@ -1375,11 +1430,12 @@ export async function listReferrals(userId, offset, limit) {
       tld: id,
       name: [person.firstName, person.lastName].filter(Boolean).join(' ') ||
         (person.username ? '@' + person.username : ''),
-      photo: person.photo || ''
+      photo: person.photo || '',
+      earned: earnedBy.get(id) || 0
     };
   });
 
-  return { total: Number(total) || 0, items: items };
+  return { total: Number(total) || 0, items: items, earned: earned };
 }
 
 // --- Передача подарка ---
@@ -1405,14 +1461,18 @@ export async function findRecipients(query, selfId) {
 /* Один подарок уходит со счёта отправителя на счёт получателя. Счета
    читаем и пишем одной пачкой — между чтением и записью второй передаче
    того же подарка просто не из чего будет взять */
-export async function transferGift(fromId, toId, giftId, nftId) {
+/* Передача может стоить Gram — цену ставит админка. Оба счёта меняем в
+   очереди, как при покупке на маркете: иначе передача, совпавшая с
+   покупкой, записала бы счёт старым */
+export async function transferGift(fromId, toId, giftId, nftId, content) {
   const from = String(fromId);
   const to = String(toId);
-  const gift = slug(giftId);
-  const nft = str(nftId, 32);
-
   if (!to || to === from) throw new InputError('Вы не можете отправить самому себе.');
+  const price = Math.round(cleanFees(content && content.fees).transfer * NANO);
+  return bothQueued(from, to, () => moveGift(from, to, slug(giftId), str(nftId, 32), price));
+}
 
+async function moveGift(from, to, gift, nft, price) {
   const [rawFrom, rawTo, rawUser, rawSender, rawInbox] = await pipeline([
     ['GET', K.acct(from)],
     ['GET', K.acct(to)],
@@ -1425,6 +1485,12 @@ export async function transferGift(fromId, toId, giftId, nftId) {
   const sender = normalAccount(rawFrom);
   const recipient = normalAccount(rawTo);
 
+  if (price > 0 && sender.tonNano < price) {
+    const error = new InputError('Недостаточно GRAM: передача стоит ' + String(price / NANO).replace('.', ',') + ' GRAM');
+    error.code = 'transfer.low';
+    throw error;
+  }
+  sender.tonNano -= price;
   sender.sent += 1;
 
   // Улучшенный уходит целиком, со своей моделью, фоном и номером
@@ -1458,6 +1524,7 @@ export async function transferGift(fromId, toId, giftId, nftId) {
     ['SET', K.acct(to), JSON.stringify(recipient)],
     ['SET', K.inbox(to), JSON.stringify(inbox.slice(-INBOX_MAX))]
   ]);
+  if (price > 0) await addTonLog(from, { type: 'transfer_fee', nano: price, giftId: moved ? moved.gift : gift, num: moved ? moved.num : 0 });
 
   const person = JSON.parse(rawUser);
   return {

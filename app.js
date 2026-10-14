@@ -2890,8 +2890,8 @@
     const tab = (document.querySelector('.wl-filters__item.active') || {}).dataset;
     const kind = tab ? tab.tab : 'all';
     const shown = log.filter((one) => kind === 'all' ||
-      (kind === 'gifts' && (one.type === 'gift' || one.type === 'market_buy' || one.type === 'market_sell')) ||
-      (kind === 'deposits' && one.type === 'deposit') ||
+      (kind === 'gifts' && (one.type === 'gift' || one.type === 'market_buy' || one.type === 'market_sell' || one.type === 'transfer_fee')) ||
+      (kind === 'deposits' && (one.type === 'deposit' || one.type === 'ref_bonus')) ||
       (kind === 'withdrawals' && one.type === 'withdraw'));
 
     box.textContent = '';
@@ -2905,12 +2905,13 @@
       const nft = document.createElement('div');
       nft.className = 'nft';
       const market = one.type === 'market_buy' || one.type === 'market_sell';
-      const gift = one.type === 'gift' || market ? giftById(one.giftId) : null;
+      const income = one.type === 'deposit' || one.type === 'ref_bonus';
+      const gift = one.type === 'gift' || market || one.type === 'transfer_fee' ? giftById(one.giftId) : null;
       if (gift) {
         showShot(nft, gift);
       } else {
         nft.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="' +
-          (one.type === 'deposit' ? 'M10 4v12M4 10l6 6 6-6' : 'M10 16V4M16 10l-6-6-6 6') + '"></path></svg>';
+          (income ? 'M10 4v12M4 10l6 6 6-6' : 'M10 16V4M16 10l-6-6-6 6') + '"></path></svg>';
       }
 
       const mid = document.createElement('div');
@@ -2919,7 +2920,8 @@
       name.className = 'name';
       name.textContent = gift
         ? gift.name + (one.num ? ' #' + one.num : '') + (one.qty > 1 ? ' × ' + one.qty : '')
-        : t(one.type === 'deposit' ? 'wallet.statusDeposit' : 'wallet.statusWithdraw');
+        : one.type === 'ref_bonus' ? t('wallet.refFrom', { name: one.from || '—' })
+          : t(one.type === 'deposit' ? 'wallet.statusDeposit' : 'wallet.statusWithdraw');
       const meta = document.createElement('div');
       meta.className = 'meta-row';
       const time = document.createElement('span');
@@ -2930,7 +2932,7 @@
       dot.className = 'dot';
       dot.textContent = '·';
       const price = document.createElement('span');
-      const plus = one.type === 'deposit' || one.type === 'market_sell';
+      const plus = income || one.type === 'market_sell';
       price.className = 'price ' + (plus ? 'is-plus' : one.status === 'rejected' ? '' : 'is-minus');
       price.textContent = (plus ? '+' : '−') + formatTon(one.nano) + ' TON';
       meta.append(time, dot, price);
@@ -2942,6 +2944,8 @@
       status.className = 'status';
       status.textContent = t(one.type === 'market_buy' ? 'wallet.statusMarketBuy'
         : one.type === 'market_sell' ? 'wallet.statusMarketSell'
+        : one.type === 'ref_bonus' ? 'wallet.statusRef'
+        : one.type === 'transfer_fee' ? 'wallet.statusTransfer'
         : one.type === 'gift' ? 'wallet.statusGift'
         : one.type === 'deposit' ? 'wallet.statusDeposit'
           // У вывода — где заявка: ждёт админа, отправлена или отклонена
@@ -3091,7 +3095,16 @@
     go.className = 'rf-row__go';
     go.innerHTML = '<svg viewBox="0 0 8 14" aria-hidden="true"><path d="M1 1.5L6.5 7 1 12.5"></path></svg>';
 
-    row.append(ava, mid, go);
+    row.append(ava, mid);
+    // Сколько этот друг уже принёс с пополнений
+    if (person.earned > 0) {
+      const earned = document.createElement('span');
+      earned.className = 'rf-row__earned';
+      earned.innerHTML = '+<svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>';
+      earned.appendChild(document.createTextNode(formatTon(person.earned)));
+      row.appendChild(earned);
+    }
+    row.appendChild(go);
     // Чужих профилей у нас нет — по нажатию берём ID, как образец по нажатию на него
     row.addEventListener('click', () => copyText(String(person.tld), 'ref.idCopied'));
     return row;
@@ -3114,6 +3127,7 @@
         refLink = data.link || '';
         document.getElementById('rf-url').textContent = refLink ? shortLink(refLink) : '—';
         document.getElementById('rf-count').textContent = formatPrice(data.total || 0);
+        document.getElementById('rf-earned').textContent = formatTon(data.earned || 0);
 
         const list = document.getElementById('rf-list');
         if (reset) list.textContent = '';
@@ -3130,6 +3144,11 @@
       .then(() => {
         refBusy = false;
       });
+  }
+
+  // 10 → «10», 7.5 → «7,5»
+  function formatPercent(value) {
+    return String(value).replace('.', window.I18N.lang() === 'ru' ? ',' : '.');
   }
 
   function refCopy() {
@@ -3162,6 +3181,13 @@
         document.getElementById('rf-list').hidden = true;
         document.getElementById('rf-empty').hidden = false;
         document.getElementById('rf-count').textContent = '0';
+        document.getElementById('rf-earned').textContent = '0';
+        // Процент — тот, что поставила админка; выключен — прежний текст
+        const percent = Number(feeSettings().referral) || 0;
+        document.getElementById('rf-descr').textContent = percent
+          ? t('ref.descrBonus', { n: formatPercent(percent) })
+          : t('ref.descr');
+        document.getElementById('rf-earn-sub').textContent = t('ref.earnedSub', { n: formatPercent(percent) });
         loadRefs(true);
       }
     });
@@ -3342,8 +3368,27 @@
       });
   }
 
+  // Цена передачи в нанотонах; бесплатно — просто «Отправить»
+  function sendPrice() {
+    return Math.round((Number(feeSettings().transfer) || 0) * NANO);
+  }
+
+  function paintSendPrice() {
+    const price = sendPrice();
+    document.getElementById('send-go-text').textContent = t(price ? 'send.for' : 'send.free');
+    document.getElementById('send-cost').hidden = !price;
+    document.getElementById('send-cost-text').textContent = formatTon(price);
+  }
+
   function sendNow() {
     if (!sendTo || !sendGift || sending) return;
+    // Не хватает на передачу — говорим сразу, не спрашивая сервер
+    const price = sendPrice();
+    if (price && (Number(ME && ME.tonNano) || 0) < price) {
+      haptic('light');
+      toast(t('send.low', { n: formatTon(price) + ' GRAM' }));
+      return;
+    }
     sending = true;
     haptic('light');
 
@@ -3359,6 +3404,8 @@
         fillFromStore();
         initHeader();
         paintProfile();
+        // Передача могла стоить Gram — баланс в шапке свежий
+        paintGram();
 
         haptic('success');
         toast(t('send.done', { name: data.name || to.name }));
@@ -3384,6 +3431,7 @@
         applyTint(head, tintOf(gift));
         document.getElementById('send-title').textContent = gift.name;
         sendReset();
+        paintSendPrice();
       },
       opened: (gift) => {
         sendPlayer = openArt(document.getElementById('send-art'), artOf(gift));
@@ -4850,6 +4898,12 @@
       }
       return data;
     }));
+  }
+
+  // Рефералка и цена передачи — их ставит админка
+  function feeSettings() {
+    const state = Store.state() || {};
+    return Object.assign({ referral: 10, transfer: 0 }, state.fees || {});
   }
 
   function marketSettings() {
