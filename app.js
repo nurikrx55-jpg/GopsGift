@@ -2890,7 +2890,7 @@
     const tab = (document.querySelector('.wl-filters__item.active') || {}).dataset;
     const kind = tab ? tab.tab : 'all';
     const shown = log.filter((one) => kind === 'all' ||
-      (kind === 'gifts' && (one.type === 'gift' || one.type === 'market_buy' || one.type === 'market_sell' || one.type === 'transfer_fee')) ||
+      (kind === 'gifts' && (one.type === 'gift' || one.type === 'market_buy' || one.type === 'market_sell')) ||
       (kind === 'deposits' && (one.type === 'deposit' || one.type === 'ref_bonus')) ||
       (kind === 'withdrawals' && one.type === 'withdraw'));
 
@@ -2906,7 +2906,7 @@
       nft.className = 'nft';
       const market = one.type === 'market_buy' || one.type === 'market_sell';
       const income = one.type === 'deposit' || one.type === 'ref_bonus';
-      const gift = one.type === 'gift' || market || one.type === 'transfer_fee' ? giftById(one.giftId) : null;
+      const gift = one.type === 'gift' || market ? giftById(one.giftId) : null;
       if (gift) {
         showShot(nft, gift);
       } else {
@@ -2945,7 +2945,6 @@
       status.textContent = t(one.type === 'market_buy' ? 'wallet.statusMarketBuy'
         : one.type === 'market_sell' ? 'wallet.statusMarketSell'
         : one.type === 'ref_bonus' ? 'wallet.statusRef'
-        : one.type === 'transfer_fee' ? 'wallet.statusTransfer'
         : one.type === 'gift' ? 'wallet.statusGift'
         : one.type === 'deposit' ? 'wallet.statusDeposit'
           // У вывода — где заявка: ждёт админа, отправлена или отклонена
@@ -3368,27 +3367,38 @@
       });
   }
 
-  // Цена передачи в нанотонах; бесплатно — просто «Отправить»
+  // Цена передачи в звёздах; бесплатно (и админу) — просто «Отправить»
   function sendPrice() {
-    return Math.round((Number(feeSettings().transfer) || 0) * NANO);
+    return freeHand() ? 0 : Math.round(Number(feeSettings().transfer) || 0);
   }
 
   function paintSendPrice() {
     const price = sendPrice();
     document.getElementById('send-go-text').textContent = t(price ? 'send.for' : 'send.free');
     document.getElementById('send-cost').hidden = !price;
-    document.getElementById('send-cost-text').textContent = formatTon(price);
+    document.getElementById('send-cost-text').textContent = formatPrice(price);
+  }
+
+  /* Платная передача: сервер выставляет счёт за звёзды, подарок уходит,
+     когда Telegram сообщит об оплате. Ответ — как у бесплатной: имя и счёт */
+  function sendPaid(data) {
+    if (!data.link) return Promise.resolve(data);
+    if (!tg || !tg.openInvoice) return Promise.reject(new Error(t('pay.oldApp')));
+    return new Promise((done) => {
+      tg.openInvoice(data.link, (status) => done(status));
+    }).then((status) => {
+      if (status === 'cancelled') return null;
+      if (status === 'failed') throw new Error(t('pay.failed'));
+      return waitPaid(data.order, PAY_TRIES).then((paid) => {
+        if (paid.status === 'failed') throw new Error(t('send.refunded'));
+        if (paid.status !== 'paid' || !paid.me) throw new Error(t('pay.slow'));
+        return paid;
+      });
+    });
   }
 
   function sendNow() {
     if (!sendTo || !sendGift || sending) return;
-    // Не хватает на передачу — говорим сразу, не спрашивая сервер
-    const price = sendPrice();
-    if (price && (Number(ME && ME.tonNano) || 0) < price) {
-      haptic('light');
-      toast(t('send.low', { n: formatTon(price) + ' GRAM' }));
-      return;
-    }
     sending = true;
     haptic('light');
 
@@ -3398,14 +3408,15 @@
     const gift = sendGift;
 
     transferPost({ action: 'send', gift: gift.id, nft: gift.nft ? gift.nft.id : undefined, to: to.user_id })
+      .then(sendPaid)
       .then((data) => {
+        // Счёт закрыли, не заплатив, — окно остаётся, ничего не ушло
+        if (!data) return;
         // Сервер отдаёт счёт без ставок и признака админа — их берём свои
         Store.apply(null, Object.assign({}, Store.me(), data.me));
         fillFromStore();
         initHeader();
         paintProfile();
-        // Передача могла стоить Gram — баланс в шапке свежий
-        paintGram();
 
         haptic('success');
         toast(t('send.done', { name: data.name || to.name }));
@@ -4254,28 +4265,42 @@
 
   /* Пусто — как у memgift в обеих вкладках: картинка, «Нет подарков(» и
      «Подарки можно покупать в [Market]», плашка ведёт на витрину */
-  function emptyState() {
+  // Где покупают NFT — на GetGems: туда и ведёт плашка во вкладке NFT
+  const GETGEMS_URL = 'https://getgems.io/';
+
+  function emptyState(tab) {
+    const nft = tab === 'nft';
     const box = document.createElement('div');
     box.className = 'prf__empty';
 
+    // Во вкладке NFT вместо зверька — значок GetGems
     const art = document.createElement('div');
-    art.className = 'prf__empty-art';
-    art.innerHTML = '<img src="gifts/profile-empty.svg" alt="" draggable="false">';
+    art.className = 'prf__empty-art' + (nft ? ' prf__empty-art--gems' : '');
+    art.innerHTML = nft
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#gems"></use></svg>'
+      : '<img src="gifts/profile-empty.svg" alt="" draggable="false">';
 
     const title = document.createElement('b');
-    title.textContent = t('profile.empty');
+    title.textContent = t(nft ? 'profile.emptyNft' : 'profile.empty');
 
     const line = document.createElement('p');
-    line.append(t('profile.emptyNote'));
+    line.append(t(nft ? 'profile.emptyNftNote' : 'profile.emptyNote'));
 
     const market = document.createElement('button');
     market.type = 'button';
     market.className = 'prf__market';
-    market.innerHTML = '<svg viewBox="0 0 9 9" aria-hidden="true"><use href="#store"></use></svg>';
-    market.append('Market');
+    market.innerHTML = nft
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#gems"></use></svg>'
+      : '<svg viewBox="0 0 9 9" aria-hidden="true"><use href="#store"></use></svg>';
+    market.append(nft ? 'GetGems' : 'Market');
     market.addEventListener('click', () => {
       haptic('select');
-      selectTab(0);
+      if (!nft) {
+        selectTab(0);
+        return;
+      }
+      if (tg && tg.openLink) tg.openLink(GETGEMS_URL);
+      else window.open(GETGEMS_URL, '_blank', 'noopener');
     });
 
     line.appendChild(market);
@@ -4497,19 +4522,6 @@
     return row;
   }
 
-  function gemsSoon() {
-    const box = document.createElement('div');
-    box.className = 'prf-soon glass';
-    box.innerHTML = '<span class="prf-soon__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#gems"></use></svg></span>';
-    const text = document.createElement('p');
-    text.className = 'prf-soon__text';
-    const title = document.createElement('b');
-    title.textContent = t('profile.gemsSoonTitle');
-    text.append(title, t('profile.gemsSoon'));
-    box.appendChild(text);
-    return box;
-  }
-
   function renderOwned(c) {
     const list = document.getElementById(c.id + '-list');
     const total = document.getElementById(c.id + '-total');
@@ -4540,9 +4552,6 @@
       total.textContent = formatPrice(items.length) + ' ' +
         (c.tab === 'nft' ? 'NFT' : countOf(items.length, 'gift.count'));
     }
-
-    // Во вкладке NFT своего профиля — что продажа на GetGems скоро будет
-    if (c.tab === 'nft' && c.id === 'prf') list.appendChild(gemsSoon());
 
     if (!items.length) {
       list.appendChild(c.empty ? c.empty() : emptyState(c.tab));

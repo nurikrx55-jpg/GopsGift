@@ -216,11 +216,11 @@ export function cleanMarket(input) {
 /* Рефералка и передача. referral — процент с каждого пополнения
    приглашённого, который получает пригласивший (сверху, из наших: друг
    получает пополнение целиком). transfer — цена отправки подарка другому
-   человеку в Gram, 0 — бесплатно. Задаёт админка */
+   человеку в звёздах Telegram, 0 — бесплатно. Задаёт админка */
 export function cleanFees(input) {
   const src = input || {};
   const referral = Math.round(Math.min(Math.max(Number(src.referral), 0), 50) * 10) / 10;
-  const transfer = Math.round(Math.min(Math.max(Number(src.transfer), 0), 1e4) * 100) / 100;
+  const transfer = Math.round(Math.min(Math.max(Number(src.transfer), 0), 100000));
   return {
     referral: Number.isFinite(referral) ? referral : 10,
     transfer: Number.isFinite(transfer) ? transfer : 0
@@ -617,11 +617,16 @@ export async function createOrder(input) {
     amount: int(input.amount, 1, 100000000),
     // Сколько купонов уходит в скидку: списываем их вместе с оплатой
     coupons: int(input.coupons, 0, 100000000),
-    // 'gift' — покупка подарка, 'upgrade' — улучшение уже купленного
-    kind: input.kind === 'upgrade' ? 'upgrade' : 'gift',
+    // 'gift' — покупка подарка, 'upgrade' — улучшение уже купленного,
+    // 'transfer' — оплата передачи подарка другому человеку
+    kind: input.kind === 'upgrade' || input.kind === 'transfer' ? input.kind : 'gift',
     status: 'new',
     createdAt: Date.now()
   };
+  if (order.kind === 'transfer') {
+    order.toId = str(input.toId, 20);
+    order.nftId = str(input.nftId, 32);
+  }
 
   await command('SET', K.order(order.id), JSON.stringify(order));
   return order;
@@ -655,6 +660,7 @@ export async function settleOrder(id, payment, ton) {
   if (!first) return await readOrder(order.id);
 
   if (order.kind === 'upgrade') return settleUpgrade(order, charge);
+  if (order.kind === 'transfer') return settleTransfer(order, charge);
 
   const rawAcct = await command('GET', K.acct(order.userId));
   const acct = normalAccount(rawAcct);
@@ -1461,18 +1467,61 @@ export async function findRecipients(query, selfId) {
 /* Один подарок уходит со счёта отправителя на счёт получателя. Счета
    читаем и пишем одной пачкой — между чтением и записью второй передаче
    того же подарка просто не из чего будет взять */
-/* Передача может стоить Gram — цену ставит админка. Оба счёта меняем в
-   очереди, как при покупке на маркете: иначе передача, совпавшая с
-   покупкой, записала бы счёт старым */
-export async function transferGift(fromId, toId, giftId, nftId, content) {
+/* Оба счёта меняем в очереди, как при покупке на маркете: иначе передача,
+   совпавшая с покупкой, записала бы счёт старым. Платная передача (за
+   звёзды) приходит сюда уже оплаченной — из settleTransfer */
+export async function transferGift(fromId, toId, giftId, nftId) {
   const from = String(fromId);
   const to = String(toId);
   if (!to || to === from) throw new InputError('Вы не можете отправить самому себе.');
-  const price = Math.round(cleanFees(content && content.fees).transfer * NANO);
-  return bothQueued(from, to, () => moveGift(from, to, slug(giftId), str(nftId, 32), price));
+  return bothQueued(from, to, () => moveGift(from, to, slug(giftId), str(nftId, 32)));
 }
 
-async function moveGift(from, to, gift, nft, price) {
+/* Можно ли отправить — до счёта за звёзды и ещё раз перед списанием.
+   Отвечает, какой подарок витрины уходит: у улучшенного он свой */
+export async function checkTransfer(fromId, toId, giftId, nftId) {
+  const from = String(fromId);
+  const to = String(toId);
+  if (!to || to === from) throw new InputError('Вы не можете отправить самому себе.');
+  const [rawFrom, rawUser] = await pipeline([['GET', K.acct(from)], ['GET', K.user(to)]]);
+  if (!rawUser) throw new InputError('Пользователь не найден');
+  const sender = normalAccount(rawFrom);
+  const nft = str(nftId, 32);
+  if (nft) {
+    const one = sender.nfts.find((item) => item.id === nft);
+    if (!one) throw new InputError('Подарок вам больше не принадлежит');
+    if (one.lot) throw new InputError('Подарок выставлен на маркете — сначала снимите его с продажи');
+    return one.gift;
+  }
+  if (sender.gifts.indexOf(slug(giftId)) === -1) throw new InputError('Подарок вам больше не принадлежит');
+  return slug(giftId);
+}
+
+// Звёзды за передачу пришли — подарок уходит. Не ушёл (его успели
+// отправить или выставить, пока человек платил) — заказ «failed», и бот
+// вернёт звёзды
+async function settleTransfer(order, charge) {
+  let result = null;
+  let reason = '';
+  try {
+    result = await transferGift(order.userId, order.toId, order.giftId, order.nftId);
+  } catch (error) {
+    if (!(error instanceof InputError)) throw error;
+    reason = error.message;
+  }
+
+  const done = Object.assign({}, order, {
+    status: result ? 'paid' : 'failed',
+    charge: charge,
+    paidAt: Date.now(),
+    toName: result ? result.name : '',
+    reason: reason || undefined
+  });
+  await command('SET', K.order(order.id), JSON.stringify(done));
+  return Object.assign({}, done, { transfer: result });
+}
+
+async function moveGift(from, to, gift, nft) {
   const [rawFrom, rawTo, rawUser, rawSender, rawInbox] = await pipeline([
     ['GET', K.acct(from)],
     ['GET', K.acct(to)],
@@ -1485,12 +1534,6 @@ async function moveGift(from, to, gift, nft, price) {
   const sender = normalAccount(rawFrom);
   const recipient = normalAccount(rawTo);
 
-  if (price > 0 && sender.tonNano < price) {
-    const error = new InputError('Недостаточно GRAM: передача стоит ' + String(price / NANO).replace('.', ',') + ' GRAM');
-    error.code = 'transfer.low';
-    throw error;
-  }
-  sender.tonNano -= price;
   sender.sent += 1;
 
   // Улучшенный уходит целиком, со своей моделью, фоном и номером
@@ -1524,7 +1567,6 @@ async function moveGift(from, to, gift, nft, price) {
     ['SET', K.acct(to), JSON.stringify(recipient)],
     ['SET', K.inbox(to), JSON.stringify(inbox.slice(-INBOX_MAX))]
   ]);
-  if (price > 0) await addTonLog(from, { type: 'transfer_fee', nano: price, giftId: moved ? moved.gift : gift, num: moved ? moved.num : 0 });
 
   const person = JSON.parse(rawUser);
   return {

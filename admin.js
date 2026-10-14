@@ -2569,14 +2569,14 @@
     }));
     cols.appendChild(ref);
 
-    // Передача: сколько Gram стоит отправить подарок другому человеку
+    // Передача: сколько звёзд стоит отправить подарок другому человеку
     const transfer = el('section', 'ad-card');
     transfer.appendChild(el('h3', null, 'Передача подарка'));
-    transfer.appendChild(el('p', 'ad-note', 'Сколько Gram списывается с баланса за отправку подарка другому человеку — обычного и улучшенного. Ноль — бесплатно.'));
+    transfer.appendChild(el('p', 'ad-note', 'Сколько звёзд Telegram платит отправитель за передачу подарка другому человеку — обычного и улучшенного. Подарок уходит после оплаты. Ноль — бесплатно; админ отправляет бесплатно всегда.'));
     const transferForm = el('div', 'ad-form');
     const cost = input(fees.transfer, { type: 'number' });
-    cost.step = '0.01';
-    transferForm.appendChild(field('Цена передачи, GRAM', cost, true));
+    cost.step = '1';
+    transferForm.appendChild(field('Цена передачи', affix(cost, 'star-img'), true));
     transfer.appendChild(transferForm);
     transfer.appendChild(button('Сохранить', {
       icon: 'check',

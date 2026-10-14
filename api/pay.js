@@ -187,6 +187,8 @@ async function check(input, user) {
   if (order.status === 'paid') {
     out.me = await getUser(user.id);
     out.content = publicContent(await readContent(true));
+    // Передача: кому ушёл подарок — для уведомления в приложении
+    if (order.kind === 'transfer') out.name = order.toName || '';
     // Улучшение: отдаём, что выпало
     if (order.kind === 'upgrade') {
       out.nft = (out.me && out.me.nfts || []).find((one) => one.id === order.nftId) || null;

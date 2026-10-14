@@ -12,7 +12,8 @@
 
 import crypto from 'node:crypto';
 import { configured } from './_lib/db.js';
-import { readContent, readOrder, settleOrder, canUpgrade, stillOwns } from './_lib/data.js';
+import { readContent, readOrder, settleOrder, canUpgrade, stillOwns, checkTransfer, InputError } from './_lib/data.js';
+import { giftReceived } from './_lib/notify.js';
 import { call, hasBot } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
 
@@ -52,7 +53,16 @@ async function precheck(query) {
   if (!order) problem = 'Заказ не найден — начните покупку заново';
   else if (order.status !== 'new') problem = 'Этот счёт уже оплачен';
   else if (String(query.from && query.from.id) !== order.userId) problem = 'Счёт выставлен другому человеку';
-  else if (!gift) problem = 'Подарка больше нет на витрине';
+  else if (query.total_amount !== order.amount && order.kind === 'transfer') problem = 'Цена изменилась — начните отправку заново';
+  else if (order.kind === 'transfer') {
+    // Передача: подарок ещё у отправителя, не на маркете, получатель есть
+    try {
+      await checkTransfer(order.userId, order.toId, order.giftId, order.nftId);
+    } catch (error) {
+      if (!(error instanceof InputError)) throw error;
+      problem = error.message;
+    }
+  } else if (!gift) problem = 'Подарка больше нет на витрине';
   else if (query.total_amount !== order.amount) problem = 'Цена изменилась — начните покупку заново';
   else if (order.kind === 'upgrade') {
     // Улучшают уже купленный: остаток витрины тут ни при чём, а вот сам
@@ -66,6 +76,26 @@ async function precheck(query) {
     ok: !problem,
     error_message: problem || undefined
   });
+}
+
+// Оплаченная передача прошла — получателю сообщение от бота, как обычно
+function afterTransfer(result) {
+  readContent().then((content) => {
+    const gift = (content.gifts || []).find((one) => one.id === result.gift) || null;
+    return giftReceived(result.to, result.from, gift, result.nft);
+  }).catch((error) => console.warn('bot: уведомление о передаче —', error.message));
+}
+
+// Звёзды за передачу пришли, а подарок уйти не смог — возвращаем звёзды
+async function refund(order, payment) {
+  try {
+    await call('refundStarPayment', {
+      user_id: Number(order.userId),
+      telegram_payment_charge_id: payment.telegram_payment_charge_id
+    });
+  } catch (error) {
+    console.error('bot: звёзды за передачу не вернулись —', order.id, error.message);
+  }
 }
 
 export default {
@@ -90,6 +120,8 @@ export default {
         const done = await settleOrder(payment.invoice_payload, payment);
         // Заказа нет — повторять нечего, иначе Telegram будет стучаться вечно
         if (!done) console.warn('bot: платёж без заказа', payment.invoice_payload);
+        else if (done.transfer) afterTransfer(done.transfer);
+        else if (done.kind === 'transfer' && done.status === 'failed') await refund(done, payment);
       } else if (update.message && update.message.chat && update.message.chat.type === 'private' &&
         /^\/start(\s|$)/.test(String(update.message.text || ''))) {
         // Приветствие не повторяем: упади отправка — Telegram пришлёт /start
