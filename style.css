@@ -28,6 +28,8 @@
   --header-h: 44px;
   --tabs: 4;
   --ease: cubic-bezier(0.34, 1.2, 0.5, 1);
+  /* Пружина навигации: ею едет подложка активной вкладки */
+  --ease-menu: cubic-bezier(0.34, 1.2, 0.64, 1);
 
   /* Жидкое стекло.
      Кромка стеклянной поверхности: четыре внутренние тени, которые не
@@ -155,6 +157,87 @@ body {
   display: block;
 }
 
+/* Появление экрана при смене вкладки — как у образца: страница всплывает
+   из размытия, чуть перелетает и встаёт на место. Вперёд и назад разъезжаются
+   в разные стороны, поэтому видно, куда идёшь */
+.pane.page-enter {
+  animation: page-enter-neutral 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pane.page-enter--forward {
+  animation-name: page-enter-forward;
+}
+
+.pane.page-enter--back {
+  animation-name: page-enter-back;
+}
+
+@keyframes page-enter-neutral {
+  0% {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(16px) scale(0.96);
+  }
+
+  55% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(-3px) scale(1.008);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes page-enter-forward {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateX(28px) translateY(8px) scale(0.97);
+  }
+
+  60% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(-4px) translateY(-2px) scale(1.006);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(0) translateY(0) scale(1);
+  }
+}
+
+@keyframes page-enter-back {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateX(-28px) translateY(8px) scale(0.97);
+  }
+
+  60% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(4px) translateY(-2px) scale(1.006);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(0) translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane.page-enter {
+    animation: none;
+  }
+}
+
 /* Карусель баннеров */
 
 .slider__track {
@@ -236,14 +319,24 @@ body {
    и капсула отдаёт ширину первой: кнопка круглая, ей сжиматься некуда. */
 .navbar {
   position: fixed;
-  z-index: 50;
-  bottom: max(32px, var(--safe-area-bottom, 0px));
+  z-index: 999;
+  bottom: max(22px, var(--safe-area-bottom, 0px));
   left: 50%;
   translate: -50%;
-  width: min(404px, calc(100% - 24px));
+  width: 100%;
+  max-width: 460px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  /* Сама полоса жестов не ловит — только капсула и кнопка */
+  pointer-events: none;
+}
+
+.navbar > * {
+  pointer-events: auto;
 }
 
 /* Контейнер — из присланного кода, ширина пересчитана под 4 вкладки.
@@ -251,13 +344,15 @@ body {
 ._footer_1mfct_7 {
   -webkit-user-select: none;
   user-select: none;
-  border-radius: 30px;
+  border-radius: 99em;
   /* Позицию задаёт обёртка; капсула занимает всё, что осталось от кнопки */
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  height: 60px;
+  max-width: 340px;
+  height: 58px;
   padding: 4px;
+  gap: 2px;
   display: flex;
   /* Горизонтальный жест забираем себе, иначе его перехватит страница */
   touch-action: none;
@@ -280,8 +375,8 @@ body {
 .navbar__side {
   position: relative;
   flex: none;
-  width: 60px;
-  height: 60px;
+  width: 58px;
+  height: 58px;
   border: 0;
   border-radius: 50%;
   display: grid;
@@ -319,17 +414,22 @@ body {
   pointer-events: none;
 }
 
-/* Подложка активной вкладки — едет за --active-index */
+/* Подложка активной вкладки. Ширину и место ей задаёт сама вкладка — так
+   она обнимает её точно, а не делит капсулу поровну */
 ._indicator_1mfct_25 {
   position: absolute;
   top: 4px;
   bottom: 4px;
-  left: 4px;
-  width: calc((100% - 8px) / var(--tabs));
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateX(calc(var(--active-index, 0) * 100%));
-  transition: transform 0.42s var(--ease);
+  left: 0;
+  width: var(--menu-indicator-w, 0);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.086);
+  transform: translateX(var(--menu-indicator-x, 0));
+  transition:
+    transform 0.5s var(--ease-menu),
+    width 0.5s var(--ease-menu),
+    opacity 0.2s ease;
+  will-change: transform, width;
   cursor: grab;
 }
 
@@ -344,7 +444,9 @@ body {
 ._tab_1mfct_40 {
   position: relative;
   z-index: 1;
-  flex: 1;
+  flex: 1 1 0;
+  border-radius: 999px;
+  transition: transform 0.2s ease;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -357,20 +459,22 @@ body {
   width: 24px;
   height: 24px;
   pointer-events: none;
-  transition: opacity 0.26s ease, transform 0.42s var(--ease);
+  transition: opacity 0.28s ease;
 }
 
 ._icon_1mfct_146[data-hidden="true"] {
   opacity: 0;
 }
 
-._tab_1mfct_40.active ._icon_1mfct_146 {
-  transform: scale(1.06);
+/* Погашённый значок у образца — 22% белого. В наших рисунках прозрачность
+   уже заложена (30%), поэтому недостающее добираем множителем */
+._tab_1mfct_40 ._icon_1mfct_146:first-child:not([data-hidden="true"]) {
+  opacity: 0.73;
 }
 
-._tab_1mfct_40:active ._icon_1mfct_146 {
-  transform: scale(0.88);
-  transition-duration: 0.12s;
+/* Нажатие проседает всей вкладкой, а не значком */
+._tab_1mfct_40:active {
+  transform: scale(0.96);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -6042,39 +6146,75 @@ body {
   padding-bottom: 120px;
 }
 
-/* Сетка лотов: две в ряд — карточке нужно место под имя и цену */
+/* Сетка лотов — как у образца: колонки от 150px, просвет 14 */
 .mkt-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
   padding: 2px 16px;
 }
 
-/* Карточка лота. Фон подарка во всю карточку, узор символа, номер на
-   стекле, модель по центру; снизу на затемнении — имя, модель и цена */
+/* Карточка лота — карточка подарка образца: ровная тёмная плитка, поверх неё
+   проявляется цвет фона самого подарка, номер золотом, модель по центру,
+   цена кнопкой снизу */
 .mkt-card {
   position: relative;
-  aspect-ratio: 0.7;
+  height: 203px;
   overflow: hidden;
-  border-radius: 22px;
-  background: radial-gradient(circle at 50% 36%, var(--center-color, #666) 0%, var(--around-color, #1a1a1a) 78%);
-  box-shadow: var(--glass-edge);
+  border-radius: 26px;
+  background: #252528;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform .15s ease;
+  animation: bubble-nft 0.2s linear;
+  transition: transform 0.26s linear;
 }
 
 .mkt-card:active {
-  transform: scale(.97);
+  transform: scale(0.97);
+}
+
+/* Карточка не возникает рывком, а набухает из точки */
+@keyframes bubble-nft {
+  0% {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Цвет фона подарка проявляется поверх плитки — отсюда вся разница между
+   обычным подарком и редким */
+.mkt-card__grad {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--center-color, #3a3a3d) 0%, var(--around-color, #1a1a1a) 100%);
+  animation: fade-in-gradient 0.8s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes fade-in-gradient {
+  0% {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .mkt-card__symbols {
   position: absolute;
-  inset: 0 0 30% 0;
+  inset: 0;
   z-index: 1;
   overflow: hidden;
-  opacity: .22;
-  mix-blend-mode: luminosity;
+  opacity: 0.25;
   pointer-events: none;
 }
 
@@ -6082,106 +6222,73 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 120%;
-  height: 120%;
-  transform: translate(-50%, -50%);
+  width: 100%;
+  height: calc(100% - 30px);
+  transform: translate(-50%, -59%);
   object-fit: cover;
 }
 
 .mkt-card__num {
   position: absolute;
   top: 10px;
-  left: 10px;
-  z-index: 3;
-  height: 24px;
+  left: 11px;
+  z-index: 5;
+  height: 25px;
   display: flex;
   align-items: center;
   padding: 0 9px;
-  border-radius: 99px;
-  background: color-mix(in srgb, #1e1e1e 45%, transparent);
-  -webkit-backdrop-filter: blur(13px) saturate(1.4);
-  backdrop-filter: blur(13px) saturate(1.4);
-  box-shadow: var(--glass-edge);
-  color: #f5f5f7;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: 50px;
+  background: rgba(37, 37, 40, 0.2);
+  color: #fbbd23;
+  font-size: 14px;
+  font-weight: 500;
 }
 
+/* Рисунок занимает верх карточки и не наползает на ценник: у образца
+   подарки нарисованы с большими полями, а у нас они впритык к краю */
 .mkt-card__art {
   position: absolute;
-  left: 50%;
-  top: 9%;
-  z-index: 2;
-  width: 58%;
-  aspect-ratio: 1;
-  transform: translateX(-50%);
+  inset: 0 0 46px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
 }
 
 .mkt-card__art img {
   display: block;
-  width: 100%;
+  width: 78%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .28));
-}
-
-.mkt-card__foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 26px 10px 10px;
-  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .42) 45%);
-}
-
-.mkt-card__name {
-  overflow: hidden;
-  padding: 0 2px;
-  color: #f5f5f7;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.mkt-card__model {
-  overflow: hidden;
-  padding: 0 2px;
-  color: rgba(245, 245, 247, .62);
-  font-size: 12px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .mkt-card__price {
-  height: 34px;
-  margin-top: 8px;
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  z-index: 10;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 99px;
-  background: #f5f5f7;
-  color: #111;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 50px;
+  background: rgba(255, 166, 0, 0.12);
+  color: #fbbd23;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .mkt-card__price svg {
-  width: 15px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   fill: currentColor;
 }
 
-/* Свой лот — цена на тёмном стекле: видно, что купить его нельзя */
+/* Свой лот — ценник гаснет: купить его нельзя */
 .mkt-card__price.is-mine {
-  background: color-mix(in srgb, #1e1e1e 55%, transparent);
-  box-shadow: var(--glass-edge);
-  color: #f5f5f7;
+  background: rgba(245, 245, 247, 0.08);
+  color: rgba(245, 245, 247, 0.6);
 }
 
 .mkt-loading {
