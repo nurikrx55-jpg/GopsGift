@@ -7,7 +7,7 @@ import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
   readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, cleanMarket, TON_RECEIVER, InputError,
   listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile,
-  listWithdrawals, resolveWithdraw, openWithdrawals, userLang
+  listWithdrawals, resolveWithdraw, openWithdrawals, userLang, marketLog, lotCount, clearMarketLog
 } from './_lib/data.js';
 import { withdrawClosed } from './_lib/notify.js';
 import { json, body } from './_lib/http.js';
@@ -56,6 +56,16 @@ const actions = {
       return state;
     });
     return { content: content };
+  },
+
+  // История маркета — та же, что во вкладке «Активность» у людей
+  async 'market.log'() {
+    return { log: await marketLog(), lots: await lotCount() };
+  },
+
+  async 'market.clear'() {
+    await clearMarketLog();
+    return { log: [], lots: await lotCount() };
   },
 
   // --- Подарки ---

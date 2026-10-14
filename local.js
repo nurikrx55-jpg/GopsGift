@@ -317,6 +317,9 @@
     stats: () => Promise.resolve({ stats: stats() }),
     // Без сервера денег нет — и выводить нечего
     'withdraw.list': () => Promise.resolve({ items: [], total: 0 }),
+    // И маркета без сервера нет: история пустая
+    'market.log': () => Promise.resolve({ log: [], lots: 0 }),
+    'market.clear': () => Promise.resolve({ log: [], lots: 0 }),
 
     'gift.save': (payload) => {
       const input = payload.gift || {};

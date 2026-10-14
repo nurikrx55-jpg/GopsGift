@@ -10,7 +10,7 @@
   const API = '/api/admin';
   const LAST_TAB = 'gg:admin-tab';
 
-  const SECTIONS = ['gifts', 'banners', 'tasks', 'users', 'withdrawals', 'settings'];
+  const SECTIONS = ['gifts', 'banners', 'tasks', 'users', 'market', 'withdrawals', 'settings'];
 
   // Цвета лент — те же градиенты, что на витрине
   const RIBBONS = [
@@ -2109,6 +2109,120 @@
     });
   }
 
+  // --- Маркет ---
+
+  /* Комиссия и минимальная цена, а ниже история — та же лента, что во
+     вкладке «Активность» у людей. Очистка стирает только историю: лоты
+     на продаже и счета остаются */
+  const mkt = { token: 0 };
+
+  const MKT_TYPES = {
+    listed: ['Выставлен', 'listed'],
+    sold: ['Продан', 'sold'],
+    removed: ['Снят', 'removed']
+  };
+
+  function marketSettings() {
+    const card = el('section', 'ad-card');
+    card.appendChild(el('h3', null, 'Комиссия и цена'));
+    card.appendChild(el('p', 'ad-note', 'Комиссия — процент с каждой продажи, продавец получает цену за её вычетом. Минимальная цена — дешевле выставить нельзя.'));
+    const settings = content.market || { fee: 5, min: 0.1 };
+    const form = el('div', 'ad-form');
+    const fee = input(settings.fee, { type: 'number' });
+    fee.step = '0.1';
+    const min = input(settings.min, { type: 'number' });
+    min.step = '0.01';
+    form.append(field('Комиссия, %', fee, true), field('Минимальная цена, TON', min, true));
+    card.appendChild(form);
+    card.appendChild(button('Сохранить', {
+      icon: 'check',
+      onClick: (event) => {
+        const next = {
+          fee: Number(String(fee.value).replace(',', '.')) || 0,
+          min: Number(String(min.value).replace(',', '.')) || 0.1
+        };
+        run(event.currentTarget, 'market.save', { market: next }, () => toast('Маркет сохранён'));
+      }
+    }));
+    return card;
+  }
+
+  function marketRow(one) {
+    const row = el('div', 'ad-mlog__row');
+    const gift = (content.gifts || []).find((g) => g.id === one.nft.gift);
+    const type = MKT_TYPES[one.type] || [one.type, 'removed'];
+
+    const body = el('span', 'ad-person__body');
+    const who = one.type === 'sold' && one.buyer
+      ? (one.seller ? one.seller.name : '—') + ' → ' + one.buyer.name
+      : (one.seller ? one.seller.name : '—');
+    body.append(
+      el('span', 'ad-person__name', (gift ? gift.name : one.nft.gift) + ' #' + num(one.nft.num)),
+      el('span', 'ad-person__sub', who)
+    );
+
+    const side = el('span', 'ad-mlog__side');
+    side.append(
+      el('b', 'ad-mlog__type ad-mlog__type--' + type[1], type[0] + ' · ' + ton(one.nano) + ' TON'),
+      el('span', null, ago(one.at))
+    );
+    row.append(body, side);
+    return row;
+  }
+
+  function renderMarket() {
+    setTop('Маркет', 'Комиссия, минимальная цена и история сделок', [
+      iconButton('refresh', 'Обновить', () => go('market'), 'ad-icon--round')
+    ]);
+
+    const cols = el('div', 'ad-cols');
+    cols.appendChild(marketSettings());
+
+    const card = el('section', 'ad-card');
+    const head = el('div', 'ad-card__head');
+    const title = el('h3', null, 'Активность');
+    const clear = button('Очистить', { kind: 'danger', icon: 'trash' });
+    clear.disabled = true;
+    head.append(title, clear);
+    const note = el('p', 'ad-note', '');
+    const list = el('div', 'ad-mlog');
+    list.appendChild(loading());
+    card.append(head, note, list);
+    cols.appendChild(card);
+    view.appendChild(cols);
+
+    const paint = (data) => {
+      const log = data.log || [];
+      list.textContent = '';
+      note.textContent = 'Последние 200 событий: выставлен, продан, снят. Сейчас на продаже — ' +
+        num(data.lots) + ' ' + plural(data.lots, 'лот', 'лота', 'лотов') + '.';
+      clear.disabled = !log.length;
+      if (!log.length) {
+        list.appendChild(empty('pulse', 'История пуста', 'Здесь появятся выставленные, проданные и снятые подарки'));
+        return;
+      }
+      log.forEach((one) => list.appendChild(marketRow(one)));
+    };
+
+    clear.addEventListener('click', async () => {
+      if (!(await ask('Очистить историю маркета? Вкладка «Активность» опустеет у всех. Лоты на продаже и балансы не изменятся.'))) return;
+      run(clear, 'market.clear', {}, (data) => {
+        paint(data);
+        toast('История маркета очищена');
+      });
+    });
+
+    const token = ++mkt.token;
+    api('market.log', {}).then((data) => {
+      if (token !== mkt.token || !list.isConnected) return;
+      paint(data);
+    }).catch((error) => {
+      if (token !== mkt.token) return;
+      list.textContent = '';
+      list.appendChild(empty('pulse', 'Не загрузилось', error.message));
+    });
+  }
+
   // --- Задания ---
 
   function renderTasks() {
@@ -2374,29 +2488,6 @@
 
     cols.appendChild(ton);
 
-    // Маркет: сколько процентов берём с продажи и дешевле какой цены не выставить
-    const market = el('section', 'ad-card');
-    market.appendChild(el('h3', null, 'Маркет'));
-    market.appendChild(el('p', 'ad-note', 'Комиссия — процент с каждой продажи, продавец получает цену за её вычетом. Минимальная цена — дешевле выставить нельзя.'));
-    const settings = content.market || { fee: 5, min: 0.1 };
-    const mktForm = el('div', 'ad-form');
-    const fee = input(settings.fee, { type: 'number' });
-    fee.step = '0.1';
-    const min = input(settings.min, { type: 'number' });
-    min.step = '0.01';
-    mktForm.append(field('Комиссия, %', fee, true), field('Минимальная цена, TON', min, true));
-    market.appendChild(mktForm);
-    market.appendChild(button('Сохранить', {
-      icon: 'check',
-      onClick: (event) => {
-        const next = {
-          fee: Number(String(fee.value).replace(',', '.')) || 0,
-          min: Number(String(min.value).replace(',', '.')) || 0.1
-        };
-        run(event.currentTarget, 'market.save', { market: next }, () => toast('Маркет сохранён'));
-      }
-    }));
-    cols.appendChild(market);
 
     view.appendChild(cols);
 
@@ -2410,6 +2501,7 @@
     gifts: renderGifts,
     banners: renderBanners,
     users: renderUsers,
+    market: renderMarket,
     withdrawals: renderWithdrawals,
     tasks: renderTasks,
     settings: renderSettings

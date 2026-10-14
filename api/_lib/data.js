@@ -1291,6 +1291,16 @@ export async function marketLog() {
   return raw ? JSON.parse(raw) : [];
 }
 
+// Сколько лотов сейчас на продаже — для админки
+export async function lotCount() {
+  return Number(await command('ZCARD', K.lots)) || 0;
+}
+
+// Админка стирает «Активность» маркета. Лоты на продаже и счета не трогаем
+export async function clearMarketLog() {
+  await command('DEL', K.mktlog);
+}
+
 // --- Рефералы ---
 
 // Кого человек привёл: свежие первыми, наружу только имя и фото
