@@ -5,6 +5,7 @@
   // requestFullscreen появился в Bot API 8.0
   const FULLSCREEN_API = '8.0';
   const NAV_PADDING = 4;
+  const NAV_GAP = 2;
   // За сколько пикселей движения жест считаем перетаскиванием, а не тапом
   const DRAG_THRESHOLD = 6;
   // Сколько экран загрузки держится минимум — чтобы не мигнуть и исчезнуть
@@ -53,9 +54,9 @@
 
   const tg = window.Telegram && window.Telegram.WebApp;
 
-  const nav = document.querySelector('._footer_1mfct_7');
-  const indicator = document.querySelector('._indicator_1mfct_25');
-  const tabs = Array.from(document.querySelectorAll('._tab_1mfct_40'));
+  const nav = document.getElementById('menu-pill');
+  const indicator = nav && nav.querySelector('.menu_indicator');
+  const tabs = Array.from(document.querySelectorAll('#menu-pill .menu_tab'));
   const stage = document.querySelector('.stage');
   const splash = document.getElementById('splash');
   const sliderTrack = document.getElementById('slider-track');
@@ -115,9 +116,6 @@
     tg.requestFullscreen();
   }
 
-  // Подсветка иконок без переноса подложки — нужна во время перетаскивания.
-  // Название раздела здесь не меняем: пока палец ведёт капсулу, на экране
-  // ещё прежняя страница, и заголовок обгонял бы её
   function paint(index) {
     tabs.forEach((tab, i) => {
       const active = i === index;
@@ -128,11 +126,22 @@
       } else {
         tab.removeAttribute('aria-current');
       }
-
-      const icons = tab.querySelectorAll('._icon_1mfct_146');
-      icons[0].dataset.hidden = String(active);
-      icons[1].dataset.hidden = String(!active);
     });
+  }
+
+  // Подложка встаёт под активную вкладку — как в memgift: меряем вкладку и
+  // капсулу и отдаём разницу переменными
+  function placeIndicator() {
+    const tab = tabs[current];
+    if (!nav || !tab) return;
+    const pill = nav.getBoundingClientRect();
+    const box = tab.getBoundingClientRect();
+    if (!box.width) {
+      requestAnimationFrame(placeIndicator);
+      return;
+    }
+    nav.style.setProperty('--menu-indicator-x', (box.left - pill.left) + 'px');
+    nav.style.setProperty('--menu-indicator-w', box.width + 'px');
   }
 
   function selectTab(index) {
@@ -144,7 +153,7 @@
     // Заголовок меняется ровно вместе со страницей — на входе в раздел
     paintSection();
 
-    nav.style.setProperty('--active-index', String(index));
+    placeIndicator();
     stage.dataset.section = tabs[index].dataset.section;
     // Маркет живой: при каждом входе — свежие лоты и история
     if (stage.dataset.section === 'market') loadMarket();
@@ -161,7 +170,8 @@
   }
 
   function slotWidth() {
-    return (nav.getBoundingClientRect().width - NAV_PADDING * 2) / tabs.length;
+    const inner = nav.getBoundingClientRect().width - NAV_PADDING * 2 - NAV_GAP * (tabs.length - 1);
+    return inner / tabs.length + NAV_GAP;
   }
 
   function initDrag() {
@@ -210,7 +220,7 @@
 
       const max = (tabs.length - 1) * slot;
       offset = Math.min(Math.max(event.clientX - origin - grab, 0), max);
-      indicator.style.transform = `translateX(${offset}px)`;
+      indicator.style.transform = `translateX(${NAV_PADDING + offset}px)`;
 
       // Иконки подсвечиваются ещё на лету, до отпускания
       const near = nearest();
@@ -266,7 +276,7 @@
     });
 
     // Круглая кнопка рядом с капсулой: GetGems ещё не подключён
-    const gems = document.getElementById('nav-gems');
+    const gems = document.getElementById('menu-gems');
     if (gems) {
       gems.addEventListener('click', () => {
         haptic('light');
@@ -277,6 +287,8 @@
     const initial = tabs.findIndex((tab) => tab.classList.contains('active'));
     selectTab(initial === -1 ? 0 : initial);
     initDrag();
+    window.addEventListener('resize', placeIndicator);
+    placeIndicator();
   }
 
   function initTelegram() {

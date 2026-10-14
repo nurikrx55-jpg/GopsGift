@@ -231,153 +231,181 @@ body {
   transition: none;
 }
 
-/* Навбар и кнопка рядом — одной группой по центру экрана.
-   336 на капсулу, 8 на зазор, 60 на кнопку. На узком экране группа жмётся,
-   и капсула отдаёт ширину первой: кнопка круглая, ей сжиматься некуда. */
-.navbar {
+/* Навигационная панель — код memgift как есть (их `.menu`) */
+.menu {
   position: fixed;
-  z-index: 50;
-  bottom: max(32px, var(--safe-area-bottom, 0px));
   left: 50%;
-  translate: -50%;
-  width: min(404px, calc(100% - 24px));
+  bottom: max(22px, env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%);
+  width: 100%;
+  max-width: 460px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  z-index: 999;
+  pointer-events: none;
 }
 
-/* Контейнер — из присланного кода, ширина пересчитана под 4 вкладки.
-   Материал тот же, что у кнопки рядом: обе на жидком стекле из .glass */
-._footer_1mfct_7 {
-  -webkit-user-select: none;
-  user-select: none;
-  border-radius: 30px;
-  /* Позицию задаёт обёртка; капсула занимает всё, что осталось от кнопки */
+.menu .menu_pill {
   position: relative;
-  flex: 1;
-  min-width: 0;
-  height: 60px;
-  padding: 4px;
+  pointer-events: auto;
   display: flex;
-  /* Горизонтальный жест забираем себе, иначе его перехватит страница */
-  touch-action: none;
-}
-
-/* Подложка под стеклом — та же, что у кнопки справа */
-._footer_1mfct_7::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  opacity: 0.33;
-  background: linear-gradient(180deg, #1e1e1e, #191919);
-  pointer-events: none;
-}
-
-/* Кнопка справа. Само стекло приходит из .glass — того же, которым сделаны
-   плашки и кнопка GetGems. Здесь только форма, размер и подложка под ним */
-.navbar__side {
-  position: relative;
-  flex: none;
-  width: 60px;
-  height: 60px;
-  border: 0;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #fff;
+  align-items: stretch;
+  justify-content: flex-start;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 340px;
+  height: 58px;
+  gap: 2px;
+  padding: 4px;
+  border: none;
+  border-radius: 99em;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.2s ease;
+  box-sizing: border-box;
+  background-color: color-mix(in srgb, #1E1E1E 50%, transparent);
+  backdrop-filter: blur(13px) saturate(140%);
+  -webkit-backdrop-filter: blur(13px) saturate(140%);
+  box-shadow:
+    inset 1.8px 3px 0 -2px #ffffff0f,
+    inset 2px 2px 0 -2px #ffffff17,
+    inset -2px -2px 2px -2px #ffffff17,
+    inset -1.8px -3px 0 -2px #ffffff0f;
+  -webkit-box-shadow:
+    inset 1.8px 3px 0px -2px rgba(255, 255, 255, .0588235294),
+    inset 2px 2px 0px -2px rgba(255, 255, 255, .0901960784),
+    inset -2px -2px 2px -2px rgba(255, 255, 255, .0901960784),
+    inset -1.8px -3px 0px -2px rgba(255, 255, 255, .0588235294);
 }
 
-/* Подложка под стеклом: без неё на светлом фоне кружок выцветает, а с ней
-   держит глубину. Лежит ниже стекла, поэтому z-index отрицательный */
-.navbar__side::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  opacity: 0.33;
-  background: linear-gradient(180deg, #1e1e1e, #191919);
-  pointer-events: none;
+.menu .menu_pill.low {
+  flex: 0 0 58px;
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
+  height: 58px;
+  padding: 0;
+  justify-content: center;
+  cursor: pointer;
 }
 
-.navbar__side:active {
-  transform: scale(0.95);
+.menu .menu_pill.low .menu_tab_icon {
+  opacity: .32;
 }
 
-.navbar__icon {
+.menu .menu_pill.low.is-live .menu_tab_icon {
+  opacity: .85;
+}
+
+.menu .menu_pill.low.is-live:active {
+  transform: scale(.95);
+}
+
+.menu .menu_pill.low .menu_tab {
+  flex: none;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+
+.menu .menu_pill.low .menu_tab .menu_tab_icon {
   width: 24px;
   height: 24px;
-  display: block;
-  fill: currentColor;
-  /* Значок не в полную силу: так он не спорит с иконками в капсуле */
-  opacity: 0.85;
-  pointer-events: none;
+  opacity: 1;
 }
 
-/* Подложка активной вкладки — едет за --active-index */
-._indicator_1mfct_25 {
+.menu .menu_pill.low .menu_tab .menu_tab_icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.menu .menu_pill .menu_indicator {
   position: absolute;
   top: 4px;
   bottom: 4px;
-  left: 4px;
-  width: calc((100% - 8px) / var(--tabs));
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateX(calc(var(--active-index, 0) * 100%));
-  transition: transform 0.42s var(--ease);
-  cursor: grab;
+  left: 0;
+  z-index: 0;
+  width: var(--menu-indicator-w, 0);
+  border-radius: 999px;
+  pointer-events: none;
+  background: #ffffff16;
+  transform: translate(var(--menu-indicator-x, 0));
+  transition:
+    transform .5s cubic-bezier(.34, 1.2, .64, 1),
+    width .5s cubic-bezier(.34, 1.2, .64, 1),
+    opacity .2s ease;
+  will-change: transform, width;
 }
 
-._footer_1mfct_7:active ._indicator_1mfct_25 {
-  cursor: grabbing;
+.menu .menu_pill.menu_pill--has-active .menu_indicator {
+  opacity: 1;
 }
 
-._indicator_1mfct_25[data-hidden="true"] {
+.menu .menu_pill:not(.menu_pill--has-active) .menu_indicator {
   opacity: 0;
 }
 
-._tab_1mfct_40 {
+.menu .menu_pill:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: .33;
+  background: linear-gradient(180deg, #1e1e1e, #191919);
+  pointer-events: none;
+}
+
+.menu .menu_pill .menu_tab {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  cursor: pointer;
   position: relative;
   z-index: 1;
-  flex: 1;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  -webkit-user-drag: none;
+  transition: transform .2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Обе иконки лежат в одной ячейке грида — отсюда кроссфейд */
-._icon_1mfct_146 {
-  grid-area: 1 / 1;
+.menu .menu_pill .menu_tab .menu_tab_icon {
   width: 24px;
   height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: .22;
+  transition: opacity .28s ease;
+}
+
+.menu .menu_pill .menu_tab .menu_tab_icon svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.menu .menu_pill .menu_tab:active {
+  transform: scale(.96);
+}
+
+.menu .menu_pill .menu_tab:hover .menu_tab_icon {
+  opacity: .7;
+}
+
+.menu .menu_pill .menu_tab.active .menu_tab_icon {
+  opacity: 1;
+}
+
+.menu .menu_pill .menu_tab.disable {
+  opacity: .2;
   pointer-events: none;
-  transition: opacity 0.26s ease, transform 0.42s var(--ease);
-}
-
-._icon_1mfct_146[data-hidden="true"] {
-  opacity: 0;
-}
-
-._tab_1mfct_40.active ._icon_1mfct_146 {
-  transform: scale(1.06);
-}
-
-._tab_1mfct_40:active ._icon_1mfct_146 {
-  transform: scale(0.88);
-  transition-duration: 0.12s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  ._indicator_1mfct_25,
-  ._icon_1mfct_146 {
-    transition-duration: 0.01ms;
-  }
 }
 
 /* Экран загрузки */
@@ -5852,7 +5880,7 @@ body {
 
 /* Вне приложения Telegram (браузер, веб-версия) — только этот экран */
 .is-outside .stage,
-.is-outside .navbar {
+.is-outside .menu {
   display: none;
 }
 
