@@ -5,7 +5,7 @@
 import { configured } from './_lib/db.js';
 import { verify } from './_lib/telegram.js';
 import {
-  readContent, listLots, marketLog, createLot, removeLot, buyLot, getUser, InputError
+  readContent, listLots, marketLog, createLot, removeLot, repriceLot, buyLot, getUser, InputError
 } from './_lib/data.js';
 import { giftSold } from './_lib/notify.js';
 import { json, body } from './_lib/http.js';
@@ -29,6 +29,11 @@ export default {
 
       if (input.action === 'sell') {
         const lot = await createLot(user.id, input.nft, input.price, content);
+        return json({ lot: lot, me: await getUser(user.id) });
+      }
+
+      if (input.action === 'reprice') {
+        const lot = await repriceLot(user.id, input.lot, input.price, content);
         return json({ lot: lot, me: await getUser(user.id) });
       }
 

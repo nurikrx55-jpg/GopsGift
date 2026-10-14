@@ -7,7 +7,7 @@ import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
   readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, cleanMarket, TON_RECEIVER, InputError,
   listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile,
-  listWithdrawals, resolveWithdraw, openWithdrawals, userLang, marketLog, lotCount, clearMarketLog
+  listWithdrawals, resolveWithdraw, openWithdrawals, userLang, marketLog, lotCount, clearMarketLog, listLots, removeLot
 } from './_lib/data.js';
 import { withdrawClosed } from './_lib/notify.js';
 import { json, body } from './_lib/http.js';
@@ -60,7 +60,17 @@ const actions = {
 
   // История маркета — та же, что во вкладке «Активность» у людей
   async 'market.log'() {
-    return { log: await marketLog(), lots: await lotCount() };
+    return { log: await marketLog(true), lots: await lotCount() };
+  },
+
+  // Лоты на продаже — админ может снять любой, например с ошибочной ценой
+  async 'market.lots'() {
+    return { lots: await listLots() };
+  },
+
+  async 'market.unlist'(payload) {
+    await removeLot('', payload.lot, true);
+    return { lots: await listLots() };
   },
 
   async 'market.clear'() {

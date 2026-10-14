@@ -541,6 +541,15 @@ export async function saveAccount(id, input, content) {
 
     await pipeline(commands);
 
+    // Снятый вместе с подарком лот виден в «Активности», как и обычное снятие
+    if (gone.length) {
+      const rawProfile = await command('GET', K.user(key));
+      const seller = { id: key, name: nameOfProfile(rawProfile ? JSON.parse(rawProfile) : {}, key) };
+      for (const one of gone) {
+        await addMarketLog({ type: 'removed', lot: one.lot, nano: one.lotNano || 0, nft: lotNft(one), seller: seller, admin: true });
+      }
+    }
+
     // Начисление от админа видно человеку в истории кошелька
     if (tonNano > before.tonNano) await addTonLog(key, { type: 'deposit', nano: tonNano - before.tonNano, admin: true });
     return acct;
@@ -1118,7 +1127,9 @@ export async function userLang(userId) {
    Покупка трогает два счёта сразу. Оба берём в очередь в порядке id —
    так две встречные покупки не будут ждать друг друга вечно, а две покупки
    одного лота пройдут по очереди, и вторая увидит, что лота уже нет */
-const MKT_LOG = 200;
+const MKT_LOG = 1000;
+// Людям во вкладке «Активность» хватает свежих; админка видит всю историю
+const MKT_LOG_PUBLIC = 200;
 
 function nameOfProfile(person, id) {
   return [person.firstName, person.lastName].filter(Boolean).join(' ') ||
@@ -1130,11 +1141,16 @@ function bothQueued(a, b, run) {
   return queued(first, () => queued(second, run));
 }
 
-async function addMarketLog(entry) {
-  const raw = await command('GET', K.mktlog);
-  const log = raw ? JSON.parse(raw) : [];
-  log.unshift(Object.assign({ at: Date.now() }, entry));
-  await command('SET', K.mktlog, JSON.stringify(log.slice(0, MKT_LOG)));
+// История — один ключ на всех: прочитать, дописать, записать. Две сделки
+// разных людей разом иначе прочли бы один и тот же список, и одна запись
+// пропала бы. Поэтому дописываем строго по очереди
+function addMarketLog(entry) {
+  return queued('~mktlog', async () => {
+    const raw = await command('GET', K.mktlog);
+    const log = raw ? JSON.parse(raw) : [];
+    log.unshift(Object.assign({ at: Date.now() }, entry));
+    await command('SET', K.mktlog, JSON.stringify(log.slice(0, MKT_LOG)));
+  });
 }
 
 // Снимок подарка для лота и истории: что показывать, не заглядывая в счёт
@@ -1142,13 +1158,19 @@ function lotNft(nft) {
   return { id: nft.id, gift: nft.gift, model: nft.model, backdrop: nft.backdrop, symbol: nft.symbol, num: nft.num };
 }
 
-export async function createLot(userId, nftId, priceTon, content) {
-  const id = String(userId);
+// Цена лота в нанотонах — с теми же проверками при выставлении и смене цены
+function lotPrice(priceTon, content) {
   const settings = cleanMarket(content.market);
   const nano = Math.round(Number(priceTon) * NANO);
   if (!Number.isFinite(nano) || nano <= 0) throw new InputError('Укажите цену');
-  if (nano < Math.round(settings.min * NANO)) throw new InputError('Минимальная цена — ' + String(settings.min).replace('.', ',') + ' TON');
+  if (nano < Math.round(settings.min * NANO)) throw new InputError('Минимальная цена — ' + String(settings.min).replace('.', ',') + ' GRAM');
   if (nano > 1e6 * NANO) throw new InputError('Слишком высокая цена');
+  return nano;
+}
+
+export async function createLot(userId, nftId, priceTon, content) {
+  const id = String(userId);
+  const nano = lotPrice(priceTon, content);
 
   return queued(id, async () => {
     const [rawAcct, rawProfile] = await pipeline([['GET', K.acct(id)], ['GET', K.user(id)]]);
@@ -1173,12 +1195,13 @@ export async function createLot(userId, nftId, priceTon, content) {
   });
 }
 
-export async function removeLot(userId, lotId) {
-  const id = String(userId);
+// Снимает сам продавец или админка (byAdmin) — тогда чей лот, неважно
+export async function removeLot(userId, lotId, byAdmin) {
   const raw = await command('GET', K.lot(str(lotId, 32)));
   if (!raw) throw new InputError('Лота уже нет');
   const lot = JSON.parse(raw);
-  if (lot.sellerId !== id) throw new InputError('Это не ваш лот');
+  if (!byAdmin && lot.sellerId !== String(userId)) throw new InputError('Это не ваш лот');
+  const id = lot.sellerId;
 
   return queued(id, async () => {
     if (!(await command('GET', K.lot(lot.id)))) throw new InputError('Лота уже нет');
@@ -1195,7 +1218,38 @@ export async function removeLot(userId, lotId) {
       ['ZREM', K.lots, lot.id]
     ]);
     const profile = rawProfile ? JSON.parse(rawProfile) : {};
-    await addMarketLog({ type: 'removed', lot: lot.id, nano: lot.nano, nft: lot.nft, seller: { id: id, name: nameOfProfile(profile, id) } });
+    await addMarketLog({ type: 'removed', lot: lot.id, nano: lot.nano, nft: lot.nft, seller: { id: id, name: nameOfProfile(profile, id) }, admin: Boolean(byAdmin) || undefined });
+    return lot;
+  });
+}
+
+// Новая цена без снятия с продажи. В истории — как новое выставление
+export async function repriceLot(userId, lotId, priceTon, content) {
+  const id = String(userId);
+  const nano = lotPrice(priceTon, content);
+  const raw = await command('GET', K.lot(str(lotId, 32)));
+  if (!raw) throw new InputError('Лота уже нет');
+  if (JSON.parse(raw).sellerId !== id) throw new InputError('Это не ваш лот');
+
+  return queued(id, async () => {
+    const rawLot = await command('GET', K.lot(str(lotId, 32)));
+    if (!rawLot) throw new InputError('Лота уже нет');
+    const lot = JSON.parse(rawLot);
+    if (lot.nano === nano) return lot;
+
+    const [rawAcct, rawProfile] = await pipeline([['GET', K.acct(id)], ['GET', K.user(id)]]);
+    const acct = normalAccount(rawAcct);
+    const nft = acct.nfts.find((one) => one.id === lot.nftId && one.lot === lot.id);
+    if (!nft) throw new InputError('Лота уже нет');
+
+    lot.nano = nano;
+    nft.lotNano = nano;
+    await pipeline([
+      ['SET', K.acct(id), JSON.stringify(acct)],
+      ['SET', K.lot(lot.id), JSON.stringify(lot)]
+    ]);
+    const profile = rawProfile ? JSON.parse(rawProfile) : {};
+    await addMarketLog({ type: 'listed', lot: lot.id, nano: nano, nft: lot.nft, seller: { id: id, name: nameOfProfile(profile, id) } });
     return lot;
   });
 }
@@ -1270,7 +1324,8 @@ export async function buyLot(buyerId, lotId, content) {
 
 // Все лоты на продаже с именем и фото продавца — отбор делает приложение
 export async function listLots() {
-  const ids = (await command('ZREVRANGE', K.lots, 0, 499)) || [];
+  // Все лоты: отбор и постраничный показ делает приложение
+  const ids = (await command('ZREVRANGE', K.lots, 0, -1)) || [];
   if (!ids.length) return [];
   const lots = (await mgetJson(ids.map(K.lot))).map((raw) => (raw ? JSON.parse(raw) : null)).filter(Boolean);
   const profiles = await mgetJson(lots.map((one) => K.user(one.sellerId)));
@@ -1286,9 +1341,10 @@ export async function listLots() {
   });
 }
 
-export async function marketLog() {
+export async function marketLog(all) {
   const raw = await command('GET', K.mktlog);
-  return raw ? JSON.parse(raw) : [];
+  const log = raw ? JSON.parse(raw) : [];
+  return all ? log : log.slice(0, MKT_LOG_PUBLIC);
 }
 
 // Сколько лотов сейчас на продаже — для админки

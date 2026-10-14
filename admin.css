@@ -2146,3 +2146,27 @@
 .ad-card__head .ad-btn {
   flex: none;
 }
+
+/* Лот на продаже: имя ведёт в карточку продавца, «Снять» — справа */
+.ad-mlog__who {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ad-mlog__row > .ad-btn {
+  flex: none;
+}
+
+.ad-mlog > .ad-btn {
+  margin-top: 10px;
+}
+
+.ad-btn--small {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}

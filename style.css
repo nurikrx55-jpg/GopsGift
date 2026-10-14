@@ -4265,6 +4265,13 @@ body {
   height: 17px;
 }
 
+/* Gram на кнопке «Продать за» — белым, как текст */
+.pgm-transfer-cost svg {
+  width: 17px;
+  height: 14px;
+  fill: currentColor;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mgm-dock {
     transition: none;
@@ -6843,9 +6850,10 @@ body {
   font-weight: 600;
 }
 
-.pgm-sell-input__unit img {
+.pgm-sell-input__unit svg {
   width: 18px;
-  height: 18px;
+  height: 15px;
+  fill: currentColor;
 }
 
 .pgm-sell-input__unit span {
@@ -6888,6 +6896,9 @@ body {
 }
 
 .pgm-sell-summary__value {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   color: #f5f5f7;
   font-size: 15px;
   font-weight: 600;
@@ -6917,4 +6928,11 @@ select {
 /* Лента «on sale» на улучшенном, выставленном на маркет */
 .gift__badge--sale .gift__label {
   text-transform: lowercase;
+}
+
+.pgm-sell-summary__value svg {
+  width: 15px;
+  height: 13px;
+  fill: currentColor;
+  opacity: .9;
 }

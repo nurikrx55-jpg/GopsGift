@@ -2301,6 +2301,9 @@
      кто поделился, и сразу окно этого подарка (startapp=p_<id>_<подарок>).
      Улучшенный узнаётся по своему номеру, обычный — по подарку витрины */
   function ownedLink(gift) {
+    // Подарок на продаже — ссылка ведёт прямо в его покупку на маркете
+    const lotId = gift.lot ? gift.lot.id : gift.nft && gift.nft.lot;
+    if (lotId) return BOT_LINK + '?startapp=lot_' + encodeURIComponent(lotId);
     const user = tgUser();
     const owner = gift.ownerName ? VIEWED.id : user && user.id;
     if (!owner) return giftLink(gift);
@@ -2328,10 +2331,26 @@
     if (!start && tg && tg.initData) {
       try { start = new URLSearchParams(tg.initData).get('start_param') || ''; } catch (_) {}
     }
+    // Подарок на продаже: маркет и сразу окно покупки
+    const sale = /^lot_([a-z0-9-]+)$/.exec(start);
+    if (sale) {
+      openLot((lot) => lot.id === sale[1]);
+      return;
+    }
+
     // Чужой (или свой) подарок из профиля: профиль человека и окно подарка
     const shared = /^p_(\d{1,20})_([a-z0-9-]+)$/.exec(start);
     if (shared) {
       const me = tgUser();
+      // Ссылку дали раньше, а подарок с тех пор выставили — ведём в покупку
+      if (!(me && String(me.id) === shared[1]) && Store.live()) {
+        loadMarket().then(() => {
+          const lot = LOTS.find((one) => one.nft.id === shared[2] && String(one.seller.id) === shared[1]);
+          if (lot) openLot((one) => one.id === lot.id);
+          else openView({ id: shared[1], focus: shared[2] });
+        });
+        return;
+      }
       if (me && String(me.id) === shared[1]) {
         const at = tabs.findIndex((tab) => tab.dataset.section === 'profile');
         if (at !== -1) selectTab(at);
@@ -2393,6 +2412,8 @@
     ico.setAttribute('viewBox', listed ? '0 0 29 29' : '0 -1 24 24');
     ico.querySelector('use').setAttribute('href', listed ? '#market-off' : '#market');
     if (upg && !lot) document.getElementById('owned-withdraw').hidden = listed;
+    // У выставленного вместо «Вывести» — «Цена»: поменять, не снимая
+    document.getElementById('owned-reprice').hidden = !listed;
 
     // Выставленный не отправить — кнопка приглушена
     document.getElementById('owned-send').classList.toggle('disabled', listed);
@@ -2424,6 +2445,12 @@
       haptic('light');
       if (ownGift.nft.lot) unlistOwned(ownGift);
       else openSell(ownGift);
+    });
+
+    document.getElementById('owned-reprice').addEventListener('click', () => {
+      if (!ownGift || !ownGift.nft || !ownGift.nft.lot) return;
+      haptic('light');
+      openSell(ownGift, true);
     });
 
     document.getElementById('owned-onmarket').addEventListener('click', () => {
@@ -5091,25 +5118,65 @@
     if (!gifts) renderActivity();
   }
 
+  // Маркет по ссылке: раздел маркета и окно лота. Лота нет — так и говорим
+  function openLot(match) {
+    goMarket();
+    if (!Store.live()) return;
+    loadMarket().then(() => {
+      const lot = LOTS.find(match);
+      if (lot && ownSheet) ownSheet.open(lotView(lot));
+      else if (marketLoaded) toast(t('market.gone'));
+    });
+  }
+
+  // Пока маркет открыт, лоты и история обновляются сами
+  const MARKET_REFRESH = 15000;
+
+  function marketOpen() {
+    return stage.dataset.section === 'market' && !document.hidden;
+  }
+
+  function watchMarket() {
+    setInterval(() => {
+      if (marketOpen()) loadMarket();
+    }, MARKET_REFRESH);
+    document.addEventListener('visibilitychange', () => {
+      if (marketOpen()) loadMarket();
+    });
+  }
+
+  let marketLoading = null;
+  let marketStamp = '';
+
   function loadMarket() {
-    if (!Store.live() || marketBusy) return Promise.resolve();
+    if (!Store.live()) return Promise.resolve();
+    // Уже грузится — ждём ту же загрузку, а не отвечаем пустым сразу
+    if (marketBusy && marketLoading) return marketLoading;
     marketBusy = true;
     if (!marketLoaded) {
       const list = document.getElementById('mkt-list');
       list.innerHTML = '<div class="mkt-loading"><span class="mkt-spinner" aria-hidden="true"></span></div>';
     }
-    return Promise.all([marketPost({ action: 'list' }), marketPost({ action: 'activity' })])
+    marketLoading = Promise.all([marketPost({ action: 'list' }), marketPost({ action: 'activity' })])
       .then(([lots, act]) => {
         LOTS = lots.lots || [];
         MKT_LOG = act.log || [];
+        // Ничего не поменялось — карточки не перерисовываем, чтобы не мигали
+        const stamp = LOTS.map((one) => one.id + ':' + one.nano).join(',') + '|' +
+          MKT_LOG.length + ':' + (MKT_LOG[0] ? MKT_LOG[0].at : 0);
+        if (marketLoaded && stamp === marketStamp) return;
+        marketStamp = stamp;
         marketLoaded = true;
         paintMarket();
       })
       .catch(() => {
-        if (!marketLoaded) document.getElementById('mkt-list').textContent = '';
+        // Тихое обновление открытого маркета не пугает ошибкой — список уже есть
+        if (marketLoaded) return;
+        document.getElementById('mkt-list').textContent = '';
         toast(t('market.loadFail'));
       })
       .then(() => { marketBusy = false; });
+    return marketLoading;
   }
 
   // После покупки или продажи: счёт, профиль, шапка
@@ -5131,6 +5198,14 @@
   let sellGift = null;
   let sellPlayer = null;
   let selling = false;
+  // То же окно меняет цену выставленного: тогда в нём уже стоит прежняя
+  let sellReprice = false;
+
+  // «0,5 ◆» — сумма со значком Gram
+  function gramText(node, nano) {
+    node.innerHTML = '<svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>';
+    node.appendChild(document.createTextNode(formatTon(nano)));
+  }
 
   function sellAmount() {
     const value = Number(String(document.getElementById('sell-price').value).replace(',', '.'));
@@ -5142,8 +5217,8 @@
     const amount = sellAmount();
     const nano = Math.round(amount * NANO);
     const fee = Math.round(nano * market.fee / 100);
-    document.getElementById('sell-min').textContent = formatTon(Math.round(market.min * NANO)) + ' TON';
-    document.getElementById('sell-total').textContent = formatTon(Math.max(0, nano - fee)) + ' TON';
+    gramText(document.getElementById('sell-min'), Math.round(market.min * NANO));
+    gramText(document.getElementById('sell-total'), Math.max(0, nano - fee));
     document.getElementById('sell-go-price').textContent = formatTon(nano);
 
     const low = amount > 0 && amount < market.min;
@@ -5154,8 +5229,9 @@
     document.getElementById('sell-go').disabled = selling || !(amount >= market.min);
   }
 
-  function openSell(gift) {
+  function openSell(gift, reprice) {
     if (!gift || !gift.nft || !sellSheet) return;
+    sellReprice = Boolean(reprice && gift.nft.lot);
     if (!Store.live()) {
       toast(t('pay.noDb'));
       return;
@@ -5174,11 +5250,14 @@
     const button = document.getElementById('sell-go');
     button.classList.add('is-loading');
     paintSell();
-    marketPost({ action: 'sell', nft: gift.nft.id, price: String(amount) })
+    const request = sellReprice
+      ? { action: 'reprice', lot: gift.nft.lot, price: String(amount) }
+      : { action: 'sell', nft: gift.nft.id, price: String(amount) };
+    marketPost(request)
       .then((data) => {
         applyMe(data.me);
         haptic('success');
-        toast(t('market.listed'));
+        toast(t(request.action === 'reprice' ? 'market.repriced' : 'market.listed'));
         sellSheet.close();
         refreshOwned(gift.nft.id);
         marketLoaded = false;
@@ -5198,7 +5277,12 @@
         const head = document.getElementById('sell-head');
         paintHead(head, gift, document.getElementById('sell-symbol'), document.getElementById('sell-mark'));
         document.getElementById('sell-title').textContent = gift.name;
-        document.getElementById('sell-price').value = '';
+        // Смена цены — с прежней ценой в поле и своей подписью на кнопке
+        document.getElementById('sell-price').value = sellReprice
+          ? String(Math.round((gift.nft.lotNano || 0) / 1e7) / 100)
+          : '';
+        document.getElementById('sell-go-text').textContent = t(sellReprice ? 'market.newPrice' : 'market.sellFor');
+        document.getElementById('sell-go-wait').textContent = t(sellReprice ? 'market.saving' : 'market.listing');
         paintSell();
       },
       opened: (gift) => {
@@ -5333,6 +5417,7 @@
     initOwnFilters(mktList);
     initSell();
     paintMarket();
+    watchMarket();
   }
 
   // --- Чужой профиль ---
@@ -5725,7 +5810,7 @@
     // витрина и профиль не выглядели сломанными
     ME = Store.me() || { stars: 0, coupons: 0, gifts: [], admin: false };
 
-    GIFTS = (state.gifts || []).map((gift) => Object.assign({ note: t('gift.note'), owner: '—' }, gift));
+    GIFTS = (state.gifts || []).map((gift) => Object.assign({ owner: '—' }, gift));
 
     // В профиле лежат те же записи, что на витрине: иначе плашка редкости
     // у купленного подарка разошлась бы с витринной

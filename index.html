@@ -799,6 +799,11 @@
                 <svg class="mgm-card__market-ico" id="owned-sell-ico" viewBox="0 -1 24 24" aria-hidden="true"><use href="#market"></use></svg>
                 <p id="owned-sell-text" data-i18n="market.sell">Продать</p>
               </button>
+              <!-- У выставленного на месте «Вывести» — смена цены -->
+              <button class="mgm-card__tickers-i" type="button" id="owned-reprice" hidden>
+                <svg class="mgm-card__market-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5h4l10-10a2.1 2.1 0 0 0-3-3l-10 10Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><path d="m14 8 3 3" fill="none" stroke="currentColor" stroke-width="1.7"></path></svg>
+                <p data-i18n="market.price">Цена</p>
+              </button>
               <button class="mgm-card__tickers-i" type="button" id="owned-send">
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M16.5034 0.103439C18.0279 -0.404703 19.4782 1.04559 18.97 2.57002L13.9134 17.7398C13.3798 19.3407 11.2025 19.554 10.3684 18.0871L7.35198 12.7824L10.3336 9.80084C10.6264 9.50795 10.6264 9.03307 10.3336 8.74018C10.0407 8.44728 9.56579 8.44728 9.27289 8.74018L6.29141 11.7217L0.986399 8.70509C-0.48054 7.87095 -0.267279 5.69368 1.33364 5.16004L16.5034 0.103439Z"></path></svg>
                 <p data-i18n="gift.send">Отправить</p>
@@ -943,7 +948,8 @@
   </div>
 
   <!-- Продажа — окно memgift `SellModal` (`.pgm-sell-*`): карточка, цена
-       в TON, минимальная цена и сколько дойдёт после комиссии -->
+       в Gram, минимальная цена и сколько дойдёт после комиссии. Это же
+       окно меняет цену уже выставленного -->
   <div class="mgo" id="sell-ov"></div>
   <div class="mgm-dock pgm-transfer" id="sell">
     <div class="mgm-sheet" role="dialog" aria-modal="true" aria-labelledby="sell-title">
@@ -966,7 +972,7 @@
         <div class="pgm-sell-form">
           <div class="pgm-recipient-search pgm-sell-input" id="sell-box">
             <input type="text" id="sell-price" inputmode="decimal" autocomplete="off" placeholder="0">
-            <div class="pgm-sell-input__unit"><img src="gifts/ton.svg" alt="TON" draggable="false"><span>TON</span></div>
+            <div class="pgm-sell-input__unit"><svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg><span>GRAM</span></div>
           </div>
           <div class="pgm-sell-summary">
             <div class="pgm-sell-summary__row">
@@ -984,12 +990,12 @@
         <div class="mgm-footer market pgm-transfer-footer">
           <button class="mgm-footer__buy" type="button" id="sell-go" disabled>
             <span class="pgm-send-button__content">
-              <span data-i18n="market.sellFor">Продать за</span>
-              <span class="pgm-transfer-cost"><img src="gifts/ton-white.svg" alt="" draggable="false"><span id="sell-go-price">0</span></span>
+              <span id="sell-go-text" data-i18n="market.sellFor">Продать за</span>
+              <span class="pgm-transfer-cost"><svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg><span id="sell-go-price">0</span></span>
             </span>
             <span class="pgm-send-button__loading">
               <span class="mgm-footer__spin" aria-hidden="true"></span>
-              <span data-i18n="market.listing">Выставляем…</span>
+              <span id="sell-go-wait" data-i18n="market.listing">Выставляем…</span>
             </span>
           </button>
         </div>

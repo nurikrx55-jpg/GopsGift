@@ -320,6 +320,8 @@
     // И маркета без сервера нет: история пустая
     'market.log': () => Promise.resolve({ log: [], lots: 0 }),
     'market.clear': () => Promise.resolve({ log: [], lots: 0 }),
+    'market.lots': () => Promise.resolve({ lots: [] }),
+    'market.unlist': () => Promise.resolve({ lots: [] }),
 
     'gift.save': (payload) => {
       const input = payload.gift || {};

@@ -2163,10 +2163,36 @@
 
     const side = el('span', 'ad-mlog__side');
     side.append(
-      el('b', 'ad-mlog__type ad-mlog__type--' + type[1], type[0] + ' · ' + ton(one.nano) + ' TON'),
+      el('b', 'ad-mlog__type ad-mlog__type--' + type[1], type[0] + (one.admin ? ' админом' : '') + ' · ' + ton(one.nano) + ' TON'),
       el('span', null, ago(one.at))
     );
     row.append(body, side);
+    return row;
+  }
+
+  // Лот на продаже: что, чей, почём — и «Снять», если цена ошибочная
+  function lotRow(lot, onRemoved) {
+    const row = el('div', 'ad-mlog__row');
+    const gift = (content.gifts || []).find((g) => g.id === lot.nft.gift);
+    const body = el('button', 'ad-person__body ad-mlog__who');
+    body.type = 'button';
+    body.append(
+      el('span', 'ad-person__name', (gift ? gift.name : lot.nft.gift) + ' #' + num(lot.nft.num)),
+      el('span', 'ad-person__sub', lot.seller.name + ' · ' + ago(lot.createdAt))
+    );
+    body.addEventListener('click', () => userSheet(lot.seller.id, () => {}));
+
+    const side = el('span', 'ad-mlog__side');
+    side.appendChild(el('b', 'ad-mlog__type', ton(lot.nano) + ' TON'));
+    const remove = button('Снять', { kind: 'danger', extra: 'ad-btn--small' });
+    remove.addEventListener('click', async () => {
+      if (!(await ask('Снять с продажи ' + (gift ? gift.name : '') + ' #' + lot.nft.num + ' за ' + ton(lot.nano) + ' TON? Подарок останется у владельца.'))) return;
+      run(remove, 'market.unlist', { lot: lot.id }, () => {
+        toast('Лот снят');
+        onRemoved();
+      });
+    });
+    row.append(body, side, remove);
     return row;
   }
 
@@ -2177,6 +2203,24 @@
 
     const cols = el('div', 'ad-cols');
     cols.appendChild(marketSettings());
+
+    // На продаже
+    const lotsCard = el('section', 'ad-card');
+    lotsCard.appendChild(el('h3', null, 'На продаже'));
+    const lotsList = el('div', 'ad-mlog');
+    lotsList.appendChild(loading());
+    lotsCard.appendChild(lotsList);
+    cols.appendChild(lotsCard);
+
+    const paintLots = (lots) => {
+      lotsList.textContent = '';
+      if (!lots.length) {
+        lotsList.appendChild(empty('store', 'Лотов нет', 'Выставленные подарки появятся здесь'));
+        return;
+      }
+      // После снятия — заново весь раздел: и лоты, и запись в истории
+      lots.forEach((lot) => lotsList.appendChild(lotRow(lot, () => go('market'))));
+    };
 
     const card = el('section', 'ad-card');
     const head = el('div', 'ad-card__head');
@@ -2194,14 +2238,24 @@
     const paint = (data) => {
       const log = data.log || [];
       list.textContent = '';
-      note.textContent = 'Последние 200 событий: выставлен, продан, снят. Сейчас на продаже — ' +
+      note.textContent = 'Выставлен, продан, снят — последние 1 000 событий, людям видны 200 свежих. Сейчас на продаже — ' +
         num(data.lots) + ' ' + plural(data.lots, 'лот', 'лота', 'лотов') + '.';
       clear.disabled = !log.length;
       if (!log.length) {
         list.appendChild(empty('pulse', 'История пуста', 'Здесь появятся выставленные, проданные и снятые подарки'));
         return;
       }
-      log.forEach((one) => list.appendChild(marketRow(one)));
+      // Длинную историю показываем частями
+      let shown = 0;
+      const more = button('Показать ещё', { kind: 'ghost' });
+      const page = () => {
+        log.slice(shown, shown + 100).forEach((one) => list.insertBefore(marketRow(one), more));
+        shown += 100;
+        more.hidden = shown >= log.length;
+      };
+      more.addEventListener('click', page);
+      list.appendChild(more);
+      page();
     };
 
     clear.addEventListener('click', async () => {
@@ -2220,6 +2274,14 @@
       if (token !== mkt.token) return;
       list.textContent = '';
       list.appendChild(empty('pulse', 'Не загрузилось', error.message));
+    });
+    api('market.lots', {}).then((data) => {
+      if (token !== mkt.token || !lotsList.isConnected) return;
+      paintLots(data.lots || []);
+    }).catch((error) => {
+      if (token !== mkt.token) return;
+      lotsList.textContent = '';
+      lotsList.appendChild(empty('pulse', 'Не загрузилось', error.message));
     });
   }
 
