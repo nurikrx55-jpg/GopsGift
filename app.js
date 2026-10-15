@@ -5847,18 +5847,30 @@
   // догрузились картинки страницы: иначе при медленной базе человек видит
   // пустое приложение и решает, что оно сломалось
   let hideSplash = () => {};
+  // Оставить заставку навсегда: так выглядит бан
+  let stickSplash = () => {};
 
   function initSplash() {
     if (!splash) return;
 
     const started = performance.now();
     let done = false;
+    let timer = 0;
 
     hideSplash = () => {
       if (done) return;
       done = true;
       const wait = Math.max(0, SPLASH_MIN_MS - (performance.now() - started));
-      setTimeout(() => splash.classList.add('is-done'), wait);
+      timer = setTimeout(() => splash.classList.add('is-done'), wait);
+    };
+
+    stickSplash = () => {
+      // Снятие могло быть уже назначено или даже случиться — отменяем и то,
+      // и то, иначе заставка уедет из-под забаненного
+      done = true;
+      clearTimeout(timer);
+      splash.classList.remove('is-done');
+      splash.classList.add('is-stuck');
     };
 
     setTimeout(hideSplash, SPLASH_MAX_MS);
@@ -5997,7 +6009,16 @@
   }
 
   Store.load()
-    .then(loadAttrs)
+    .then(() => {
+      /* Забанен. Приложение не собираем вовсе: человек остаётся на
+         заставке с вечной загрузкой, без объяснений — так решено.
+         Обещание, которое никогда не исполнится, обрывает всё дальнейшее */
+      if (Store.banned()) {
+        stickSplash();
+        return new Promise(() => {});
+      }
+      return loadAttrs();
+    })
     .then(() => {
       fillFromStore();
 

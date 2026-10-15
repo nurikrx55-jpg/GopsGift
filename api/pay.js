@@ -13,7 +13,7 @@ import { configured } from './_lib/db.js';
 import { verify, isAdmin } from './_lib/telegram.js';
 import {
   readContent, publicContent, createOrder, readOrder, getUser, settleOrder, tonPrice, InputError,
-  canUpgrade, upgradeNow, stillOwns
+  canUpgrade, upgradeNow, stillOwns, isBanned
 } from './_lib/data.js';
 import { call, hasBot, BotError } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
@@ -206,6 +206,8 @@ export default {
     const input = await body(request);
     const user = verify(input.initData, MAX_AGE);
     if (!user) return json({ error: 'who' }, 401);
+    // Забаненный не делает ничего и в обход приложения
+    if (await isBanned(user.id)) return json({ error: 'banned' }, 403);
 
     try {
       const result = input.action === 'check'

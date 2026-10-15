@@ -21,6 +21,7 @@
   let content = null;
   let me = null;
   let live = false;
+  let banned = false;
   let ready = null;
 
   function initData() {
@@ -47,6 +48,9 @@
       if (!response.ok) throw new Error('boot ' + response.status);
       return response.json();
     }).then((data) => {
+      // Забаненному сервер не присылает ни витрины, ни счёта — приложение
+      // по этой отметке остаётся на заставке
+      banned = Boolean(data.banned);
       content = data.content || empty();
       me = data.me || null;
       live = true;
@@ -95,6 +99,7 @@
     apply: apply,
     state: () => content,
     me: () => me,
-    live: () => live
+    live: () => live,
+    banned: () => banned
   };
 })();

@@ -5,7 +5,7 @@
 import { configured } from './_lib/db.js';
 import { verify, isAdmin } from './_lib/telegram.js';
 import {
-  findRecipients, transferGift, checkTransfer, createOrder, cleanFees, getUser, readContent, clearInbox, InputError
+  findRecipients, transferGift, checkTransfer, createOrder, cleanFees, getUser, readContent, clearInbox, InputError, isBanned
 } from './_lib/data.js';
 import { call, hasBot } from './_lib/bot.js';
 import { giftReceived } from './_lib/notify.js';
@@ -47,6 +47,8 @@ export default {
     const input = await body(request);
     const user = verify(input.initData, MAX_AGE);
     if (!user) return json({ error: 'who' }, 401);
+    // Забаненный не делает ничего и в обход приложения
+    if (await isBanned(user.id)) return json({ error: 'banned' }, 403);
 
     try {
       if (input.action === 'search') {

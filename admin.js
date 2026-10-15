@@ -1548,6 +1548,8 @@
     const line = el('span', className);
     line.appendChild(el('span', null, nameOf(person)));
     if (person.tgPremium) line.appendChild(el('span', 'ad-badge', 'Premium'));
+    // Забаненного видно сразу в списке, не открывая карточку
+    if (person.banned) line.appendChild(el('span', 'ad-badge ad-badge--ban', 'Бан'));
     return line;
   }
 
@@ -1698,7 +1700,8 @@
       // Шапка: кто это
       const who = el('div', 'ad-who');
       who.appendChild(avatar(person, true));
-      who.appendChild(nameLine(person, 'ad-who__name'));
+      let whoName = nameLine(person, 'ad-who__name');
+      who.appendChild(whoName);
 
       const sub = el('div', 'ad-who__sub');
       if (person.username) {
@@ -1929,6 +1932,44 @@
       paintRig();
       upgCard.appendChild(rigBtn);
       body.appendChild(upgCard);
+
+      /* Бан. Забаненному приложение больше не открывается: он остаётся на
+         экране загрузки, и объяснений ему не дают. Срабатывает сразу, а не
+         по «Сохранить»: баланс и подарки к этому отношения не имеют */
+      let banned = Boolean(person.banned);
+      const banCard = el('section', 'ad-card');
+      banCard.appendChild(el('h3', null, 'Доступ'));
+      const banBtn = el('button', 'ad-switch ad-switch--ban');
+      banBtn.type = 'button';
+      const banMark = el('span', 'ad-switch__icon');
+      banMark.appendChild(icon('ban'));
+      const banText = el('span', 'ad-switch__text');
+      banText.append(el('b', null, 'Забанить'), el('small', null, 'Приложение не откроется: вечная загрузка'));
+      banBtn.append(banMark, banText, el('span', 'ad-toggle'));
+
+      const paintBan = () => {
+        banBtn.setAttribute('aria-pressed', String(banned));
+        // Значок у имени в шапке — чтобы карточка не расходилась с собой
+        const fresh = nameLine(Object.assign({}, person, { banned: banned }), 'ad-who__name');
+        whoName.replaceWith(fresh);
+        whoName = fresh;
+      };
+
+      banBtn.addEventListener('click', async () => {
+        const next = !banned;
+        if (next && !(await ask('Забанить ' + nameOf(person) + '? Приложение у него перестанет открываться.'))) return;
+        await run(banBtn, 'user.ban', { id: person.id, banned: next }, (data) => {
+          banned = Boolean(data.user.banned);
+          haptic('pick');
+          paintBan();
+          toast(banned ? 'Забанен' : 'Бан снят');
+          if (onSaved) onSaved(data.user);
+        });
+      });
+
+      paintBan();
+      banCard.appendChild(banBtn);
+      body.appendChild(banCard);
 
       foot.appendChild(button('Сохранить', {
         icon: 'check',

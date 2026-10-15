@@ -6,7 +6,7 @@
 
 import { configured } from './_lib/db.js';
 import { verify } from './_lib/telegram.js';
-import { bindWallet, tonState, checkDeposits, requestWithdraw, InputError } from './_lib/data.js';
+import { bindWallet, tonState, checkDeposits, requestWithdraw, InputError, isBanned } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
 const MAX_AGE = 30 * 24 * 60 * 60;
@@ -19,6 +19,8 @@ export default {
     const input = await body(request);
     const user = verify(input.initData, MAX_AGE);
     if (!user) return json({ error: 'who' }, 401);
+    // Забаненный не делает ничего и в обход приложения
+    if (await isBanned(user.id)) return json({ error: 'banned' }, 403);
 
     try {
       if (input.action === 'check') {

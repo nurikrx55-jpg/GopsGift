@@ -16,6 +16,7 @@
    gg:tontx:<hash>    — отметка, что этот перевод TON уже зачислен
    gg:upgseq          — сколько раз улучшали каждый подарок: отсюда номер #N
    gg:rig:<id>        — фон, который админ подкрутил на следующее улучшение
+   gg:ban:<id>        — бан: такого не пускает заход в приложение
    gg:upglow:<gift>   — прежняя нумерация от остатка тиража, больше не пишется
    gg:upgnum:v2       — отметка, что улучшенные перенумерованы по порядку
    gg:wd:<id>         — заявка на вывод TON: кто, сколько и на какой кошелёк
@@ -56,6 +57,7 @@ const K = {
   tontx: (hash) => 'gg:tontx:' + hash,
   upgseq: 'gg:upgseq',
   rig: (id) => 'gg:rig:' + id,
+  ban: (id) => 'gg:ban:' + id,
   upgnum: 'gg:upgnum:v2',
   wd: (id) => 'gg:wd:' + id,
   wds: 'gg:wds',
@@ -465,10 +467,11 @@ async function people(ids) {
 
   const profiles = await mgetJson(ids.map(K.user));
   const accounts = await mgetJson(ids.map(K.acct));
+  const bans = await mgetJson(ids.map(K.ban));
 
   return ids.map((id, index) => {
     const profile = profiles[index] ? JSON.parse(profiles[index]) : { id: id };
-    return Object.assign({ id: id }, profile, normalAccount(accounts[index]));
+    return Object.assign({ id: id }, profile, normalAccount(accounts[index]), { banned: Boolean(bans[index]) });
   });
 }
 
@@ -510,6 +513,20 @@ export async function listUsers(options) {
 
 export async function readRig(id) {
   return (await command('GET', K.rig(String(id)))) || '';
+}
+
+/* Бан живёт своим ключом, не в профиле и не в счёте: профиль перезаписывает
+   каждый заход в приложение, и отметку админа он бы затёр. */
+
+export async function isBanned(id) {
+  return Boolean(await command('GET', K.ban(String(id))));
+}
+
+export async function setBan(id, on, by) {
+  const key = String(id);
+  if (on) await command('SET', K.ban(key), JSON.stringify({ at: Date.now(), by: String(by || '') }));
+  else await command('DEL', K.ban(key));
+  return Boolean(on);
 }
 
 export async function getUser(id) {

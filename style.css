@@ -475,6 +475,16 @@ body {
   transition: opacity 0.45s ease, transform 0.45s ease, visibility 0s 0.45s;
 }
 
+/* Забанен: заставка остаётся навсегда. Отменяем и страховку, и снятие —
+   видно только вращающийся круг, будто приложение всё грузится */
+.splash.is-stuck {
+  animation: none;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: none;
+}
+
 .splash__logo {
   width: 84px;
   height: auto;

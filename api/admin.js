@@ -6,7 +6,7 @@ import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
   readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, cleanMarket, cleanFees, TON_RECEIVER, InputError,
-  listUsers, getUser, readRig, saveAccount, stats, saveLottie, saveSvg, saveImage, dropFile,
+  listUsers, getUser, readRig, saveAccount, setBan, stats, saveLottie, saveSvg, saveImage, dropFile,
   listWithdrawals, resolveWithdraw, openWithdrawals, userLang, marketLog, lotCount, clearMarketLog, listLots, removeLot
 } from './_lib/data.js';
 import { withdrawClosed } from './_lib/notify.js';
@@ -245,6 +245,22 @@ const actions = {
 
     const content = await readContent(true);
     await saveAccount(id, payload.account || {}, content);
+    const user = await getUser(id);
+    user.rigBackdrop = await readRig(id);
+    return { user: user };
+  },
+
+  /* Бан и снятие бана. Забаненного не пускает ни заход в приложение, ни
+     запрос в обход него. Админа забанить нельзя: иначе один владелец
+     запер бы другого, да и себя заодно */
+  async 'user.ban'(payload, ctx) {
+    const id = String(payload.id || '');
+    if (!/^\d{1,20}$/.test(id)) throw new InputError('Неверный id');
+
+    const on = Boolean(payload.banned);
+    if (on && isAdmin(id)) throw new InputError('Админа забанить нельзя');
+
+    await setBan(id, on, ctx.user.id);
     const user = await getUser(id);
     user.rigBackdrop = await readRig(id);
     return { user: user };

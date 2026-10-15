@@ -4,7 +4,7 @@
 
 import { configured } from './_lib/db.js';
 import { verify } from './_lib/telegram.js';
-import { listReferrals } from './_lib/data.js';
+import { listReferrals, isBanned } from './_lib/data.js';
 import { call, hasBot } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
 
@@ -32,6 +32,8 @@ export default {
     const input = await body(request);
     const user = verify(input.initData, MAX_AGE);
     if (!user) return json({ error: 'who' }, 401);
+    // Забаненный не делает ничего и в обход приложения
+    if (await isBanned(user.id)) return json({ error: 'banned' }, 403);
 
     try {
       const [bot, list] = await Promise.all([username(), listReferrals(user.id, input.offset, PAGE)]);

@@ -3,7 +3,7 @@
 
 import { configured } from './_lib/db.js';
 import { verify, isAdmin, startParam } from './_lib/telegram.js';
-import { readContent, publicContent, touchUser, invitedCount, readInbox } from './_lib/data.js';
+import { readContent, publicContent, touchUser, invitedCount, readInbox, isBanned } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
 // Подпись Telegram живёт всю сессию Mini App; месяц — с запасом на тех,
@@ -20,8 +20,15 @@ export default {
     const input = await body(request);
 
     try {
-      const content = await readContent();
       const tg = verify(input.initData, MAX_AGE);
+
+      /* Забаненному не отдаём ничего — ни витрины, ни счёта. Приложение по
+         этому ответу остаётся на заставке: бесконечная загрузка вместо
+         объяснений. Отказом отвечать нельзя — на ошибку приложение
+         переключается на содержимое из репозитория и открылось бы */
+      if (tg && await isBanned(tg.id)) return json({ banned: true });
+
+      const content = await readContent();
       const me = tg ? await touchUser(tg, startParam(input.initData)) : null;
 
       if (me) {

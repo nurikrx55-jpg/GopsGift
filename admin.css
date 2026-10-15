@@ -1280,6 +1280,12 @@
   font-size: 11px;
 }
 
+/* Бан — таким же значком, но тревожным цветом */
+.ad-badge--ban {
+  background: rgba(255, 107, 99, 0.16);
+  color: var(--bad);
+}
+
 .ad-more {
   justify-self: center;
 }
@@ -1957,6 +1963,22 @@
 
 .ad-switch[aria-pressed="true"] .ad-toggle::after {
   transform: translateX(20px);
+}
+
+/* Переключатель со значком вместо образца: бану показывать нечего */
+.ad-switch__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: rgba(255, 107, 99, 0.14);
+  color: var(--bad);
+}
+
+.ad-switch--ban[aria-pressed="true"] .ad-toggle {
+  background: var(--bad);
 }
 
 /* Улучшенный подарок у человека: id под названием и поле ценности */
