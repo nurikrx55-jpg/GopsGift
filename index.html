@@ -413,9 +413,59 @@
           <span data-i18n="crafts.note">Нужно от 2 до 4 одинаковых улучшенных подарков. При неудаче подарки сгорают без результата.</span>
           <strong id="craft-chance" hidden></strong>
         </p>
+
+        <!-- Инвентарь крафта: те же отборы, что в профиле, и сетка годных
+             подарков. Нажатие кладёт подарок на первую свободную грань -->
+        <div class="prf-filter craft-market-filters" id="craft-filters">
+          <div class="prf-filter__items">
+            <button class="prf-filter__item" type="button" id="craft-sort">
+              <i class="prf-filter__dot" id="craft-sort-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.filter">Фильтр</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 18 11" aria-hidden="true"><use href="#sort-lines"></use></svg>
+            </button>
+            <button class="prf-filter__item" type="button" id="craft-coll">
+              <i class="prf-filter__dot" id="craft-coll-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.collection">Коллекция</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 28 28" aria-hidden="true"><use href="#blocks"></use></svg>
+            </button>
+            <button class="prf-filter__item" type="button" id="craft-model">
+              <i class="prf-filter__dot" id="craft-model-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.model">Модель</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#gift-oth"></use></svg>
+            </button>
+            <button class="prf-filter__item" type="button" id="craft-symbol">
+              <i class="prf-filter__dot" id="craft-symbol-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.symbol">Символ</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#symbol-mark"></use></svg>
+            </button>
+            <button class="prf-filter__item" type="button" id="craft-backdrop">
+              <i class="prf-filter__dot" id="craft-backdrop-dot" aria-hidden="true" hidden></i>
+              <span class="prf-filter__title" data-i18n="profile.backdrop">Фон</span>
+              <i class="prf-filter__border" aria-hidden="true"></i>
+              <svg class="prf-filter__icon" viewBox="0 0 18 18" aria-hidden="true"><use href="#backdrop"></use></svg>
+            </button>
+          </div>
+
+          <!-- Поиск по номеру — тот же, что на маркете -->
+          <div class="mkt-search">
+            <div class="mkt-search__number">
+              <div class="mkt-search__hash"><h4>#</h4></div>
+              <input type="text" id="craft-num" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+                     placeholder="Поиск по номеру" data-i18n-placeholder="market.searchNumber">
+            </div>
+          </div>
+
+          <div class="prf-cheaps" id="craft-cheaps" hidden></div>
+        </div>
+
+        <div class="prf__list craft-inventory-grid" id="craft-list"></div>
       </section>
 
-      <div class="prf-filter">
+      <div class="prf-filter" id="prf-filter">
         <div class="prf-filter__items">
           <button class="prf-filter__item" type="button" id="prf-sort">
             <i class="prf-filter__dot" id="prf-sort-dot" aria-hidden="true" hidden></i>

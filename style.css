@@ -7692,11 +7692,11 @@ select {
 
 .craft-remove {
   width: 100%;
-  margin: 0 0 12px;
+  margin: 12px 0;
   padding: 13px;
   border: 0;
   border-radius: 99em;
-  color: #ff8585;
+  color: inherit;
   font-family: inherit;
   font-size: 15px;
   cursor: pointer;
@@ -7711,6 +7711,21 @@ select {
 
 .craft-inventory-grid {
   padding-top: 16px;
+}
+
+/* Все четыре грани заняты — брать из сетки больше нечего */
+.craft-inventory-grid.is-full .gift {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Ряд отбора под коробкой стоит теснее профильного — как у memgift */
+.craft-market-filters {
+  margin-top: 4px;
+}
+
+.craft-market-filters[hidden] {
+  display: none !important;
 }
 
 /* Карточки в листе — те же, что в профиле, только мельче и без отступа */

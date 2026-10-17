@@ -4824,7 +4824,8 @@
 
   function showCraft(on) {
     const lab = document.getElementById('craft-lab');
-    const filter = document.querySelector('.pane[data-pane="profile"] .prf-filter');
+    // Именно профильный ряд отбора: у крафта под коробкой стоит свой
+    const filter = document.getElementById('prf-filter');
     const list = document.getElementById('prf-list');
     if (!lab) return;
 
@@ -4864,12 +4865,12 @@
      там стоит такой же комментарий. */
 
   const CRAFT_SLOTS = 4;
+  // Отбор у крафта проще профильного: улучшенные и так все
+  const CRAFT_SORTS = ['latest', 'oldest'];
   const CRAFT_MIN = 2;
   // Куб стоит под этим углом, пока его не повернули к грани
   const CUBE_X = -18;
   const CUBE_Y = -25;
-  // Грани 0–3 смотрят на четыре стороны; к какой повернуться за слотом
-  const SLOT_FACE = [0, -90, -180, -270];
 
   const craft = {
     picked: [null, null, null, null],
@@ -4899,13 +4900,23 @@
     return 'rotateX(' + craft.x + 'deg) rotateY(' + craft.y + 'deg)';
   }
 
-  // Доворот к грани: тем же движением, что у memgift
-  function cubeTo(deg) {
+  /* Доворот куба. Угол всегда уменьшается, поэтому коробка проворачивается
+     вперёд и подставляет следующую грань, а не дёргается назад — так
+     подарки будто укладываются в неё один за другим */
+  function cubeTo(deg, ms, easing) {
     const cube = document.getElementById('craft-cube');
-    if (!cube) return;
+    if (!cube) return Promise.resolve();
+
     craft.y = deg;
-    cube.style.transition = prefersStill() ? 'none' : 'transform 0.65s cubic-bezier(0.22, 0.8, 0.3, 1)';
+    const time = prefersStill() ? 0 : (ms || 460);
+    cube.style.transition = time ? 'transform ' + time + 'ms ' + (easing || 'cubic-bezier(0.22, 0.8, 0.3, 1)') : 'none';
     cube.style.transform = cubeTurn();
+    return new Promise((done) => setTimeout(done, time));
+  }
+
+  // К какой грани поворачиваться за слотом: ближайшим ходом вперёд
+  function faceTurn(index) {
+    return craft.y - (((craft.y + index * 90) % 360) + 360) % 360;
   }
 
   // Ожидание ответа: оборот по обеим осям за 2,2 секунды, без остановки
@@ -4933,11 +4944,12 @@
     const faces = Array.from(cube.querySelectorAll('.craft-face'));
 
     faces.forEach((face, index) => {
-      // Итог занимает весь куб: гранями он показывается со всех сторон
+      /* Итог занимает весь куб: гранями он показывается со всех сторон, а
+         сам подарок лежит на крышке — к ней коробка и доворачивается */
       if (craft.done && !craft.done.failed && craft.done.gift) {
         face.style.background = craftSurface(craft.done.gift);
         face.textContent = '';
-        if (index === 0) {
+        if (index === 4) {
           const art = document.createElement('div');
           art.className = 'craft-face__art';
           face.appendChild(art);
@@ -4996,7 +5008,6 @@
         if (craft.busy) return;
         haptic('light');
         craft.slot = index;
-        cubeTo(SLOT_FACE[index]);
         openCraftPicker();
       });
       box.appendChild(slot);
@@ -5158,6 +5169,7 @@
 
     paintFaces();
     paintSlots();
+    renderCraftList();
     if (!over) {
       paintSummary(odds);
       paintOddsList(odds);
@@ -5165,10 +5177,13 @@
     }
   }
 
-  // Какие подарки вообще годятся: улучшенные, не на маркете и того же
-  // вида, что уже лежит на гранях
-  function craftEligible() {
-    const chosen = craft.picked.filter((one, index) => one && index !== craft.slot);
+  /* Какие подарки вообще годятся: улучшенные, не выставленные на маркете
+     и того же вида, что уже лежит на гранях. Лист выбора не считает занятой
+     ту грань, которую сейчас меняют, — иначе её же подарок из списка пропал
+     бы, и заменить его было бы нечем */
+  function craftEligible(forSlot) {
+    const skip = typeof forSlot === 'number' ? forSlot : -1;
+    const chosen = craft.picked.filter((one, index) => one && index !== skip);
     const kind = chosen.length ? chosen[0].id : '';
     const busy = chosen.map((one) => one.nft.id);
 
@@ -5179,6 +5194,38 @@
     });
   }
 
+  /* Инвентарь под коробкой: те же отборы и те же карточки, что в профиле.
+     Источник — только подходящие подарки, нажатие кладёт на свободную
+     грань. Когда граней не осталось, карточки гаснут */
+  const craftList = Object.assign(ownedList('craft', () => craftEligible(), pickIntoFreeSlot), {
+    sorts: CRAFT_SORTS,
+    num: '',
+    empty: craftEmpty,
+    repaint: () => renderCraftList()
+  });
+
+  function craftEmpty() {
+    const box = document.createElement('div');
+    box.className = 'prf__empty';
+    const art = document.createElement('div');
+    art.className = 'prf__empty-art';
+    art.innerHTML = '<img src="gifts/profile-empty.svg" alt="" draggable="false">';
+    const title = document.createElement('b');
+    title.textContent = t(OWNED.upg.length ? 'crafts.empty' : 'crafts.noEligible');
+    box.append(art, title);
+    return box;
+  }
+
+  function renderCraftList() {
+    const list = document.getElementById('craft-list');
+    if (!list) return;
+
+    renderOwned(craftList);
+    // Все четыре грани заняты — брать больше некуда
+    const full = craft.picked.indexOf(null) === -1 || Boolean(craft.done);
+    list.classList.toggle('is-full', full);
+  }
+
   function craftTableFor(giftId) {
     if (craft.table && craft.table.gift === giftId) return Promise.resolve(craft.table);
     return payPost({ action: 'odds', giftId: giftId }).then((data) => {
@@ -5187,13 +5234,28 @@
     }).catch(() => null);
   }
 
+  /* Укладка подарка на грань. Коробка проворачивается к той грани, на
+     которую он лёг: подарки будто складывают в неё по кругу */
   function pickForSlot(gift) {
-    craft.picked[craft.slot] = gift;
+    if (craft.busy || craft.done) return;
+    const slot = craft.slot;
+    if (slot < 0 || slot >= CRAFT_SLOTS || craft.picked[slot]) return;
+
+    craft.picked[slot] = gift;
     closeCraftPicker();
-    haptic('select');
+    haptic('light');
 
     craftTableFor(gift.id).then(() => paintCraft());
     paintCraft();
+    cubeTo(faceTurn(slot));
+  }
+
+  // Из нижней сетки — на первую свободную грань
+  function pickIntoFreeSlot(gift) {
+    const free = craft.picked.indexOf(null);
+    if (free === -1 || craft.busy || craft.done) return;
+    craft.slot = free;
+    pickForSlot(gift);
   }
 
   function openCraftPicker() {
@@ -5205,6 +5267,7 @@
     box.hidden = false;
     if (search) search.value = '';
     if (drop) drop.hidden = !craft.picked[craft.slot];
+    showCraftInventory(false);
     fillCraftGrid('');
     if (search) search.focus();
   }
@@ -5213,6 +5276,15 @@
     const box = document.getElementById('craft-overlay');
     if (box) box.hidden = true;
     releaseArt(document.getElementById('craft-grid'));
+    showCraftInventory(true);
+  }
+
+  // Пока лист открыт, сетка под коробкой не нужна: она же в листе
+  function showCraftInventory(on) {
+    const filters = document.getElementById('craft-filters');
+    const list = document.getElementById('craft-list');
+    if (filters) filters.hidden = !on;
+    if (list) list.hidden = !on;
   }
 
   function fillCraftGrid(query) {
@@ -5221,7 +5293,7 @@
     if (!grid) return;
 
     const needle = String(query || '').trim().toLowerCase();
-    const items = craftEligible().filter((gift) => !needle ||
+    const items = craftEligible(craft.slot).filter((gift) => !needle ||
       [gift.name, gift.nft.model.name, '#' + gift.nft.num]
         .some((one) => String(one || '').toLowerCase().indexOf(needle) !== -1));
 
@@ -5377,29 +5449,28 @@
           paintProfile();
         }
 
+        // Сам итог человек увидит, когда коробка довернётся
         showCraftResult(nft);
-        if (nft) {
-          haptic('success');
-          craftBurst();
-        } else {
-          haptic('light');
-        }
       })
       .catch((error) => craftError(error.message))
       .then(() => {
         craft.busy = false;
         cubeSpin(false);
-        // Итог показывает передняя грань — к ней куб и доворачивается
+
+        /* Итог коробка показывает передней гранью, и доезжает до неё целым
+           оборотом с замедлением — как у memgift */
         if (craft.done) {
-          craft.x = CUBE_X;
-          craft.y = CUBE_Y;
+          const won = !craft.done.failed;
+          craft.x = Math.floor((craft.x + 90) / 360) * 360 - 450;
+          return cubeTo(Math.floor(craft.y / 360) * 360 - 360, 2200, 'cubic-bezier(0.28, 0.65, 0.35, 1)')
+            .then(() => {
+              paintCraft();
+              haptic(won ? 'success' : 'light');
+              if (won) craftBurst();
+            });
         }
-        const cube = document.getElementById('craft-cube');
-        if (cube) {
-          cube.style.transition = 'transform 0.45s cubic-bezier(0.22, 0.8, 0.3, 1)';
-          cube.style.transform = cubeTurn();
-        }
-        paintCraft();
+
+        return cubeTo(craft.y, 450).then(() => paintCraft());
       });
   }
 
@@ -5432,6 +5503,16 @@
       // Сняли последний — вид подарка больше ничем не задан
       if (!craftCount()) craft.table = null;
       paintCraft();
+    });
+
+    // Отборы и поиск по номеру — те же, что в профиле
+    initOwnFilters(craftList);
+    const num = document.getElementById('craft-num');
+    if (num) num.addEventListener('input', () => {
+      num.value = num.value.replace(/\D/g, '').slice(0, 9);
+      craftList.num = num.value;
+      craftList.shown = PAGE;
+      renderCraftList();
     });
 
     craftReset();
