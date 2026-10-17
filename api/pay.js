@@ -13,7 +13,7 @@ import { configured } from './_lib/db.js';
 import { verify, isAdmin } from './_lib/telegram.js';
 import {
   readContent, publicContent, createOrder, readOrder, getUser, settleOrder, tonPrice, InputError,
-  canUpgrade, upgradeNow, stillOwns, isBanned
+  canUpgrade, upgradeNow, stillOwns, isBanned, cleanFees, craftTable, craftNow
 } from './_lib/data.js';
 import { call, hasBot, BotError } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
@@ -175,6 +175,53 @@ async function upgrade(input, user) {
   return { order: order.id, link: link, amount: price };
 }
 
+/* Крафт — из двух-четырёх улучшенных подарков один новый. Что сгорит,
+   присылает приложение; что выпадет и удастся ли вообще, решает сервер.
+   Цена одна на любой крафт и стоит в админке */
+async function craft(input, user) {
+  const content = await readContent(true);
+  const nftIds = Array.isArray(input.nfts) ? input.nfts.slice(0, 4) : [];
+  const price = cleanFees(content.fees).craft.price;
+
+  if (!price || isAdmin(user.id)) {
+    const done = await craftNow(user.id, nftIds, content);
+    return { status: 'paid', crafted: !done.failed, nft: done.nft || null, me: await getUser(user.id) };
+  }
+
+  if (!hasBot()) throw refuse('pay.off', 'Оплата не настроена');
+  if (!process.env.WEBHOOK_SECRET) throw refuse('pay.nohook', 'Оплата на сервере ещё не включена');
+
+  /* Вид подарка берём со счёта, а не из присланного: на него выставляется
+     счёт, и он же проверяется при броске. Заодно это проверка, что
+     присланные подарки вообще есть у человека */
+  const me = await getUser(user.id);
+  const mine = (me && me.nfts || []).filter((one) => nftIds.indexOf(one.id) !== -1);
+  if (mine.length !== nftIds.length) throw refuse('craft.gone', 'Один из подарков уже недоступен');
+  if (mine.some((one) => one.gift !== mine[0].gift)) throw refuse('craft.mix', 'Подарки должны быть одного вида');
+  if (mine.some((one) => one.lot)) throw refuse('craft.listed', 'Один из подарков выставлен на маркете');
+
+  const order = await createOrder({
+    userId: user.id,
+    giftId: mine[0].gift,
+    qty: 1,
+    price: price,
+    amount: price,
+    coupons: 0,
+    kind: 'craft',
+    nftIds: nftIds
+  });
+
+  const link = await call('createInvoiceLink', {
+    title: 'Craft',
+    description: 'Крафт из ' + nftIds.length + ' улучшенных подарков: случайные модель, фон и символ.',
+    payload: order.id,
+    currency: 'XTR',
+    prices: [{ label: 'Craft', amount: price }]
+  });
+
+  return { order: order.id, link: link, amount: price };
+}
+
 // Оплату засчитывает webhook, и приходит он своим ходом. Приложение
 // переспрашивает, пока заказ не станет оплаченным, и забирает сразу и счёт,
 // и витрину: остаток подарка после покупки тоже другой
@@ -191,6 +238,11 @@ async function check(input, user) {
     if (order.kind === 'transfer') out.name = order.toName || '';
     // Улучшение: отдаём, что выпало
     if (order.kind === 'upgrade') {
+      out.nft = (out.me && out.me.nfts || []).find((one) => one.id === order.nftId) || null;
+    }
+    // Крафт: удался или нет, и что получилось
+    if (order.kind === 'craft') {
+      out.crafted = Boolean(order.crafted);
       out.nft = (out.me && out.me.nfts || []).find((one) => one.id === order.nftId) || null;
     }
   }
@@ -213,7 +265,9 @@ export default {
       const result = input.action === 'check'
         ? await check(input, user)
         : input.action === 'upgrade' ? await upgrade(input, user)
-          : input.action === 'ton' ? await payTon(input, user) : await start(input, user);
+          : input.action === 'craft' ? await craft(input, user)
+            : input.action === 'odds' ? { odds: craftTable(input.giftId, await readContent(true)) }
+              : input.action === 'ton' ? await payTon(input, user) : await start(input, user);
       return json(result);
     } catch (error) {
       // Понятные человеку отказы — отдельно от поломок: их приложение

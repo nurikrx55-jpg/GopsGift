@@ -4800,12 +4800,19 @@
     buttons.forEach((button, index) => {
       button.addEventListener('click', () => {
         if (button.classList.contains('is-active')) return;
-        // «Крафты» пока только стоят на месте — переключаться некуда
-        if (button.hasAttribute('data-soon')) return;
 
         haptic('select');
         buttons.forEach((other) => other.classList.toggle('is-active', other === button));
         tabs.style.setProperty('--prf-index', String(index));
+
+        /* «Крафты» — не список подарков, а свой экран: отбор и список
+           уступают ему место целиком */
+        if (button.dataset.prfTab === 'craft') {
+          showCraft(true);
+          return;
+        }
+
+        showCraft(false);
         ownList.tab = button.dataset.prfTab;
         ownList.shown = PAGE;
         renderOwned(ownList);
@@ -4813,6 +4820,19 @@
     });
 
     renderOwned(ownList);
+  }
+
+  function showCraft(on) {
+    const lab = document.getElementById('craft-lab');
+    const filter = document.querySelector('.pane[data-pane="profile"] .prf-filter');
+    const list = document.getElementById('prf-list');
+    if (!lab) return;
+
+    lab.hidden = !on;
+    if (filter) filter.hidden = on;
+    if (list) list.hidden = on;
+    // Подарки могли уйти на маркет или прийти с него, пока вкладка закрыта
+    if (on) paintCraft();
   }
 
   // Счётчик в шапке профиля и список под вкладкой — после покупки их
@@ -4828,6 +4848,593 @@
     }
 
     renderOwned(ownList);
+  }
+
+  /* --- Крафт ---
+
+     Раздел memgift: из двух-четырёх улучшенных подарков одного вида
+     выходит один новый, исходные сгорают всегда. Куб поворачивается к той
+     грани, на которую кладут подарок, а пока сервер считает — крутится.
+
+     Проценты считаются здесь, бросок — на сервере, и формула у них общая:
+     вес модели возводится в степень из настроек, чем больше подарков, тем
+     степень меньше и тем ровнее шансы. Вложил редкую модель — выпадет
+     только редкая, которой в наборе не было. Чёрный фон идёт мимо общего
+     жребия: у него свой процент. Правишь здесь — правь и в api/_lib/data.js,
+     там стоит такой же комментарий. */
+
+  const CRAFT_SLOTS = 4;
+  const CRAFT_MIN = 2;
+  // Куб стоит под этим углом, пока его не повернули к грани
+  const CUBE_X = -18;
+  const CUBE_Y = -25;
+  // Грани 0–3 смотрят на четыре стороны; к какой повернуться за слотом
+  const SLOT_FACE = [0, -90, -180, -270];
+
+  const craft = {
+    picked: [null, null, null, null],
+    slot: 0,
+    table: null,
+    odds: null,
+    busy: false,
+    done: null,
+    x: CUBE_X,
+    y: CUBE_Y,
+    spin: null,
+    shown: { rare: 0, black: 0 },
+    frame: 0
+  };
+
+  function craftCount() {
+    return craft.picked.filter(Boolean).length;
+  }
+
+  function craftSurface(gift) {
+    const colors = backdropColors(gift);
+    return 'radial-gradient(circle at 50% 40%, ' + boostColor(colors.center, 0.28) +
+      ' 0%, ' + colors.center + ' 45%, ' + colors.around + ' 100%)';
+  }
+
+  function cubeTurn() {
+    return 'rotateX(' + craft.x + 'deg) rotateY(' + craft.y + 'deg)';
+  }
+
+  // Доворот к грани: тем же движением, что у memgift
+  function cubeTo(deg) {
+    const cube = document.getElementById('craft-cube');
+    if (!cube) return;
+    craft.y = deg;
+    cube.style.transition = prefersStill() ? 'none' : 'transform 0.65s cubic-bezier(0.22, 0.8, 0.3, 1)';
+    cube.style.transform = cubeTurn();
+  }
+
+  // Ожидание ответа: оборот по обеим осям за 2,2 секунды, без остановки
+  function cubeSpin(on) {
+    const cube = document.getElementById('craft-cube');
+    if (!cube) return;
+
+    if (craft.spin) {
+      craft.spin.cancel();
+      craft.spin = null;
+    }
+    if (!on || prefersStill()) return;
+
+    cube.style.transition = 'none';
+    craft.spin = cube.animate([
+      { transform: cubeTurn() },
+      { transform: 'rotateX(' + (craft.x - 180) + 'deg) rotateY(' + (craft.y - 180) + 'deg)' },
+      { transform: 'rotateX(' + (craft.x - 360) + 'deg) rotateY(' + (craft.y - 360) + 'deg)' }
+    ], { duration: 2200, iterations: Infinity, easing: 'linear' });
+  }
+
+  function paintFaces() {
+    const cube = document.getElementById('craft-cube');
+    if (!cube) return;
+    const faces = Array.from(cube.querySelectorAll('.craft-face'));
+
+    faces.forEach((face, index) => {
+      // Итог занимает весь куб: гранями он показывается со всех сторон
+      if (craft.done && !craft.done.failed && craft.done.gift) {
+        face.style.background = craftSurface(craft.done.gift);
+        face.textContent = '';
+        if (index === 0) {
+          const art = document.createElement('div');
+          art.className = 'craft-face__art';
+          face.appendChild(art);
+          showShot(art, artOf(craft.done.gift));
+        }
+        return;
+      }
+
+      face.style.background = '';
+      face.textContent = '';
+      if (index >= CRAFT_SLOTS) return;
+
+      const gift = craft.picked[index];
+      if (!gift) {
+        const mark = document.createElement('span');
+        mark.className = 'craft-mystery';
+        mark.textContent = '✦';
+        face.appendChild(mark);
+        return;
+      }
+
+      face.style.background = craftSurface(gift);
+      const art = document.createElement('div');
+      art.className = 'craft-face__art';
+      face.appendChild(art);
+      showShot(art, artOf(gift));
+    });
+  }
+
+  function paintSlots() {
+    const box = document.getElementById('craft-slots');
+    if (!box) return;
+    box.textContent = '';
+
+    for (let index = 0; index < CRAFT_SLOTS; index += 1) {
+      const gift = craft.picked[index];
+      const slot = document.createElement('button');
+      slot.type = 'button';
+      slot.disabled = craft.busy;
+      slot.setAttribute('aria-label', t('crafts.selectGift', { number: index + 1 }));
+
+      if (gift) {
+        slot.classList.add('filled');
+        slot.style.background = craftSurface(gift);
+        const art = document.createElement('div');
+        art.className = 'craft-slot__art';
+        slot.appendChild(art);
+        showShot(art, artOf(gift));
+      } else {
+        const plus = document.createElement('span');
+        plus.textContent = '+';
+        slot.appendChild(plus);
+      }
+
+      slot.addEventListener('click', () => {
+        if (craft.busy) return;
+        haptic('light');
+        craft.slot = index;
+        cubeTo(SLOT_FACE[index]);
+        openCraftPicker();
+      });
+      box.appendChild(slot);
+    }
+  }
+
+  // Проценты: доля веса среди тех, что ещё могут выпасть
+  function craftShares(list, exponent) {
+    const weights = list.map((one) => Math.pow(Math.max(Number(one.rate) || 0, 0), exponent));
+    const sum = weights.reduce((all, one) => all + one, 0);
+    if (!sum) return [];
+    return list.map((one, index) => ({ name: one.name, rate: one.rate, percent: 100 * weights[index] / sum }))
+      .sort((a, b) => b.percent - a.percent);
+  }
+
+  function craftOdds() {
+    const table = craft.table;
+    const count = craftCount();
+    if (!table || count < CRAFT_MIN) return null;
+
+    const rules = table.craft;
+    const exponent = rules.exponents[count];
+    const taken = craft.picked.filter(Boolean).map((gift) => gift.nft.model.name);
+
+    // Вложил редкую — остаются только редкие, которых в наборе не было
+    const rare = (one) => Number(one.rate) > 0 && Number(one.rate) <= rules.rareThreshold;
+    const hasRare = table.models.some((one) => taken.indexOf(one.name) !== -1 && rare(one));
+    const pool = table.models.filter((one) => (hasRare ? rare(one) && taken.indexOf(one.name) === -1 : true));
+    const models = craftShares(pool.length ? pool : table.models, exponent);
+
+    // Чёрный фон: свой процент, остальные делят остаток
+    const hadBlack = craft.picked.filter(Boolean).some((gift) => gift.backdrop === table.black);
+    const black = rules.blackGuaranteed && hadBlack ? 100 : Number(rules.black[count]) || 0;
+    const rest = table.backdrops.filter((one) => one.name !== table.black);
+    const backdrops = craftShares(rest, exponent)
+      .map((one) => ({ name: one.name, percent: one.percent * (100 - black) / 100 }))
+      .concat(table.backdrops.some((one) => one.name === table.black)
+        ? [{ name: table.black, percent: black }] : [])
+      .sort((a, b) => b.percent - a.percent);
+
+    return {
+      models: models,
+      backdrops: backdrops,
+      rare: models.filter((one) => rare(one)).reduce((all, one) => all + one.percent, 0),
+      black: black,
+      success: Number(rules.success[count]) || 0
+    };
+  }
+
+  function craftPercent(value, digits) {
+    return (Number(value) || 0).toFixed(digits).replace('.', ',') + ' %';
+  }
+
+  // Сводка перетекает к новым числам, а не прыгает
+  function paintSummary(odds) {
+    const rareBox = document.getElementById('craft-rare');
+    const blackBox = document.getElementById('craft-black');
+    if (!rareBox || !blackBox) return;
+
+    cancelAnimationFrame(craft.frame);
+    if (!odds) {
+      craft.shown = { rare: 0, black: 0 };
+      rareBox.textContent = '—';
+      blackBox.textContent = '—';
+      return;
+    }
+
+    const from = { rare: craft.shown.rare, black: craft.shown.black };
+    const started = performance.now();
+    const step = (now) => {
+      const part = prefersStill() ? 1 : Math.min(1, (now - started) / 450);
+      const ease = 1 - Math.pow(1 - part, 3);
+      craft.shown.rare = from.rare + (odds.rare - from.rare) * ease;
+      craft.shown.black = from.black + (odds.black - from.black) * ease;
+      rareBox.textContent = craftPercent(craft.shown.rare, 1);
+      blackBox.textContent = craftPercent(craft.shown.black, 1);
+      if (part < 1) craft.frame = requestAnimationFrame(step);
+    };
+    craft.frame = requestAnimationFrame(step);
+  }
+
+  function paintOddsList(odds) {
+    const details = document.getElementById('craft-details');
+    const list = document.getElementById('craft-odds-list');
+    const hint = document.getElementById('craft-hint');
+    if (!details || !list || !hint) return;
+
+    if (!odds) {
+      details.hidden = true;
+      hint.hidden = false;
+      // Пока подарков меньше двух, считать нечего — так и пишем
+      hint.textContent = craftCount() < CRAFT_MIN
+        ? t('crafts.oddsSelect')
+        : t(craft.table ? 'crafts.oddsUnavailable' : 'crafts.oddsLoading');
+      return;
+    }
+
+    hint.hidden = true;
+    details.hidden = false;
+    list.textContent = '';
+
+    [['crafts.oddsModels', odds.models], ['crafts.oddsBackgrounds', odds.backdrops]].forEach((pair) => {
+      const head = document.createElement('h4');
+      head.textContent = t(pair[0]);
+      list.appendChild(head);
+
+      pair[1].forEach((one) => {
+        const row = document.createElement('div');
+        row.className = 'craft-odds-row';
+        const name = document.createElement('span');
+        name.textContent = one.name;
+        const value = document.createElement('b');
+        value.textContent = '≈ ' + craftPercent(one.percent, 2);
+        row.append(name, value);
+        list.appendChild(row);
+      });
+    });
+  }
+
+  function paintCraftButton(odds) {
+    const button = document.getElementById('craft-go');
+    const chance = document.getElementById('craft-chance');
+    if (!button) return;
+
+    const count = craftCount();
+    const label = button.querySelector('span');
+    label.textContent = craft.busy
+      ? t('crafts.waiting')
+      : count >= CRAFT_MIN ? t('crafts.create')
+        : t(count ? 'crafts.addOne' : 'crafts.addTwo');
+    button.disabled = craft.busy || count < CRAFT_MIN;
+
+    if (chance) {
+      chance.hidden = !odds;
+      if (odds) chance.textContent = ' ' + t('crafts.successChance', { chance: odds.success });
+    }
+  }
+
+  function paintCraft() {
+    const odds = craftOdds();
+    craft.odds = odds;
+
+    const oddsBox = document.getElementById('craft-odds');
+    const button = document.getElementById('craft-go');
+    const result = document.getElementById('craft-result');
+    const title = document.getElementById('craft-title');
+    const subtitle = document.getElementById('craft-subtitle');
+
+    const over = Boolean(craft.done);
+    if (oddsBox) oddsBox.hidden = over;
+    if (button) button.hidden = over;
+    if (result) result.hidden = !over;
+
+    if (title && subtitle) {
+      const failed = craft.done && craft.done.failed;
+      title.textContent = over ? t(failed ? 'crafts.failTitle' : 'crafts.doneTitle') : t('crafts.title');
+      subtitle.textContent = over ? t(failed ? 'crafts.failSubtitle' : 'crafts.doneSubtitle') : t('crafts.subtitle');
+    }
+
+    paintFaces();
+    paintSlots();
+    if (!over) {
+      paintSummary(odds);
+      paintOddsList(odds);
+      paintCraftButton(odds);
+    }
+  }
+
+  // Какие подарки вообще годятся: улучшенные, не на маркете и того же
+  // вида, что уже лежит на гранях
+  function craftEligible() {
+    const chosen = craft.picked.filter((one, index) => one && index !== craft.slot);
+    const kind = chosen.length ? chosen[0].id : '';
+    const busy = chosen.map((one) => one.nft.id);
+
+    return OWNED.upg.filter((gift) => {
+      if (gift.nft.lot) return false;
+      if (busy.indexOf(gift.nft.id) !== -1) return false;
+      return !kind || gift.id === kind;
+    });
+  }
+
+  function craftTableFor(giftId) {
+    if (craft.table && craft.table.gift === giftId) return Promise.resolve(craft.table);
+    return payPost({ action: 'odds', giftId: giftId }).then((data) => {
+      craft.table = data.odds || null;
+      return craft.table;
+    }).catch(() => null);
+  }
+
+  function pickForSlot(gift) {
+    craft.picked[craft.slot] = gift;
+    closeCraftPicker();
+    haptic('select');
+
+    craftTableFor(gift.id).then(() => paintCraft());
+    paintCraft();
+  }
+
+  function openCraftPicker() {
+    const box = document.getElementById('craft-overlay');
+    const search = document.getElementById('craft-search');
+    const drop = document.getElementById('craft-drop');
+    if (!box) return;
+
+    box.hidden = false;
+    if (search) search.value = '';
+    if (drop) drop.hidden = !craft.picked[craft.slot];
+    fillCraftGrid('');
+    if (search) search.focus();
+  }
+
+  function closeCraftPicker() {
+    const box = document.getElementById('craft-overlay');
+    if (box) box.hidden = true;
+    releaseArt(document.getElementById('craft-grid'));
+  }
+
+  function fillCraftGrid(query) {
+    const grid = document.getElementById('craft-grid');
+    const empty = document.getElementById('craft-empty');
+    if (!grid) return;
+
+    const needle = String(query || '').trim().toLowerCase();
+    const items = craftEligible().filter((gift) => !needle ||
+      [gift.name, gift.nft.model.name, '#' + gift.nft.num]
+        .some((one) => String(one || '').toLowerCase().indexOf(needle) !== -1));
+
+    releaseArt(grid);
+    grid.textContent = '';
+    if (empty) empty.hidden = items.length > 0;
+
+    const list = document.createElement('div');
+    list.className = 'gifts';
+    items.slice(0, 60).forEach((gift) => list.appendChild(nftCard(gift, () => pickForSlot(gift))));
+    grid.appendChild(list);
+  }
+
+  // Разлёт: 28 кусочков по кругу, как у memgift
+  function craftBurst() {
+    const box = document.getElementById('craft-confetti');
+    if (!box || prefersStill()) return;
+
+    const colors = ['#9bd8ff', '#e4f4ff', '#8b9cff', '#f8d688', '#ffffff'];
+    box.textContent = '';
+    box.hidden = false;
+
+    for (let i = 0; i < 28; i += 1) {
+      const angle = i / 28 * Math.PI * 2;
+      const far = 83 + (i % 5) * 14;
+      const bit = document.createElement('i');
+      bit.style.setProperty('--x', Math.cos(angle) * far + 'px');
+      bit.style.setProperty('--y', (Math.sin(angle) * far - 23) + 'px');
+      bit.style.setProperty('--turn', (180 + (i % 4) * 110) + 'deg');
+      bit.style.setProperty('--delay', (i % 6) * 30 + 'ms');
+      bit.style.setProperty('--color', colors[i % 5]);
+      box.appendChild(bit);
+    }
+
+    setTimeout(() => { box.hidden = true; }, 2200);
+  }
+
+  function showCraftResult(nft) {
+    const box = document.getElementById('craft-result');
+    if (!box) return;
+    releaseArt(box);
+    box.textContent = '';
+
+    if (!nft) {
+      const title = document.createElement('strong');
+      title.textContent = t('crafts.failTitle');
+      const text = document.createElement('span');
+      text.textContent = t('crafts.failSubtitle');
+      box.append(title, text);
+    } else {
+      const gift = nftView(nft);
+      const media = document.createElement('div');
+      media.className = 'craft-result-media';
+      media.style.background = craftSurface(gift);
+      const art = document.createElement('div');
+      art.className = 'craft-result__art';
+      media.appendChild(art);
+      showShot(art, artOf(gift));
+
+      const title = document.createElement('strong');
+      title.textContent = gift.name + ' #' + nft.num;
+      const text = document.createElement('span');
+      text.textContent = [nft.model && nft.model.name, nft.backdrop].filter(Boolean).join(' · ');
+      box.append(media, title, text);
+    }
+
+    const again = document.createElement('button');
+    again.className = 'craft-action';
+    again.type = 'button';
+    again.textContent = t('crafts.again');
+    again.addEventListener('click', () => {
+      haptic('light');
+      craftReset();
+    });
+    box.appendChild(again);
+  }
+
+  function craftReset() {
+    craft.picked = [null, null, null, null];
+    craft.done = null;
+    craft.table = null;
+    craft.shown = { rare: 0, black: 0 };
+    craft.x = CUBE_X;
+    craft.y = CUBE_Y;
+    cubeSpin(false);
+    const cube = document.getElementById('craft-cube');
+    if (cube) {
+      cube.style.transition = 'none';
+      cube.style.transform = cubeTurn();
+    }
+    craftError('');
+    paintCraft();
+  }
+
+  function craftError(text) {
+    const box = document.getElementById('craft-error');
+    if (!box) return;
+    box.textContent = text || '';
+    box.hidden = !text;
+  }
+
+  function craftGo() {
+    if (craft.busy || craftCount() < CRAFT_MIN) return;
+    if (!Store.live()) {
+      toast(t('pay.noDb'));
+      return;
+    }
+
+    const nfts = craft.picked.filter(Boolean).map((gift) => gift.nft.id);
+    craft.busy = true;
+    craftError('');
+    haptic('light');
+    paintCraft();
+    cubeSpin(true);
+
+    payPost({ action: 'craft', nfts: nfts })
+      .then((data) => {
+        // Бесплатно — сервер уже всё бросил
+        if (data.status === 'paid') return data;
+        if (!tg || !tg.openInvoice) throw new Error(t('pay.oldApp'));
+
+        return new Promise((done) => {
+          tg.openInvoice(data.link, (status) => done({ status: status, order: data.order }));
+        }).then((result) => {
+          if (result.status === 'cancelled') {
+            craftError(t('crafts.cancelled'));
+            return null;
+          }
+          if (result.status === 'failed') {
+            craftError(t('crafts.paymentError'));
+            return null;
+          }
+          return waitPaid(result.order, PAY_TRIES);
+        });
+      })
+      .then((paid) => {
+        if (!paid) return;
+        if (paid.status !== 'paid') {
+          craftError(t('crafts.pending'));
+          return;
+        }
+
+        const nft = paid.nft || null;
+        craft.done = {
+          failed: !nft,
+          gift: nft ? nftView(nft) : null
+        };
+
+        if (paid.me) {
+          Store.apply(paid.content || null, paid.me);
+          fillFromStore();
+          initHeader();
+          paintProfile();
+        }
+
+        showCraftResult(nft);
+        if (nft) {
+          haptic('success');
+          craftBurst();
+        } else {
+          haptic('light');
+        }
+      })
+      .catch((error) => craftError(error.message))
+      .then(() => {
+        craft.busy = false;
+        cubeSpin(false);
+        // Итог показывает передняя грань — к ней куб и доворачивается
+        if (craft.done) {
+          craft.x = CUBE_X;
+          craft.y = CUBE_Y;
+        }
+        const cube = document.getElementById('craft-cube');
+        if (cube) {
+          cube.style.transition = 'transform 0.45s cubic-bezier(0.22, 0.8, 0.3, 1)';
+          cube.style.transform = cubeTurn();
+        }
+        paintCraft();
+      });
+  }
+
+  function initCraft() {
+    const lab = document.getElementById('craft-lab');
+    if (!lab) return;
+
+    const go = document.getElementById('craft-go');
+    if (go) go.addEventListener('click', craftGo);
+
+    const close = document.getElementById('craft-close');
+    if (close) close.addEventListener('click', () => {
+      haptic('light');
+      closeCraftPicker();
+    });
+
+    const overlay = document.getElementById('craft-overlay');
+    if (overlay) overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) closeCraftPicker();
+    });
+
+    const search = document.getElementById('craft-search');
+    if (search) search.addEventListener('input', () => fillCraftGrid(search.value));
+
+    const drop = document.getElementById('craft-drop');
+    if (drop) drop.addEventListener('click', () => {
+      haptic('light');
+      craft.picked[craft.slot] = null;
+      closeCraftPicker();
+      // Сняли последний — вид подарка больше ничем не задан
+      if (!craftCount()) craft.table = null;
+      paintCraft();
+    });
+
+    craftReset();
   }
 
   // --- Маркет ---
@@ -6030,6 +6637,7 @@
       initProfile();
       initOwnFilters(ownList);
       initView();
+      initCraft();
       initMarket();
       initLang();
 

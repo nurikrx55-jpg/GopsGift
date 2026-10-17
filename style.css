@@ -2546,7 +2546,8 @@ body {
   top: 0;
   bottom: 0;
   left: 0;
-  width: 50%;
+  /* Вкладок три: «Подарки», NFT и «Крафты» */
+  width: calc(100% / 3);
   border-radius: 999px;
   background: #3a3a3a;
   pointer-events: none;
@@ -7224,4 +7225,511 @@ select {
   width: 13px;
   height: 11px;
   fill: currentColor;
+}
+
+/* Крафт
+
+   Повторяет раздел memgift: доска, под ней куб с четырьмя гранями, на
+   каждую грань кладётся подарок. Стекло здесь плотнее общего `.glass`:
+   фон непрозрачный, размытие сильнее — так у них, и доска на тёмном
+   экране читается как отдельный стол, а не как окно. Кромка — наша
+   общая `--glass-edge-tight`, она совпадает один в один. */
+
+/* Своё `display` перебивает `hidden`, поэтому скрытое гасим прямо:
+   в приложении общего правила на это нет */
+.craft-lab[hidden],
+.craft-overlay[hidden],
+.craft-lab [hidden],
+.prf-filter[hidden],
+.prf__list[hidden] {
+  display: none !important;
+}
+
+.craft-lab {
+  width: 100%;
+  padding: 16px 0 30px;
+  box-sizing: border-box;
+  text-align: center;
+  color: #f5f5f7;
+}
+
+.craft-board,
+.craft-slots button,
+.craft-picker,
+.craft-picker header button,
+.craft-picker input,
+.craft-remove,
+.craft-odds {
+  background: linear-gradient(180deg, #1e1e1e 50%, #191919);
+  box-shadow: var(--glass-edge-tight);
+  -webkit-backdrop-filter: blur(28px) saturate(60%);
+  backdrop-filter: blur(28px) saturate(60%);
+}
+
+.craft-board {
+  border-radius: 29px;
+  padding: 22px 14px 14px;
+}
+
+.craft-heading h2 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.craft-heading p {
+  margin: 0;
+  font-size: 14px;
+  color: #8e8e93;
+}
+
+/* Сцена: куб стоит в перспективе, слоты разложены по её углам */
+.craft-stage {
+  position: relative;
+  height: 292px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 750px;
+  perspective-origin: 50% 50%;
+}
+
+.craft-glow {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(0, 131, 253, 0.07), transparent 70%);
+  pointer-events: none;
+}
+
+.craft-cube {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  flex: none;
+  z-index: 2;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+
+.craft-face {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #3d3e44, #24252a 48%, #17181c);
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.16), inset 0 -8px 18px rgba(0, 0, 0, 0.33);
+  border-radius: 3px;
+  backface-visibility: hidden;
+  overflow: hidden;
+}
+
+/* Шесть граней куба: четыре по кругу, крышка и дно */
+.craft-face.face-0 { transform: translateZ(42px); }
+.craft-face.face-1 { transform: rotateY(90deg) translateZ(42px); }
+.craft-face.face-2 { transform: rotateY(180deg) translateZ(42px); }
+.craft-face.face-3 { transform: rotateY(-90deg) translateZ(42px); }
+.craft-face.face-4 { transform: rotateX(90deg) translateZ(42px); }
+.craft-face.face-5 { transform: rotateX(-90deg) translateZ(42px); }
+
+.craft-face img,
+.craft-face__art img {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.4));
+}
+
+.craft-slot__art img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+.craft-result__art img {
+  height: 90px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.craft-mystery {
+  font-size: 34px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.craft-slots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.craft-slots button {
+  position: absolute;
+  width: 78px;
+  height: 78px;
+  padding: 6px;
+  border: 0;
+  border-radius: 23px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: box-shadow 0.3s, opacity 0.3s, scale 0.2s;
+}
+
+.craft-slots button:active { scale: 0.95; }
+.craft-slots button:nth-child(1) { top: 15px; left: 6%; }
+.craft-slots button:nth-child(2) { top: 15px; right: 6%; }
+.craft-slots button:nth-child(3) { bottom: 15px; left: 6%; }
+.craft-slots button:nth-child(4) { bottom: 15px; right: 6%; }
+
+.craft-slots button > span {
+  font-size: 32px;
+  font-weight: 400;
+  color: #8e8e93;
+}
+
+.craft-slots img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+/* Разлёт при удачном крафте */
+.craft-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.craft-confetti i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 11px;
+  margin: -5px 0 0 -3px;
+  border-radius: 2px;
+  background: var(--color);
+  box-shadow: 0 0 8px var(--color);
+  opacity: 0;
+  animation: craft-burst 1.85s cubic-bezier(0.14, 0.66, 0.2, 1) var(--delay) both;
+}
+
+.craft-confetti i:nth-child(3n) {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+@keyframes craft-burst {
+  0% { opacity: 0; transform: translate(0) scale(0.3) rotate(0); }
+  12% { opacity: 1; }
+  65% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(0.72) rotate(var(--turn)); }
+}
+
+/* Шансы */
+.craft-odds {
+  position: relative;
+  margin: 0 0 14px;
+  padding: 14px;
+  border: 0;
+  border-radius: 22px;
+  text-align: left;
+}
+
+.craft-odds-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.craft-odds-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.craft-odds-summary span {
+  font-size: 12px;
+  color: #8e8e93;
+}
+
+.craft-odds-summary strong {
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.craft-odds-hint {
+  margin: 9px 0 0;
+  font-size: 12px;
+  color: #8e8e93;
+}
+
+.craft-odds-details {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.craft-odds-details summary {
+  cursor: pointer;
+  color: #8e8e93;
+}
+
+.craft-odds-list {
+  max-height: 240px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.craft-odds-list h4 {
+  margin: 15px 0 7px;
+  font-size: 13px;
+}
+
+.craft-odds-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 27px;
+}
+
+.craft-odds-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.craft-odds-row b {
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Кнопка крафта — единственное синее пятно на доске */
+.craft-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  padding: 15px 10px;
+  border: 0;
+  border-radius: 99em;
+  background: #0083fd;
+  box-shadow:
+    inset 2px 3px 0 -1.7px rgba(255, 255, 255, 0.29),
+    inset 2px 2px 0 -2px rgba(255, 255, 255, 0.09),
+    inset -2px -2px 2px -2px rgba(255, 255, 255, 0.09),
+    inset -2px -2px 0 -2px rgba(255, 255, 255, 0.44);
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, scale 0.2s;
+}
+
+.craft-action:disabled { cursor: default; }
+.craft-action:active:not(:disabled) { scale: 0.98; }
+
+.craft-button-error {
+  margin: 12px 4px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #ff8585;
+  text-align: center;
+}
+
+/* Что вышло */
+.craft-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  animation: craft-result-in 0.5s ease-out both;
+}
+
+.craft-result-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.craft-result img,
+.craft-result .craft-result-media > div {
+  height: 90px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.craft-result strong { font-size: 18px; }
+
+.craft-result span {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #8e8e93;
+}
+
+@keyframes craft-result-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.craft-note {
+  max-width: 330px;
+  margin: 12px auto 20px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8e8e93;
+}
+
+.craft-note strong {
+  color: #b4ef70;
+  font-weight: 700;
+}
+
+/* Лист выбора подарка на грань */
+.craft-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.53);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.craft-picker {
+  width: min(100%, 520px);
+  max-height: 83dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  border-radius: 29px 29px 0 0;
+  padding: 20px 16px max(22px, env(safe-area-inset-bottom));
+  color: #f5f5f7;
+  animation: craft-sheet 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes craft-sheet {
+  0% { transform: translateY(35px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.craft-picker header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.craft-picker h3 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.craft-picker header button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  line-height: 0;
+  color: #f5f5f7;
+  cursor: pointer;
+}
+
+.craft-picker header button svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.craft-picker input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding: 13px 16px;
+  border: 0;
+  border-radius: 99em;
+  outline: none;
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.craft-remove {
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 13px;
+  border: 0;
+  border-radius: 99em;
+  color: #ff8585;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.craft-message {
+  padding: 20px;
+  font-size: 14px;
+  color: #8e8e93;
+  text-align: center;
+}
+
+.craft-inventory-grid {
+  padding-top: 16px;
+}
+
+/* Карточки в листе — те же, что в профиле, только мельче и без отступа */
+.craft-inventory-grid .gifts {
+  gap: 10px;
+}
+
+.craft-inventory-grid .gift {
+  cursor: pointer;
+}
+
+.craft-inventory-grid .gift.is-taken {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Куб не крутится, разлёт не летит: остаётся только результат */
+  .craft-confetti { display: none; }
+  .craft-result { animation: none; }
+  .craft-picker { animation: none; }
 }

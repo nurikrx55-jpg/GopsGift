@@ -225,7 +225,47 @@ export function cleanFees(input) {
   const transfer = Math.round(Math.min(Math.max(Number(src.transfer), 0), 100000));
   return {
     referral: Number.isFinite(referral) ? referral : 10,
-    transfer: Number.isFinite(transfer) ? transfer : 0
+    transfer: Number.isFinite(transfer) ? transfer : 0,
+    craft: cleanCraft(src.craft)
+  };
+}
+
+/* Настройки крафта. Степень — это то, чем крафт отличается от простого
+   улучшения: веса моделей возводятся в неё, и чем она меньше, тем ровнее
+   шансы, то есть тем ближе редкая модель. Поэтому у четырёх подарков
+   степень меньше, чем у двух. */
+const CRAFT_MIN = 2;
+const CRAFT_MAX = 4;
+// Чёрный фон у нас один, тот же, что в подкрутке улучшения
+const BLACK = 'Eclipse';
+
+function craftRow(input, fallback, max) {
+  const src = input && typeof input === 'object' ? input : {};
+  const out = {};
+  for (let n = CRAFT_MIN; n <= CRAFT_MAX; n += 1) {
+    const value = Number(src[n]);
+    out[n] = Number.isFinite(value) ? Math.min(Math.max(value, 0), max) : fallback[n];
+  }
+  return out;
+}
+
+export function cleanCraft(input) {
+  const src = input || {};
+  const price = int(src.price, 0, 1000000);
+  const threshold = Number(src.rareThreshold);
+  return {
+    // Цена одного крафта в звёздах; ноль — крафтим бесплатно
+    price: price,
+    // Шанс, что крафт вообще удастся, в процентах
+    success: craftRow(src.success, { 2: 40, 3: 60, 4: 80 }, 100),
+    // Шанс чёрного фона, в процентах
+    black: craftRow(src.black, { 2: 1, 3: 3, 4: 6 }, 100),
+    // Степень для весов моделей и фонов
+    exponents: craftRow(src.exponents, { 2: 0.85, 3: 0.7, 4: 0.55 }, 4),
+    // Модель считается редкой, если её вес не больше этого
+    rareThreshold: Number.isFinite(threshold) ? Math.min(Math.max(threshold, 0), 100) : 0.5,
+    // Вложил чёрный фон — чёрный и получишь
+    blackGuaranteed: src.blackGuaranteed !== false
   };
 }
 
@@ -374,7 +414,9 @@ function cleanNft(one) {
     // Выставлен на маркет: номер лота и цена в нанотонах. Пока лот висит,
     // подарок не отправить — сперва снять с продажи
     lot: str(one.lot, 32),
-    lotNano: int(one.lotNano, 0, 1e15)
+    lotNano: int(one.lotNano, 0, 1e15),
+    // Сделан крафтом, и из скольких подарков
+    crafted: int(one.crafted, 0, 4)
   };
   return nft.id && nft.gift ? nft : null;
 }
@@ -635,14 +677,20 @@ export async function createOrder(input) {
     // Сколько купонов уходит в скидку: списываем их вместе с оплатой
     coupons: int(input.coupons, 0, 100000000),
     // 'gift' — покупка подарка, 'upgrade' — улучшение уже купленного,
-    // 'transfer' — оплата передачи подарка другому человеку
-    kind: input.kind === 'upgrade' || input.kind === 'transfer' ? input.kind : 'gift',
+    // 'transfer' — оплата передачи подарка другому человеку,
+    // 'craft' — крафт из нескольких улучшенных
+    kind: ['upgrade', 'transfer', 'craft'].indexOf(input.kind) === -1 ? 'gift' : input.kind,
     status: 'new',
     createdAt: Date.now()
   };
   if (order.kind === 'transfer') {
     order.toId = str(input.toId, 20);
     order.nftId = str(input.nftId, 32);
+  }
+  // Что сгорит в крафте: список помнит заказ, иначе после оплаты было бы
+  // непонятно, из чего крафтили
+  if (order.kind === 'craft') {
+    order.nftIds = (Array.isArray(input.nftIds) ? input.nftIds : []).slice(0, 4).map((one) => str(one, 32));
   }
 
   await command('SET', K.order(order.id), JSON.stringify(order));
@@ -677,6 +725,7 @@ export async function settleOrder(id, payment, ton) {
   if (!first) return await readOrder(order.id);
 
   if (order.kind === 'upgrade') return settleUpgrade(order, charge);
+  if (order.kind === 'craft') return settleCraft(order, charge);
   if (order.kind === 'transfer') return settleTransfer(order, charge);
 
   const rawAcct = await command('GET', K.acct(order.userId));
@@ -876,6 +925,160 @@ async function renumberOnce() {
 // Бесплатное улучшение (цена ноль или админ) — сразу, без счёта
 export async function upgradeNow(userId, giftId, content) {
   return rollUpgrade(userId, slug(giftId), content);
+}
+
+/* --- Крафт ---
+
+   Из двух-четырёх улучшенных подарков одного вида делается один новый.
+   Исходные сгорают всегда, даже когда крафт не удался, — в этом вся игра.
+
+   Шансы считаются не как при обычном улучшении: вес каждой модели
+   возводится в степень из настроек, и чем больше подарков вложено, тем
+   меньше степень, то есть тем ровнее шансы и тем ближе редкая модель.
+   Вложил редкую — выпадет только редкая, которой у тебя в наборе не было.
+   Чёрный фон живёт отдельно от остальных: у него свой процент, и если
+   вложить чёрный, он же и выпадет.
+
+   Ту же формулу повторяет app.js, чтобы показывать шансы до крафта: цифры
+   на экране и бросок на сервере должны сходиться. Правишь здесь — правь и
+   там, рядом стоит такой же комментарий. */
+
+function craftPool(list, exponent) {
+  return list.map((one) => ({
+    one: one,
+    weight: Math.pow(Math.max(Number(one.rate) || 0, 0), exponent)
+  })).filter((item) => item.weight > 0);
+}
+
+function craftPick(pool) {
+  const sum = pool.reduce((all, item) => all + item.weight, 0);
+  if (!sum) return null;
+  let roll = (crypto.randomInt(0, 1e9) / 1e9) * sum;
+  for (const item of pool) {
+    roll -= item.weight;
+    if (roll < 0) return item.one;
+  }
+  return pool[pool.length - 1].one;
+}
+
+// Модели, из которых выбирает крафт: вложил редкую — остаются только
+// редкие, и только те, которых в наборе не было
+export function craftModels(models, taken, craft) {
+  const rare = (one) => Number(one.rate) > 0 && Number(one.rate) <= craft.rareThreshold;
+  const hasRare = models.some((one) => taken.indexOf(one.name) !== -1 && rare(one));
+  return models.filter((one) => (hasRare ? rare(one) && taken.indexOf(one.name) === -1 : true));
+}
+
+async function rollCraft(userId, nftIds, content) {
+  const id = String(userId);
+  const craft = cleanFees(content.fees).craft;
+  const acct = normalAccount(await command('GET', K.acct(id)));
+
+  const ids = Array.from(new Set((Array.isArray(nftIds) ? nftIds : []).map((one) => slug(one)).filter(Boolean)));
+  if (ids.length < CRAFT_MIN || ids.length > CRAFT_MAX) {
+    throw new InputError('Нужно от ' + CRAFT_MIN + ' до ' + CRAFT_MAX + ' улучшенных подарков');
+  }
+
+  const taken = ids.map((one) => acct.nfts.find((nft) => nft.id === one));
+  if (taken.some((one) => !one)) throw new InputError('Один из подарков уже недоступен');
+  if (taken.some((one) => one.gift !== taken[0].gift)) throw new InputError('Подарки должны быть одного вида');
+  if (taken.some((one) => one.lot)) throw new InputError('Один из подарков выставлен на маркете');
+
+  const gift = (content.gifts || []).find((one) => one.id === taken[0].gift);
+  if (!canUpgrade(gift)) throw new InputError('Этот подарок не поддерживает крафт');
+
+  // Сгорают раньше броска: что бы дальше ни случилось, назад их не вернуть
+  acct.nfts = acct.nfts.filter((one) => ids.indexOf(one.id) === -1);
+
+  const count = ids.length;
+  const exponent = craft.exponents[count];
+  const lucky = (crypto.randomInt(0, 1e9) / 1e9) * 100 < craft.success[count];
+
+  if (!lucky) {
+    await command('SET', K.acct(id), JSON.stringify(acct));
+    return { failed: true, gift: gift.id };
+  }
+
+  const attrs = readAttrs();
+  const names = taken.map((one) => (one.model && one.model.name) || '');
+  const models = craftModels(gift.models || [], names, craft);
+  const model = craftPick(craftPool(models.length ? models : (gift.models || []), exponent));
+
+  // Чёрный фон идёт мимо общего жребия: у него свой процент
+  const black = attrs.backdrops.find((one) => one.name === BLACK) || null;
+  const hadBlack = taken.some((one) => one.backdrop === BLACK);
+  const blackChance = craft.blackGuaranteed && hadBlack ? 100 : craft.black[count];
+  const backdrop = black && (crypto.randomInt(0, 1e9) / 1e9) * 100 < blackChance
+    ? black
+    : craftPick(craftPool(attrs.backdrops.filter((one) => one.name !== BLACK), exponent));
+
+  const symbol = craftPick(craftPool(attrs.symbols, exponent));
+  const num = await nextNumber(gift);
+
+  const nft = {
+    id: newId('nft'),
+    gift: gift.id,
+    model: model ? { name: model.name, art: model.art, artType: model.artType, rate: model.rate } : null,
+    backdrop: backdrop ? backdrop.name : '',
+    symbol: symbol ? symbol.name : '',
+    num: int(num, 1, 1e9),
+    at: Date.now(),
+    // Откуда взялся: в профиле у крафта свой значок
+    crafted: count
+  };
+
+  acct.nfts.push(nft);
+  await command('SET', K.acct(id), JSON.stringify(acct));
+  return { failed: false, nft: nft, gift: gift.id };
+}
+
+// Что показывать до крафта: веса моделей и фонов плюс настройки. Проценты
+// считает приложение — они зависят от того, что человек уже положил
+export function craftTable(giftId, content) {
+  const gift = (content.gifts || []).find((one) => one.id === slug(giftId));
+  if (!canUpgrade(gift)) throw new InputError('Этот подарок не поддерживает крафт');
+
+  const attrs = readAttrs();
+  return {
+    gift: gift.id,
+    models: (gift.models || []).map((one) => ({ name: one.name, rate: Number(one.rate) || 0 })),
+    backdrops: attrs.backdrops.map((one) => ({ name: one.name, rate: Number(one.rate) || 0 })),
+    craft: cleanFees(content.fees).craft,
+    black: BLACK,
+    min: CRAFT_MIN,
+    max: CRAFT_MAX
+  };
+}
+
+// Крафт без счёта: цена ноль или крафтит админ
+export async function craftNow(userId, nftIds, content) {
+  return queued(String(userId), () => rollCraft(userId, nftIds, content));
+}
+
+// Платный — после оплаты, тем же путём, что улучшение
+async function settleCraft(order, charge) {
+  const content = await readContent(true);
+  let result = null;
+  let problem = '';
+
+  try {
+    result = await queued(String(order.userId), () => rollCraft(order.userId, order.nftIds, content));
+  } catch (error) {
+    // Деньги пришли, а крафта нет: подарки целы, разбираться будет админ
+    problem = error.message;
+    console.error('craft: оплачено, но не скрафчено —', order.id, problem);
+  }
+
+  const done = Object.assign({}, order, {
+    status: 'paid',
+    charge: charge,
+    paidAt: Date.now(),
+    nftId: result && result.nft ? result.nft.id : '',
+    crafted: result ? !result.failed : false,
+    problem: problem
+  });
+  await command('SET', K.order(order.id), JSON.stringify(done));
+  return done;
 }
 
 // Платное — после оплаты, тем же путём, что и покупка

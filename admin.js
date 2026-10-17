@@ -2625,6 +2625,86 @@
     }));
     cols.appendChild(transfer);
 
+    /* Крафт: цена одна на любой набор, а шансы свои на каждое количество
+       подарков. Степень — чем она меньше, тем ровнее шансы моделей, то
+       есть тем ближе редкая; у четырёх подарков она ниже, чем у двух */
+    const craft = Object.assign({
+      price: 0,
+      success: { 2: 40, 3: 60, 4: 80 },
+      black: { 2: 1, 3: 3, 4: 6 },
+      exponents: { 2: 0.85, 3: 0.7, 4: 0.55 },
+      rareThreshold: 0.5,
+      blackGuaranteed: true
+    }, fees.craft || {});
+
+    const craftCard = el('section', 'ad-card');
+    craftCard.appendChild(el('h3', null, 'Крафт'));
+    craftCard.appendChild(el('p', 'ad-note', 'Из 2–4 одинаковых улучшенных подарков выходит один новый, исходные сгорают в любом случае. Цена — за попытку; ноль — бесплатно, админ крафтит бесплатно всегда.'));
+
+    const craftPrice = input(craft.price, { type: 'number' });
+    craftPrice.step = '1';
+    const priceForm = el('div', 'ad-form');
+    priceForm.appendChild(field('Цена крафта', affix(craftPrice, 'star-img'), true));
+    craftCard.appendChild(priceForm);
+
+    // По строке на каждое количество подарков
+    const rows = {};
+    [2, 3, 4].forEach((n) => {
+      const row = el('div', 'ad-form ad-form--three');
+      const success = input(craft.success[n], { type: 'number' });
+      success.step = '1';
+      const black = input(craft.black[n], { type: 'number' });
+      black.step = '0.1';
+      const exponent = input(craft.exponents[n], { type: 'number' });
+      exponent.step = '0.05';
+      rows[n] = { success: success, black: black, exponent: exponent };
+      // Три числа в ряд: на всю ширину их растягивать незачем
+      row.append(
+        field(n + ' шт. · удача, %', success),
+        field('Чёрный фон, %', black),
+        field('Степень', exponent)
+      );
+      craftCard.appendChild(row);
+    });
+
+    const rare = input(craft.rareThreshold, { type: 'number' });
+    rare.step = '0.1';
+    const rareForm = el('div', 'ad-form');
+    rareForm.appendChild(field('Редкая модель — вес не больше', rare, true));
+    craftCard.appendChild(rareForm);
+
+    const keepBlack = el('button', 'ad-switch');
+    keepBlack.type = 'button';
+    const keepMark = el('span', 'ad-switch__icon');
+    keepMark.appendChild(icon('star'));
+    const keepText = el('span', 'ad-switch__text');
+    keepText.append(el('b', null, 'Чёрный за чёрный'), el('small', null, 'Вложил чёрный фон — чёрный и выпадет'));
+    keepBlack.append(keepMark, keepText, el('span', 'ad-toggle'));
+    let guaranteed = craft.blackGuaranteed !== false;
+    const paintKeep = () => keepBlack.setAttribute('aria-pressed', String(guaranteed));
+    keepBlack.addEventListener('click', () => {
+      guaranteed = !guaranteed;
+      haptic('pick');
+      paintKeep();
+    });
+    paintKeep();
+    craftCard.appendChild(keepBlack);
+
+    craftCard.appendChild(button('Сохранить', {
+      icon: 'check',
+      onClick: (event) => saveFees(event.currentTarget, {
+        craft: {
+          price: number(craftPrice),
+          success: { 2: number(rows[2].success), 3: number(rows[3].success), 4: number(rows[4].success) },
+          black: { 2: number(rows[2].black), 3: number(rows[3].black), 4: number(rows[4].black) },
+          exponents: { 2: number(rows[2].exponent), 3: number(rows[3].exponent), 4: number(rows[4].exponent) },
+          rareThreshold: number(rare),
+          blackGuaranteed: guaranteed
+        }
+      }, 'Крафт сохранён')
+    }));
+    cols.appendChild(craftCard);
+
     view.appendChild(cols);
 
     const back = el('a', 'ad-btn ad-btn--ghost');

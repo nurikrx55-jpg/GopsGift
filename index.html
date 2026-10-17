@@ -352,7 +352,68 @@
           <span>NFT</span>
           <svg viewBox="0 0 234 260" aria-hidden="true"><use href="#mint-chain"></use></svg>
         </button>
+        <!-- Крафт: из нескольких улучшенных подарков делается один новый -->
+        <button class="prf-tabs__tab" type="button" data-prf-tab="craft">
+          <span data-i18n="crafts.tab">Крафты</span>
+        </button>
       </div>
+
+      <!-- Крафт. Куб с четырьмя гранями: на каждую кладётся подарок, и из
+           набора выходит один новый. Проценты и бросок считает сервер -->
+      <section class="craft-lab" id="craft-lab" hidden>
+        <div class="craft-board">
+          <div class="craft-heading">
+            <h2 id="craft-title" data-i18n="crafts.title">Крафты</h2>
+            <p id="craft-subtitle" data-i18n="crafts.subtitle">Больше подарков — выше шанс редкой модели и фона</p>
+          </div>
+
+          <div class="craft-stage">
+            <div class="craft-glow" aria-hidden="true"></div>
+            <div class="craft-cube" id="craft-cube" aria-hidden="true">
+              <div class="craft-face face-0"><span class="craft-mystery">&#10022;</span></div>
+              <div class="craft-face face-1"><span class="craft-mystery">&#10022;</span></div>
+              <div class="craft-face face-2"><span class="craft-mystery">&#10022;</span></div>
+              <div class="craft-face face-3"><span class="craft-mystery">&#10022;</span></div>
+              <div class="craft-face face-4"></div>
+              <div class="craft-face face-5"></div>
+            </div>
+            <div class="craft-confetti" id="craft-confetti" aria-hidden="true" hidden></div>
+            <div class="craft-slots" id="craft-slots"></div>
+          </div>
+
+          <!-- Шансы: сводка в две колонки и полный список под «Все шансы» -->
+          <div class="craft-odds" id="craft-odds">
+            <div class="craft-odds-summary">
+              <div>
+                <span data-i18n="crafts.oddsRare">Редкая модель</span>
+                <strong id="craft-rare">&mdash;</strong>
+              </div>
+              <div>
+                <span data-i18n="crafts.oddsBlack">Чёрный фон</span>
+                <strong id="craft-black">&mdash;</strong>
+              </div>
+            </div>
+            <p class="craft-odds-hint" id="craft-hint" data-i18n="crafts.oddsSelect">Выберите 2–4 подарка</p>
+            <details class="craft-odds-details" id="craft-details" hidden>
+              <summary data-i18n="crafts.oddsDetails">Все шансы</summary>
+              <div class="craft-odds-list" id="craft-odds-list"></div>
+            </details>
+          </div>
+
+          <button class="craft-action" type="button" id="craft-go" disabled>
+            <span data-i18n="crafts.addTwo">Добавьте ещё 2 подарка</span>
+          </button>
+          <p class="craft-button-error" id="craft-error" role="alert" hidden></p>
+
+          <!-- Что вышло: на месте шансов и кнопки -->
+          <div class="craft-result" id="craft-result" hidden></div>
+        </div>
+
+        <p class="craft-note">
+          <span data-i18n="crafts.note">Нужно от 2 до 4 одинаковых улучшенных подарков. При неудаче подарки сгорают без результата.</span>
+          <strong id="craft-chance" hidden></strong>
+        </p>
+      </section>
 
       <div class="prf-filter">
         <div class="prf-filter__items">
@@ -404,6 +465,23 @@
       <div class="prf__list" id="prf-list"></div>
     </section>
   </main>
+
+  <!-- Выбор подарка на грань куба: лист снизу, поиск и те же карточки,
+       что в профиле -->
+  <div class="craft-overlay" id="craft-overlay" hidden>
+    <div class="craft-picker" role="dialog" aria-modal="true" aria-labelledby="craft-picker-title">
+      <header>
+        <h3 id="craft-picker-title" data-i18n="crafts.choose">Выберите подарок</h3>
+        <button type="button" id="craft-close" aria-label="Закрыть" data-i18n-aria="crafts.close">
+          <svg viewBox="0 0 11 11" aria-hidden="true"><path d="M1 1L10 10M1 10L10 1"></path></svg>
+        </button>
+      </header>
+      <input type="search" id="craft-search" placeholder="Название или модель" data-i18n-placeholder="crafts.giftSearch">
+      <button class="craft-remove" type="button" id="craft-drop" hidden data-i18n="crafts.remove">Убрать с этой грани</button>
+      <div class="craft-inventory-grid" id="craft-grid"></div>
+      <p class="craft-message" id="craft-empty" hidden data-i18n="crafts.noEligible">Подходящих подарков пока нет.</p>
+    </div>
+  </div>
 
   <!-- Навигационная панель memgift: капсула со вкладками, подложка едет за
        активной, рядом — круглая кнопка GetGems -->

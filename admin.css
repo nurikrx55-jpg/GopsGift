@@ -642,6 +642,11 @@
   gap: 14px;
 }
 
+/* Три числа в строке — настройки крафта. На узком экране ужимаются сами */
+.ad-form--three {
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+}
+
 .ad-field {
   display: grid;
   gap: 8px;
@@ -1965,7 +1970,7 @@
   transform: translateX(20px);
 }
 
-/* Переключатель со значком вместо образца: бану показывать нечего */
+/* Переключатель со значком вместо образца: бану и крафту показывать нечего */
 .ad-switch__icon {
   display: grid;
   place-items: center;
@@ -1973,6 +1978,11 @@
   height: 40px;
   flex: none;
   border-radius: 50%;
+  background: var(--field);
+  color: var(--hint);
+}
+
+.ad-switch--ban .ad-switch__icon {
   background: rgba(255, 107, 99, 0.14);
   color: var(--bad);
 }
