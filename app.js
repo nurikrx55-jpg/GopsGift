@@ -4797,6 +4797,7 @@
     });
 
     const buttons = Array.from(tabs.querySelectorAll('.prf-tabs__tab'));
+    tabs.style.setProperty('--prf-count', String(buttons.length));
     buttons.forEach((button, index) => {
       button.addEventListener('click', () => {
         if (button.classList.contains('is-active')) return;
@@ -5269,7 +5270,8 @@
     if (drop) drop.hidden = !craft.picked[craft.slot];
     showCraftInventory(false);
     fillCraftGrid('');
-    if (search) search.focus();
+    // Клавиатуру не поднимаем: лист открывают, чтобы выбрать из сетки,
+    // а не чтобы печатать
   }
 
   function closeCraftPicker() {
@@ -5307,6 +5309,111 @@
     grid.appendChild(list);
   }
 
+  /* Отбор в крафте — своим листом, как у memgift: строка на значение,
+     кружок-галочка справа, «Отмена» и «Применить» внизу. Общий лист
+     профиля сюда не годится: у него другой разбор и другие кнопки */
+  const CRAFT_FILTERS = {
+    sort: { key: 'sort', title: 'crafts.sort', multi: false },
+    coll: { key: 'coll', title: 'crafts.collection', multi: true },
+    model: { key: 'models', title: 'crafts.model', multi: true },
+    symbol: { key: 'symbols', title: 'crafts.symbol', multi: true },
+    backdrop: { key: 'backdrops', title: 'crafts.backdrop', multi: true }
+  };
+
+  const craftFilter = { name: '', chosen: [], items: [] };
+
+  function craftFilterItems(name) {
+    // Считаем по всем годным подаркам, а не по уже отобранным: иначе из
+    // списка пропадало бы то, что сам же отбор и отсёк
+    const all = craftEligible();
+    const seen = new Map();
+
+    if (name === 'sort') {
+      return ['latest', 'oldest'].map((id) => ({ id: id, label: t('crafts.' + id) }));
+    }
+
+    all.forEach((gift) => {
+      const pairs = name === 'coll' ? [[gift.id, gift.name]]
+        : name === 'model' ? [[gift.nft.model.name, gift.nft.model.name]]
+          : name === 'symbol' ? [[gift.symbol, gift.symbol]]
+            : [[gift.backdrop, gift.backdrop]];
+      pairs.forEach((pair) => {
+        if (pair[0] && !seen.has(pair[0])) seen.set(pair[0], { id: pair[0], label: pair[1] || pair[0] });
+      });
+    });
+
+    return Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  function paintCraftFilter(query) {
+    const box = document.getElementById('craft-filter-options');
+    if (!box) return;
+    const needle = String(query || '').trim().toLowerCase();
+    box.textContent = '';
+
+    craftFilter.items
+      .filter((one) => !needle || one.label.toLowerCase().indexOf(needle) !== -1)
+      .forEach((one) => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'craft-filter-option';
+
+        const label = document.createElement('span');
+        label.textContent = one.label;
+
+        const mark = document.createElement('span');
+        const taken = craftFilter.chosen.indexOf(one.id) !== -1;
+        mark.className = 'craft-check' + (taken ? ' active' : '');
+        if (taken) mark.textContent = '\u2713';
+
+        row.append(label, mark);
+        row.addEventListener('click', () => {
+          const rule = CRAFT_FILTERS[craftFilter.name];
+          haptic('select');
+          if (!rule.multi) craftFilter.chosen = [one.id];
+          else if (taken) craftFilter.chosen = craftFilter.chosen.filter((id) => id !== one.id);
+          else craftFilter.chosen = craftFilter.chosen.concat([one.id]);
+          paintCraftFilter(query);
+        });
+        box.appendChild(row);
+      });
+  }
+
+  function openCraftFilter(name) {
+    const rule = CRAFT_FILTERS[name];
+    const box = document.getElementById('craft-filter-overlay');
+    const search = document.getElementById('craft-filter-search');
+    if (!rule || !box) return;
+
+    craftFilter.name = name;
+    craftFilter.items = craftFilterItems(name);
+    const current = craftList[rule.key];
+    craftFilter.chosen = rule.multi ? (current || []).slice() : (current ? [current] : []);
+
+    document.getElementById('craft-filter-title').textContent = t(rule.title);
+    if (search) search.value = '';
+    paintCraftFilter('');
+    box.hidden = false;
+    haptic('light');
+  }
+
+  function closeCraftFilter() {
+    const box = document.getElementById('craft-filter-overlay');
+    if (box) box.hidden = true;
+  }
+
+  function applyCraftFilter() {
+    const rule = CRAFT_FILTERS[craftFilter.name];
+    if (!rule) return;
+
+    craftList[rule.key] = rule.multi ? craftFilter.chosen.slice() : (craftFilter.chosen[0] || '');
+    // Сменили коллекции — прежние модели к ним уже не относятся
+    if (craftFilter.name === 'coll') craftList.models = [];
+    craftList.shown = PAGE;
+    closeCraftFilter();
+    renderCraftList();
+  }
+
   // Разлёт: 28 кусочков по кругу, как у memgift
   function craftBurst() {
     const box = document.getElementById('craft-confetti');
@@ -5329,6 +5436,35 @@
     }
 
     setTimeout(() => { box.hidden = true; }, 2200);
+  }
+
+  /* Не удалось: отдельное окно со сломанным подарком и теми, что сгорели.
+     Строкой на доске это читалось как мелкая неприятность, а человек
+     только что потерял несколько подарков */
+  function showCraftFail(burnt) {
+    const box = document.getElementById('craft-fail');
+    const list = document.getElementById('craft-fail-burnt');
+    const count = document.getElementById('craft-fail-count');
+    if (!box || !list) return;
+
+    releaseArt(list);
+    list.textContent = '';
+    burnt.forEach((gift) => {
+      const card = nftCard(gift, null);
+      card.tabIndex = -1;
+      card.removeAttribute('role');
+      list.appendChild(card);
+    });
+
+    if (count) count.textContent = String(burnt.length);
+    box.hidden = false;
+  }
+
+  function closeCraftFail() {
+    const box = document.getElementById('craft-fail');
+    if (!box) return;
+    box.hidden = true;
+    releaseArt(document.getElementById('craft-fail-burnt'));
   }
 
   function showCraftResult(nft) {
@@ -5372,6 +5508,7 @@
   }
 
   function craftReset() {
+    closeCraftFail();
     craft.picked = [null, null, null, null];
     craft.done = null;
     craft.table = null;
@@ -5439,7 +5576,9 @@
         const nft = paid.nft || null;
         craft.done = {
           failed: !nft,
-          gift: nft ? nftView(nft) : null
+          gift: nft ? nftView(nft) : null,
+          // Что сгорело — показываем в окне неудачи: со счёта они уже ушли
+          burnt: craft.picked.filter(Boolean)
         };
 
         if (paid.me) {
@@ -5467,6 +5606,7 @@
               paintCraft();
               haptic(won ? 'success' : 'light');
               if (won) craftBurst();
+              else showCraftFail(craft.done.burnt || []);
             });
         }
 
@@ -5505,8 +5645,32 @@
       paintCraft();
     });
 
-    // Отборы и поиск по номеру — те же, что в профиле
-    initOwnFilters(craftList);
+    // Отбор — своим листом, как у memgift
+    Object.keys(CRAFT_FILTERS).forEach((name) => {
+      const button = document.getElementById('craft-' + name);
+      if (button) button.addEventListener('click', () => openCraftFilter(name));
+    });
+
+    const filterSearch = document.getElementById('craft-filter-search');
+    if (filterSearch) filterSearch.addEventListener('input', () => paintCraftFilter(filterSearch.value));
+    const filterCancel = document.getElementById('craft-filter-cancel');
+    if (filterCancel) filterCancel.addEventListener('click', closeCraftFilter);
+    const filterClose = document.getElementById('craft-filter-close');
+    if (filterClose) filterClose.addEventListener('click', closeCraftFilter);
+    const filterApply = document.getElementById('craft-filter-apply');
+    if (filterApply) filterApply.addEventListener('click', applyCraftFilter);
+    const filterBox = document.getElementById('craft-filter-overlay');
+    if (filterBox) filterBox.addEventListener('click', (event) => {
+      if (event.target === filterBox) closeCraftFilter();
+    });
+
+    // Окно неудачи: «Создать ещё» закрывает его и собирает коробку заново
+    const again = document.getElementById('craft-fail-again');
+    if (again) again.addEventListener('click', () => {
+      haptic('light');
+      closeCraftFail();
+      craftReset();
+    });
     const num = document.getElementById('craft-num');
     if (num) num.addEventListener('input', () => {
       num.value = num.value.replace(/\D/g, '').slice(0, 9);
@@ -6343,6 +6507,7 @@
     viewList.shown = PAGE;
     const tabs = document.getElementById('vw-tabs');
     tabs.style.setProperty('--prf-index', '0');
+    tabs.style.setProperty('--prf-count', String(tabs.querySelectorAll('.prf-tabs__tab').length));
     tabs.querySelectorAll('.prf-tabs__tab').forEach((one, index) => one.classList.toggle('is-active', index === 0));
     renderOwned(viewList);
 

@@ -2546,8 +2546,9 @@ body {
   top: 0;
   bottom: 0;
   left: 0;
-  /* Вкладок три: «Подарки», NFT и «Крафты» */
-  width: calc(100% / 3);
+  /* Вкладок бывает две (чужой профиль) и три (свой): ширину подложки
+     задаёт сам ряд, иначе она разъезжается с вкладками */
+  width: calc(100% / var(--prf-count, 2));
   border-radius: 999px;
   background: #3a3a3a;
   pointer-events: none;
@@ -7733,6 +7734,32 @@ select {
   gap: 10px;
 }
 
+/* В листе выбора подарки мелкие: их там перебирают, а не разглядывают */
+.craft-picker .gifts {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  padding: 0;
+}
+
+/* В листе карточка квадратная, как у memgift: рост витрины ей ни к чему */
+.craft-picker .gift {
+  height: auto;
+  aspect-ratio: 1 / 1;
+  padding: 8px;
+  --gift-radius: 20px;
+  --ribbon-w: 74px;
+  --ribbon-h: 30px;
+  --ribbon-cx: 18px;
+  --ribbon-cy: 18px;
+  --ribbon-font: 10px;
+  --ribbon-max: 52px;
+  --pattern-bottom: 0px;
+}
+
+.craft-picker .gift__num {
+  font-size: 10px;
+}
+
 .craft-inventory-grid .gift {
   cursor: pointer;
 }
@@ -7747,4 +7774,192 @@ select {
   .craft-confetti { display: none; }
   .craft-result { animation: none; }
   .craft-picker { animation: none; }
+}
+
+/* Отбор в крафте: строка на значение, кружок-галочка справа */
+.craft-filter-picker h3 {
+  font-size: 20px;
+}
+
+.craft-filter-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.craft-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #252528;
+  box-shadow: var(--glass-edge-tight);
+  font-size: 13px;
+  line-height: 1;
+  color: #fff;
+}
+
+.craft-check.active {
+  background: #0083fd;
+}
+
+.craft-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.craft-filter-actions > * {
+  flex: 1;
+  width: auto;
+  margin: 0;
+}
+
+.craft-more {
+  background: linear-gradient(180deg, #1e1e1e 50%, #191919);
+  box-shadow: var(--glass-edge-tight);
+  -webkit-backdrop-filter: blur(28px) saturate(60%);
+  backdrop-filter: blur(28px) saturate(60%);
+  width: 100%;
+  padding: 13px;
+  border: 0;
+  border-radius: 99em;
+  color: inherit;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* Крафт не удался. Отдельным окном, а не строкой на доске: сгоревшие
+   подарки человек должен увидеть, а не догадаться о них */
+.craft-overlay--fail {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.craft-fail__box {
+  width: min(100%, 420px);
+  margin: 0 16px;
+  max-height: 88dvh;
+  border-radius: 29px;
+  padding: 26px 20px 20px;
+  text-align: center;
+  /* Красноватый отсвет снизу — единственное, чем окно говорит о потере */
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 107, 99, 0.16), transparent 60%),
+    linear-gradient(180deg, #1e1e1e 50%, #191919);
+}
+
+.craft-fail__mark {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 28px;
+  background: rgba(255, 107, 99, 0.12);
+  color: #ff8585;
+}
+
+.craft-broken {
+  width: 74px;
+  height: 74px;
+  fill: currentColor;
+}
+
+/* Подарок разломан надвое: половинки разъехались и завалились набок */
+.craft-broken__half {
+  transform: translate(-4px, 2px) rotate(-10deg);
+  transform-origin: 30px 46px;
+}
+
+.craft-broken__half--right {
+  transform: translate(4px, 3px) rotate(11deg);
+  transform-origin: 46px 46px;
+}
+
+.craft-fail__mark b {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  min-width: 26px;
+  padding: 2px 7px;
+  border-radius: 99em;
+  background: #ff6b63;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.craft-fail__title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #ff8585;
+}
+
+.craft-fail__text {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #8e8e93;
+}
+
+/* Что сгорело: ряд мелких карточек, листается вбок, если не поместились */
+.craft-fail__burnt {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.craft-fail__burnt::-webkit-scrollbar {
+  display: none;
+}
+
+.craft-fail__burnt .gift {
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  padding: 6px;
+  --gift-radius: 16px;
+  --ribbon-w: 60px;
+  --ribbon-h: 24px;
+  --ribbon-cx: 14px;
+  --ribbon-cy: 14px;
+  --ribbon-font: 9px;
+  --ribbon-max: 42px;
+  --pattern-bottom: 0px;
+  /* Сгоревшее — приглушено, как в примере */
+  filter: grayscale(0.35);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.craft-fail__burnt .gift__num {
+  font-size: 9px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .craft-fail__box { animation: none; }
 }
