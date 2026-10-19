@@ -231,7 +231,7 @@
   bottom: 0;
   z-index: 50;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   height: calc(var(--bar-h) + var(--safe-area-bottom));
   padding-bottom: var(--safe-area-bottom);
   border-top: 1px solid var(--line);
@@ -2201,4 +2201,110 @@
   min-height: 36px;
   padding: 0 14px;
   font-size: 14px;
+}
+
+/* --- Рассылка --- */
+
+/* Текст письма: то же поле, что и везде, только в несколько строк */
+.ad-area {
+  height: auto;
+  min-height: 132px;
+  padding: 14px 16px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.ad-note[data-tone="bad"] {
+  color: var(--bad);
+}
+
+.ad-cast__photo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* Снимок показываем во всю ширину поля, но не выше экрана наполовину:
+   в Telegram его и так обрежет по своей ширине */
+.ad-cast__photo img {
+  width: 100%;
+  max-height: 320px;
+  border-radius: var(--r-field);
+  object-fit: cover;
+}
+
+.ad-cast__photo-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ad-cast__btns {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* Кнопка письма: надпись, ссылка и корзина. В ряд они встают, только
+   когда места хватает обоим полям; иначе ссылка переносится под надпись.
+   Меряем по самой колонке, а не по экрану: на широком мониторе карточка
+   всё равно занимает половину */
+.ad-cast__btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Узко — надпись занимает строку целиком, ссылка с корзиной встают под
+   ней. Как только колонка позволяет, всё выстраивается в один ряд */
+.ad-cast__btn .ad-input:first-child {
+  grid-column: 1 / -1;
+}
+
+@container (min-width: 460px) {
+  .ad-cast__btn {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto;
+  }
+
+  .ad-cast__btn .ad-input:first-child {
+    grid-column: auto;
+  }
+}
+
+.ad-cast__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Полоса хода: доля отправленного. Остановленная и прерванная — серые,
+   законченная — зелёная, чтобы одним взглядом было ясно, чем кончилось */
+.ad-cast__bar {
+  overflow: hidden;
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 99px;
+  background: var(--field);
+}
+
+.ad-cast__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.ad-cast__bar[data-state="done"] i {
+  background: var(--ok);
+}
+
+.ad-cast__bar[data-state="stopped"] i,
+.ad-cast__bar[data-state="broken"] i {
+  background: #5f5f67;
 }

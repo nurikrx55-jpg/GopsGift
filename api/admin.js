@@ -10,6 +10,7 @@ import {
   listWithdrawals, resolveWithdraw, openWithdrawals, userLang, marketLog, lotCount, clearMarketLog, listLots, removeLot
 } from './_lib/data.js';
 import { withdrawClosed } from './_lib/notify.js';
+import { cleanCast, sendCast, castState, startCast, stopCast } from './_lib/cast.js';
 import { json, body } from './_lib/http.js';
 
 // Админская подпись не старше суток: утёкшая ссылка не даст доступа навсегда
@@ -224,6 +225,35 @@ const actions = {
     // Человеку — сообщение от бота: отправлено или отказ с возвратом
     const told = await withdrawClosed(wd, await userLang(wd.userId));
     return { withdrawal: wd, open: await openWithdrawals(), told: told };
+  },
+
+  // --- Рассылка ---
+
+  async 'cast.state'() {
+    return { cast: await castState() };
+  },
+
+  // Фото кладём сразу при выборе: дальше оно уходит в Telegram ссылкой
+  async 'cast.photo'(payload) {
+    const photo = await saveImage(payload.file, payload.type);
+    // Прежнее фото этой же заготовки больше не нужно
+    if (payload.drop) await dropFile(payload.drop);
+    return { photo: photo };
+  },
+
+  // Проверка на себе: то же сообщение, что уйдёт всем
+  async 'cast.test'(payload, ctx) {
+    const cast = cleanCast(payload.cast);
+    await sendCast(ctx.user.id, cast);
+    return { sent: true };
+  },
+
+  async 'cast.start'(payload, ctx) {
+    return { cast: await startCast(payload.cast, ctx.user.id) };
+  },
+
+  async 'cast.stop'() {
+    return { cast: await stopCast() };
   },
 
   // --- Люди ---

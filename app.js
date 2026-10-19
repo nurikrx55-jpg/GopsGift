@@ -5744,12 +5744,23 @@
     return Boolean(me && lot && String(lot.seller.id) === String(me.id));
   }
 
+  /* Карточка лота собрана по образцу (memgift, `.gifts .items .item`):
+     тёмная плита, внутри квадратная плитка с фоном, узором и моделью, под
+     ней имя и синяя кнопка с ценой. Своего лота не купить — кнопка гаснет,
+     но карточка открывается: цену с неё и меняют */
   function marketCard(gift, onPick) {
     const card = document.createElement('article');
     card.className = 'mkt-card';
+
+    const head = document.createElement('div');
+    head.className = 'mkt-card__head';
+
     const colors = backdropColors(gift);
-    card.style.setProperty('--center-color', colors.center);
-    card.style.setProperty('--around-color', colors.around);
+    const bg = document.createElement('div');
+    bg.className = 'mkt-card__bg';
+    bg.style.setProperty('--center-color', colors.center);
+    bg.style.setProperty('--around-color', colors.around);
+    head.appendChild(bg);
 
     const symbol = symbolOf(gift.nft.symbol);
     if (symbol) {
@@ -5760,33 +5771,38 @@
       img.alt = '';
       img.draggable = false;
       box.appendChild(img);
-      card.appendChild(box);
+      head.appendChild(box);
     }
 
     const num = document.createElement('span');
     num.className = 'mkt-card__num';
     num.textContent = '#' + gift.nft.num;
-    card.appendChild(num);
+    head.appendChild(num);
 
     const art = document.createElement('div');
     art.className = 'mkt-card__art';
     showShot(art, artOf(gift));
-    card.appendChild(art);
+    head.appendChild(art);
+    card.appendChild(head);
 
-    const foot = document.createElement('div');
-    foot.className = 'mkt-card__foot';
-    const name = document.createElement('b');
+    const name = document.createElement('div');
     name.className = 'mkt-card__name';
-    name.textContent = gift.name;
-    const model = document.createElement('span');
-    model.className = 'mkt-card__model';
-    model.textContent = gift.nft.model.name;
-    const price = document.createElement('span');
-    price.className = 'mkt-card__price' + (isMine(gift.lot) ? ' is-mine' : '');
+    const title = document.createElement('b');
+    title.textContent = gift.name;
+    name.appendChild(title);
+    card.appendChild(name);
+
+    const buy = document.createElement('div');
+    buy.className = 'mkt-card__buy' + (isMine(gift.lot) ? ' is-mine' : '');
+    const price = document.createElement('button');
+    price.type = 'button';
+    price.tabIndex = -1;
     price.innerHTML = '<svg viewBox="0 0 19 16" aria-hidden="true"><use href="#gram"></use></svg>';
-    price.append(formatTon(gift.lot.nano));
-    foot.append(name, model, price);
-    card.appendChild(foot);
+    const value = document.createElement('span');
+    value.textContent = formatTon(gift.lot.nano);
+    price.appendChild(value);
+    buy.appendChild(price);
+    card.appendChild(buy);
 
     card.tabIndex = 0;
     card.setAttribute('role', 'button');

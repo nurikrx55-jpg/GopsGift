@@ -10,7 +10,7 @@
   const API = '/api/admin';
   const LAST_TAB = 'gg:admin-tab';
 
-  const SECTIONS = ['gifts', 'banners', 'tasks', 'users', 'market', 'withdrawals', 'settings'];
+  const SECTIONS = ['gifts', 'banners', 'tasks', 'users', 'cast', 'market', 'withdrawals', 'settings'];
 
   // Цвета лент — те же градиенты, что на витрине
   const RIBBONS = [
@@ -2525,6 +2525,240 @@
     });
   }
 
+  // --- Рассылка ---
+
+  /* Письмо всем, кто открывал приложение: текст, фото и кнопки под ним.
+     Заготовка живёт, пока открыта админка, — ушёл в другой раздел и
+     вернулся, написанное на месте.
+
+     Отправку ведёт сервер, здесь только показываем ход: раз в две секунды
+     спрашиваем, сколько уже ушло. Поэтому закрытая вкладка рассылку не
+     обрывает, а открытая на другом устройстве показывает то же самое. */
+  const castDraft = { text: '', photo: '', buttons: [] };
+  const cast = { token: 0, timer: null, state: null };
+
+  function castStatusText(job) {
+    if (!job) return '';
+    if (job.status === 'run') return 'Идёт рассылка';
+    if (job.status === 'stopped') return 'Остановлена';
+    if (job.status === 'broken') return 'Прервана перезапуском сервера';
+    return 'Разослано';
+  }
+
+  function renderCast() {
+    setTop('Рассылка', 'Сообщение от бота всем, кто открывал приложение', [
+      iconButton('refresh', 'Обновить', () => go('cast'), 'ad-icon--round')
+    ]);
+
+    if (offline) {
+      view.appendChild(empty('send', 'Рассылка недоступна',
+        'Нужны общая база и токен бота — без них отправлять некому и нечем.'));
+      return;
+    }
+
+    const cols = el('div', 'ad-cols');
+
+    // --- Сообщение ---
+
+    const card = el('section', 'ad-card');
+    card.appendChild(el('h3', null, 'Сообщение'));
+
+    const area = el('textarea', 'ad-input ad-area');
+    area.rows = 6;
+    area.placeholder = 'Текст сообщения. Разметка не поддерживается — уйдёт как написано.';
+    area.value = castDraft.text;
+    const counter = el('p', 'ad-note', '');
+    card.append(field('Текст', area, true), counter);
+
+    // --- Фото ---
+
+    const shot = el('div', 'ad-cast__photo');
+    const shotImg = el('img');
+    shotImg.alt = '';
+    const shotActs = el('div', 'ad-cast__photo-acts');
+    const pick = button('Добавить фото', { icon: 'upload', kind: 'ghost' });
+    const drop = button('Убрать фото', { icon: 'trash', kind: 'danger' });
+    shotActs.append(pick, drop);
+    shot.append(shotImg, shotActs);
+    card.appendChild(field('Фото', shot, true));
+
+    // --- Кнопки ---
+
+    const rows = el('div', 'ad-cast__btns');
+    const add = button('Кнопка', { icon: 'plus', kind: 'ghost' });
+    const btnsBox = el('div');
+    btnsBox.append(rows, add);
+    card.appendChild(field('Кнопки под сообщением', btnsBox, true));
+    card.appendChild(el('p', 'ad-note', 'Кнопка без ссылки открывает само приложение. Ссылка — с https:// или tg://.'));
+
+    cols.appendChild(card);
+
+    // --- Отправка ---
+
+    const sendCard = el('section', 'ad-card');
+    sendCard.appendChild(el('h3', null, 'Отправка'));
+    const sendNote = el('p', 'ad-note', '');
+    const bar = el('div', 'ad-cast__bar');
+    const fill = el('i');
+    bar.appendChild(fill);
+    const acts = el('div', 'ad-cast__acts');
+    const test = button('Проверить на себе', { icon: 'send', kind: 'ghost' });
+    const start = button('Отправить всем', { icon: 'send' });
+    const halt = button('Остановить', { icon: 'close', kind: 'danger' });
+    acts.append(test, start, halt);
+    sendCard.append(sendNote, bar, acts);
+    cols.appendChild(sendCard);
+
+    view.appendChild(cols);
+
+    // --- Жизнь экрана ---
+
+    const draft = () => ({ text: castDraft.text, photo: castDraft.photo, buttons: castDraft.buttons });
+
+    const paintCounter = () => {
+      const limit = castDraft.photo ? 1024 : 4096;
+      counter.textContent = castDraft.text.length + ' из ' + limit + ' знаков' +
+        (castDraft.photo ? ' — с фото Telegram разрешает подпись короче' : '');
+      counter.dataset.tone = castDraft.text.length > limit ? 'bad' : '';
+    };
+
+    const paintPhoto = () => {
+      const has = Boolean(castDraft.photo);
+      shotImg.hidden = !has;
+      if (has) shotImg.src = castDraft.photo;
+      drop.hidden = !has;
+      pick.querySelector('span').textContent = has ? 'Заменить фото' : 'Добавить фото';
+      paintCounter();
+    };
+
+    const paintButtons = () => {
+      rows.textContent = '';
+      castDraft.buttons.forEach((one, at) => {
+        const row = el('div', 'ad-cast__btn');
+        const text = input(one.text, { placeholder: 'Надпись', max: 64 });
+        const link = input(one.url, { placeholder: 'https:// — пусто: откроет приложение', max: 300 });
+        const kill = iconButton('trash', 'Убрать кнопку', () => {
+          castDraft.buttons.splice(at, 1);
+          paintButtons();
+        });
+        text.addEventListener('input', () => { castDraft.buttons[at].text = text.value; });
+        link.addEventListener('input', () => { castDraft.buttons[at].url = link.value.trim(); });
+        row.append(text, link, kill);
+        rows.appendChild(row);
+      });
+      add.disabled = castDraft.buttons.length >= 8;
+    };
+
+    area.addEventListener('input', () => {
+      castDraft.text = area.value;
+      paintCounter();
+    });
+
+    add.addEventListener('click', () => {
+      castDraft.buttons.push({ text: '', url: '' });
+      paintButtons();
+    });
+
+    pick.addEventListener('click', async () => {
+      const file = await pickFile('image/png,image/jpeg,image/webp');
+      if (!file) return;
+      if (file.size > 2.5 * 1024 * 1024) {
+        toast('Картинка больше 2,5 МБ', 'bad');
+        return;
+      }
+      const base64 = toBase64(await file.arrayBuffer());
+      await run(pick, 'cast.photo', { file: base64, type: file.type, drop: castDraft.photo }, (data) => {
+        castDraft.photo = data.photo;
+        paintPhoto();
+        toast('Фото загружено');
+      });
+    });
+
+    drop.addEventListener('click', () => {
+      castDraft.photo = '';
+      paintPhoto();
+    });
+
+    test.addEventListener('click', () => {
+      run(test, 'cast.test', { cast: draft() }, () => toast('Отправил вам — посмотрите в боте'));
+    });
+
+    start.addEventListener('click', async () => {
+      if (!(await ask('Отправить сообщение всем, кто открывал приложение? Остановить можно, но уже отправленное не вернуть.'))) return;
+      run(start, 'cast.start', { cast: draft() }, (data) => {
+        cast.state = data.cast;
+        paintSend();
+        watch();
+        toast('Рассылка пошла');
+      });
+    });
+
+    halt.addEventListener('click', async () => {
+      if (!(await ask('Остановить рассылку? Те, кому уже отправили, сообщение получили.'))) return;
+      run(halt, 'cast.stop', {}, (data) => {
+        cast.state = data.cast;
+        paintSend();
+        toast('Останавливаю');
+      });
+    });
+
+    // Ход рассылки: строка, полоса и какие кнопки сейчас нужны
+    function paintSend() {
+      const job = cast.state;
+      const going = Boolean(job && job.status === 'run');
+
+      halt.hidden = !going;
+      start.disabled = going;
+      test.disabled = going;
+
+      if (!job) {
+        sendNote.textContent = 'Ещё ничего не рассылали. Сперва проверьте сообщение на себе.';
+        bar.hidden = true;
+        return;
+      }
+
+      const part = job.total ? Math.round((job.done / job.total) * 100) : 0;
+      bar.hidden = false;
+      fill.style.width = part + '%';
+      bar.dataset.state = job.status;
+
+      sendNote.textContent = castStatusText(job) + ': ' + num(job.sent) + ' из ' + num(job.total) +
+        ' ' + plural(job.total, 'человека', 'человек', 'человек') +
+        (job.failed ? ', не дошло ' + num(job.failed) : '') +
+        (going ? '' : ' — ' + ago(job.finishedAt || job.at));
+    }
+
+    // Пока идёт — переспрашиваем; закончилась — отпускаем сервер
+    function watch() {
+      clearTimeout(cast.timer);
+      const token = cast.token;
+      cast.timer = setTimeout(() => {
+        if (token !== cast.token || !bar.isConnected) return;
+        api('cast.state', {}).then((data) => {
+          if (token !== cast.token || !bar.isConnected) return;
+          cast.state = data.cast;
+          paintSend();
+          if (cast.state && cast.state.status === 'run') watch();
+        }).catch(() => {});
+      }, 2000);
+    }
+
+    paintPhoto();
+    paintButtons();
+    paintSend();
+
+    const token = ++cast.token;
+    api('cast.state', {}).then((data) => {
+      if (token !== cast.token || !bar.isConnected) return;
+      cast.state = data.cast;
+      paintSend();
+      if (cast.state && cast.state.status === 'run') watch();
+    }).catch((error) => {
+      if (token !== cast.token) return;
+      sendNote.textContent = error.message;
+    });
+  }
+
   // --- Настройки ---
 
   function renderSettings() {
@@ -2717,6 +2951,7 @@
     gifts: renderGifts,
     banners: renderBanners,
     users: renderUsers,
+    cast: renderCast,
     market: renderMarket,
     withdrawals: renderWithdrawals,
     tasks: renderTasks,

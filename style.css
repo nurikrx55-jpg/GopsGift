@@ -6129,33 +6129,59 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  padding: 2px 16px;
+  padding: 0 16px;
 }
 
-/* Карточка лота. Фон подарка во всю карточку, узор символа, номер на
-   стекле, модель по центру; снизу на затемнении — имя, модель и цена */
+/* Карточка лота повторяет образец (memgift, `.gifts .items .item`) числом
+   в число: тёмная плита с кромкой стекла, внутри квадратная плитка с
+   фоном, узором и моделью, под ней имя и синяя кнопка с ценой.
+
+   Всё внутри меряется в cqw — долях ширины самой карточки, не экрана.
+   Карточки всегда две в ряд, и на узком телефоне имя с ценой ужимаются
+   вместе с плитой, а не переносятся строкой. Отсюда container-type */
 .mkt-card {
-  position: relative;
-  aspect-ratio: 0.7;
-  overflow: hidden;
-  border-radius: 22px;
-  background: radial-gradient(circle at 50% 36%, var(--center-color, #666) 0%, var(--around-color, #1a1a1a) 78%);
-  box-shadow: var(--glass-edge);
+  container-type: inline-size;
+  aspect-ratio: 175 / 243;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border-radius: 29px;
+  background: linear-gradient(180deg, #1e1e1e 50%, #191919);
+  -webkit-backdrop-filter: blur(28px) saturate(0.6);
+  backdrop-filter: blur(28px) saturate(0.6);
+  box-shadow: var(--glass-edge-tight);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform .15s ease;
+  transition: transform .18s ease;
 }
 
 .mkt-card:active {
   transform: scale(.97);
 }
 
+/* Плитка подарка — квадрат со скруглением поменьше, чем у самой плиты */
+.mkt-card__head {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 23px;
+}
+
+.mkt-card__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(circle, var(--center-color, #34343a), var(--around-color, #1d1d22));
+}
+
 .mkt-card__symbols {
   position: absolute;
-  inset: 0 0 30% 0;
+  inset: 0;
   z-index: 1;
   overflow: hidden;
-  opacity: .22;
+  opacity: .5;
   mix-blend-mode: luminosity;
   pointer-events: none;
 }
@@ -6164,39 +6190,39 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 120%;
-  height: 120%;
+  width: 100%;
+  height: calc(100% - 40px);
   transform: translate(-50%, -50%);
   object-fit: cover;
 }
 
 .mkt-card__num {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 8px;
+  left: 8px;
   z-index: 3;
   height: 24px;
   display: flex;
   align-items: center;
-  padding: 0 9px;
-  border-radius: 99px;
-  background: color-mix(in srgb, #1e1e1e 45%, transparent);
-  -webkit-backdrop-filter: blur(13px) saturate(1.4);
-  backdrop-filter: blur(13px) saturate(1.4);
-  box-shadow: var(--glass-edge);
+  padding: 0 10px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, .3);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   color: #f5f5f7;
   font-size: 12px;
   font-weight: 600;
+  letter-spacing: -.2px;
 }
 
+/* Модель сидит не по центру плитки, а ниже: над ней остаётся место под
+   номер, под ней — запас, чтобы низ рисунка не упирался в край */
 .mkt-card__art {
-  position: absolute;
-  left: 50%;
-  top: 9%;
+  position: relative;
   z-index: 2;
-  width: 58%;
-  aspect-ratio: 1;
-  transform: translateX(-50%);
+  width: 70%;
+  height: 70%;
+  margin: 24px auto auto;
 }
 
 .mkt-card__art img {
@@ -6204,66 +6230,69 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .28));
-}
-
-.mkt-card__foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 26px 10px 10px;
-  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .42) 45%);
 }
 
 .mkt-card__name {
+  width: 100%;
+  padding: 0 8px;
+  margin-top: 9px;
+}
+
+.mkt-card__name b {
+  display: block;
   overflow: hidden;
-  padding: 0 2px;
   color: #f5f5f7;
-  font-size: 14px;
+  font-size: 9cqw;
   font-weight: 600;
+  letter-spacing: -.3px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.mkt-card__model {
-  overflow: hidden;
-  padding: 0 2px;
-  color: rgba(245, 245, 247, .62);
-  font-size: 12px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.mkt-card__buy {
+  width: 100%;
+  padding: 0 6px 6px;
 }
 
-.mkt-card__price {
-  height: 34px;
-  margin-top: 8px;
-  display: flex;
+.mkt-card__buy button {
+  width: 100%;
+  height: 21cqw;
+  margin-top: 12px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  border-radius: 99px;
-  background: #f5f5f7;
-  color: #111;
-  font-size: 15px;
-  font-weight: 700;
+  gap: 5px;
+  border: 0;
+  border-radius: 55cqw;
+  background: #0083fd;
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow: var(--glass-edge);
+  color: #f5f5f7;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform .15s ease;
 }
 
-.mkt-card__price svg {
-  width: 15px;
-  height: 13px;
+.mkt-card__buy button:active {
+  transform: scale(.93);
+}
+
+.mkt-card__buy span {
+  font-size: 8.3cqw;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.mkt-card__buy svg {
+  width: 8.7cqw;
+  height: auto;
   fill: currentColor;
 }
 
-/* Свой лот — цена на тёмном стекле: видно, что купить его нельзя */
-.mkt-card__price.is-mine {
-  background: color-mix(in srgb, #1e1e1e 55%, transparent);
-  box-shadow: var(--glass-edge);
-  color: #f5f5f7;
+/* Свой лот не купить — кнопка гаснет, но карточка открывается */
+.mkt-card__buy.is-mine {
+  opacity: .5;
 }
 
 /* Скелеты загрузки — рецепт memgift (`._load-shimmer`): плита #252528 и
@@ -6410,14 +6439,14 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  padding: 2px 16px;
+  padding: 0 16px;
   opacity: .4;
 }
 
 .mkt-skel__card {
   display: block;
-  aspect-ratio: .7;
-  border-radius: 22px;
+  aspect-ratio: 175 / 243;
+  border-radius: 29px;
 }
 
 /* История: плитка подарка и две строки текста под неё */

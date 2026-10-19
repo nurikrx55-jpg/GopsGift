@@ -41,6 +41,12 @@ export async function call(method, payload) {
     throw new BotError('Telegram ответил не по-человечески');
   }
 
-  if (!data || !data.ok) throw new BotError((data && data.description) || 'Telegram отказал');
+  if (!data || !data.ok) {
+    const error = new BotError((data && data.description) || 'Telegram отказал');
+    // Рассылке нужен не только текст отказа: в parameters.retry_after
+    // Telegram говорит, через сколько секунд можно повторить
+    error.payload = data || null;
+    throw error;
+  }
   return data.result;
 }
