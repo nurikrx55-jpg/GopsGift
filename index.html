@@ -52,6 +52,14 @@
         <path d="M35.09 24.66L31.22 24.66C29.24 24.66 27.71 24.16 26.62 23.16C25.53 22.16 24.98 20.98 24.98 19.63C24.98 18.31 25.42 17.28 26.30 16.53C27.18 15.78 28.32 15.41 29.72 15.41C31.20 15.41 32.47 15.93 33.52 16.97C34.57 18.01 35.09 19.41 35.09 21.16L35.09 24.66L39.92 24.66L39.92 21.16C39.92 19.41 40.11 18.01 41.16 16.97C42.21 15.93 43.48 15.41 44.98 15.41C46.36 15.41 47.49 15.78 48.37 16.53C49.25 17.28 49.69 18.31 49.69 19.63C49.69 20.98 49.14 22.16 48.05 23.16C46.96 24.16 45.44 24.66 43.46 24.66L39.92 24.66L51.91 24.66C52.64 23.98 53.21 23.18 53.63 22.27C54.05 21.36 54.26 20.37 54.26 19.28C54.26 17.69 53.86 16.28 53.06 15.04C52.26 13.80 51.18 12.82 49.84 12.12C48.50 11.42 46.98 11.07 45.32 11.07C43.48 11.07 41.86 11.54 40.43 12.48C39.01 13.41 37.98 14.74 37.35 16.45C36.71 14.74 35.68 13.41 34.25 12.48C32.82 11.54 31.19 11.07 29.35 11.07C27.70 11.07 26.20 11.42 24.85 12.12C23.49 12.82 22.42 13.80 21.62 15.04C20.82 16.28 20.42 17.69 20.42 19.28C20.42 20.37 20.63 21.36 21.05 22.27C21.47 23.18 22.04 23.98 22.77 24.66Z"></path>
       </g>
 
+      <!-- Наковальня: значок крафта и узор фона. Снято с образца
+           (portals, /lucky-craft) -->
+      <symbol id="anvil" viewBox="0 0 32 32">
+        <path d="M3.4 14.6h8.1c.3 0 .5.2.5.5v4.4c0 .4-.3.7-.7.6-2.6-.4-4.5-1.5-6-2.8-.8-.7-1.6-1.6-2.2-2.3-.1-.2 0-.4.3-.4Z"/>
+        <path d="M13.8 14.6h12.7c.3 0 .5.2.5.5v1.1c0 .3-.2.5-.5.5-1.2.1-2.2.5-3 1.1-1.4 1-1.8 1.9-1.9 3.5 0 1 .4 1.9 1.3 2.8l.1.1c.1.1.2.3.2.5v1.4c0 .4-.3.7-.6.7h-8.9c-.4 0-.7-.3-.7-.7v-1.2c0-.2.1-.5.3-.6.8-.4 1.1-1.1 1.1-1.9 0-.9-.4-1.6-1.2-1.9-.2-.1-.3-.3-.3-.5v-4.9c0-.3.2-.5.5-.5Z"/>
+        <path d="M13 9.4l-.3-1.1c-.1-.4.2-.7.5-.8l12-2.4c.6-.1 1.3.3 1.4.9.1.6-.2 1.2-.8 1.4l-12 2.5c-.4.1-.7-.1-.8-.5Z"/>
+        <path d="M9.4 13.4l2.1-.5c.6-.2 1-.8.8-1.4l-.7-3.1c-.1-.3-.2-.6-.4-.9l-.1-.2c-1.2-1.9-2.1-2.7-2.7-2.5-.6.2-1 1.4-1.2 3.7v.1c0 .3 0 .6.1.9l.7 3c.1.6.8 1 1.4.9Z"/>
+      </symbol>
       <symbol id="task-gift" viewBox="0 0 14 16">
         <path d="M11.8125 3.93329H1.1875C0.600697 3.93329 0.125 4.40899 0.125 4.99579V6.01657C0.125 6.60338 0.600697 7.07907 1.1875 7.07907H3.3125H9.6875H11.8125C12.3993 7.07907 12.875 6.60338 12.875 6.01657V4.99579C12.875 4.40899 12.3993 3.93329 11.8125 3.93329Z" fill="currentColor"></path>
         <path d="M6.5 3.18751C6.5 2.2095 7.29283 1.41667 8.27083 1.41667H8.78335C9.4783 1.41667 10.0417 1.98004 10.0417 2.67498C10.0417 3.36993 9.4783 3.9333 8.78335 3.9333H6.5V3.18751Z" fill="none" stroke="currentColor" stroke-width="1.0625"></path>
@@ -376,18 +384,119 @@
             <p id="craft-subtitle" data-i18n="crafts.subtitle">Больше подарков — выше шанс редкой модели и фона</p>
           </div>
 
-          <div class="craft-stage">
-            <div class="craft-glow" aria-hidden="true"></div>
-            <div class="craft-cube" id="craft-cube" aria-hidden="true">
-              <div class="craft-face face-0"><span class="craft-mystery">&#10022;</span></div>
-              <div class="craft-face face-1"><span class="craft-mystery">&#10022;</span></div>
-              <div class="craft-face face-2"><span class="craft-mystery">&#10022;</span></div>
-              <div class="craft-face face-3"><span class="craft-mystery">&#10022;</span></div>
-              <div class="craft-face face-4"></div>
-              <div class="craft-face face-5"></div>
+          <!-- Сцена крафта снята с образца (portals, /lucky-craft): под
+               слоями фона расходятся волны наковален, по краям четыре
+               гнезда, в середине шкала шанса, а на время броска её
+               сменяет куб -->
+          <div class="craft-stage" id="craft-stage" data-phase="idle">
+            <div class="craft-bg" aria-hidden="true">
+              <div class="craft-bg__tone"></div>
+              <div class="craft-bg__shift"></div>
+              <svg class="craft-bg__pattern" viewBox="-520 -520 1040 1040" aria-hidden="true">
+                <defs>
+                  <g id="craft-anvil">
+                    <path d="M3.4 14.6h8.1c.3 0 .5.2.5.5v4.4c0 .4-.3.7-.7.6-2.6-.4-4.5-1.5-6-2.8-.8-.7-1.6-1.6-2.2-2.3-.1-.2 0-.4.3-.4Z"/>
+                    <path d="M13.8 14.6h12.7c.3 0 .5.2.5.5v1.1c0 .3-.2.5-.5.5-1.2.1-2.2.5-3 1.1-1.4 1-1.8 1.9-1.9 3.5 0 1 .4 1.9 1.3 2.8l.1.1c.1.1.2.3.2.5v1.4c0 .4-.3.7-.6.7h-8.9c-.4 0-.7-.3-.7-.7v-1.2c0-.2.1-.5.3-.6.8-.4 1.1-1.1 1.1-1.9 0-.9-.4-1.6-1.2-1.9-.2-.1-.3-.3-.3-.5v-4.9c0-.3.2-.5.5-.5Z"/>
+                    <path d="M13 9.4l-.3-1.1c-.1-.4.2-.7.5-.8l12-2.4c.6-.1 1.3.3 1.4.9.1.6-.2 1.2-.8 1.4l-12 2.5c-.4.1-.7-.1-.8-.5Z"/>
+                    <path d="M9.4 13.4l2.1-.5c.6-.2 1-.8.8-1.4l-.7-3.1c-.1-.3-.2-.6-.4-.9l-.1-.2c-1.2-1.9-2.1-2.7-2.7-2.5-.6.2-1 1.4-1.2 3.7v.1c0 .3 0 .6.1.9l.7 3c.1.6.8 1 1.4.9Z"/>
+                  </g>
+                </defs>
+        <g class="craft-wave" style="animation-delay: 0s; --wave-rest: 0.18">
+          <use href="#craft-anvil" opacity="0.65" transform="translate(250.0 0.0) rotate(-30) scale(4.3) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(225.2 108.5) rotate(7) scale(4.65) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(155.9 195.5) rotate(-16) scale(5.0) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(55.6 243.7) rotate(21) scale(4.55) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(-55.6 243.7) rotate(-2) scale(4.9) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(-155.9 195.5) rotate(-25) scale(4.45) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(-225.2 108.5) rotate(12) scale(4.8) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(-250.0 0.0) rotate(-11) scale(4.35) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(-225.2 -108.5) rotate(26) scale(4.7) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(-155.9 -195.5) rotate(3) scale(5.05) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(-55.6 -243.7) rotate(-20) scale(4.6) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(55.6 -243.7) rotate(17) scale(4.95) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(155.9 -195.5) rotate(-6) scale(4.5) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(225.2 -108.5) rotate(-29) scale(4.85) translate(-16 -16)"/>
+        </g>
+        <g class="craft-wave" style="animation-delay: -6s; --wave-rest: 0.35">
+          <use href="#craft-anvil" opacity="0.65" transform="translate(135.1 210.4) rotate(-30) scale(4.85) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(30.4 248.1) rotate(7) scale(4.4) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(-80.3 236.8) rotate(-16) scale(4.75) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(-175.0 178.5) rotate(21) scale(4.3) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(-235.2 84.9) rotate(-2) scale(4.65) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(-248.7 -25.6) rotate(-25) scale(5.0) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(-213.0 -130.9) rotate(12) scale(4.55) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(-135.1 -210.4) rotate(-11) scale(4.9) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(-30.4 -248.1) rotate(26) scale(4.45) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(80.3 -236.8) rotate(3) scale(4.8) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(175.0 -178.5) rotate(-20) scale(4.35) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(235.2 -84.9) rotate(17) scale(4.7) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(248.7 25.6) rotate(-6) scale(5.05) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(213.0 130.9) rotate(-29) scale(4.6) translate(-16 -16)"/>
+        </g>
+        <g class="craft-wave" style="animation-delay: -12s; --wave-rest: 0.55">
+          <use href="#craft-anvil" opacity="0.65" transform="translate(-104.0 227.3) rotate(-30) scale(4.6) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(-192.4 159.7) rotate(7) scale(4.95) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(-242.6 60.4) rotate(-16) scale(4.5) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(-244.8 -50.8) rotate(21) scale(4.85) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(-198.5 -152.0) rotate(-2) scale(4.4) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(-112.9 -223.1) rotate(-25) scale(4.75) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(-4.9 -250.0) rotate(12) scale(4.3) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(104.0 -227.3) rotate(-11) scale(4.65) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(192.4 -159.7) rotate(26) scale(5.0) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(242.6 -60.4) rotate(3) scale(4.55) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(244.8 50.8) rotate(-20) scale(4.9) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(198.5 152.0) rotate(17) scale(4.45) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(112.9 223.1) rotate(-6) scale(4.8) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(4.9 250.0) rotate(-29) scale(4.35) translate(-16 -16)"/>
+        </g>
+        <g class="craft-wave" style="animation-delay: -18s; --wave-rest: 0.78">
+          <use href="#craft-anvil" opacity="0.65" transform="translate(-247.5 35.3) rotate(-30) scale(4.35) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(-238.3 -75.6) rotate(7) scale(4.7) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(-181.9 -171.5) rotate(-16) scale(5.05) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(-89.5 -233.4) rotate(21) scale(4.6) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(20.7 -249.1) rotate(-2) scale(4.95) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(126.7 -215.5) rotate(-25) scale(4.5) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(207.7 -139.2) rotate(12) scale(4.85) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(247.5 -35.3) rotate(-11) scale(4.4) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(238.3 75.6) rotate(26) scale(4.75) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(181.9 171.5) rotate(3) scale(4.3) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.85" transform="translate(89.5 233.4) rotate(-20) scale(4.65) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.75" transform="translate(-20.7 249.1) rotate(17) scale(5.0) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.65" transform="translate(-126.7 215.5) rotate(-6) scale(4.55) translate(-16 -16)"/>
+          <use href="#craft-anvil" opacity="0.95" transform="translate(-207.7 139.2) rotate(-29) scale(4.9) translate(-16 -16)"/>
+        </g>
+              </svg>
+              <div class="craft-bg__vignette"></div>
             </div>
-            <div class="craft-confetti" id="craft-confetti" aria-hidden="true" hidden></div>
-            <div class="craft-slots" id="craft-slots"></div>
+
+            <div class="craft-scene">
+              <div class="craft-glow" aria-hidden="true"></div>
+              <div class="craft-slots" id="craft-slots"></div>
+
+              <div class="craft-core">
+                <!-- Шкала: дуга в три четверти круга, в середине наковальня,
+                     снизу процент редкой модели -->
+                <div class="craft-dial" id="craft-dial">
+                  <svg class="craft-dial__ring" viewBox="0 0 100 100" aria-hidden="true">
+                    <circle class="craft-dial__track" cx="50" cy="50" r="35" pathLength="1"></circle>
+                    <circle class="craft-dial__fill" id="craft-dial-fill" cx="50" cy="50" r="35" pathLength="1"></circle>
+                  </svg>
+                  <svg class="craft-dial__mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#anvil"></use></svg>
+                  <span class="craft-dial__value" id="craft-dial-value">0%</span>
+                </div>
+
+                <div class="craft-cube" id="craft-cube" aria-hidden="true">
+                  <div class="craft-face face-0"></div>
+                  <div class="craft-face face-1"></div>
+                  <div class="craft-face face-2"></div>
+                  <div class="craft-face face-3"></div>
+                  <div class="craft-face face-4"></div>
+                  <div class="craft-face face-5"></div>
+                </div>
+              </div>
+
+              <div class="craft-confetti" id="craft-confetti" aria-hidden="true" hidden></div>
+            </div>
           </div>
 
           <!-- Шансы: сводка в две колонки и полный список под «Все шансы» -->

@@ -54,8 +54,12 @@
 
   const nav = document.getElementById('menu-pill');
   const indicator = nav && nav.querySelector('.menu_indicator');
-  const tabs = Array.from(document.querySelectorAll('#menu-pill .menu_tab'));
-  const stage = document.querySelector('.stage');
+  /* Приведения типа в комментариях ничего не делают во время работы: это
+     подсказки проверке `npm run check`. Браузерные типы возвращают из
+     querySelector самый общий узел, а мы тут же читаем у него dataset и
+     style — то, что есть только у html-элемента */
+  const tabs = /** @type {HTMLElement[]} */ (Array.from(document.querySelectorAll('#menu-pill .menu_tab')));
+  const stage = /** @type {HTMLElement} */ (document.querySelector('.stage'));
   const splash = document.getElementById('splash');
   const sliderTrack = document.getElementById('slider-track');
   const sliderDots = document.getElementById('slider-dots');
@@ -4883,7 +4887,7 @@
     x: CUBE_X,
     y: CUBE_Y,
     spin: null,
-    shown: { rare: 0, black: 0 },
+    shown: { rare: 0, black: 0, success: 0 },
     frame: 0
   };
 
@@ -4964,13 +4968,7 @@
       if (index >= CRAFT_SLOTS) return;
 
       const gift = craft.picked[index];
-      if (!gift) {
-        const mark = document.createElement('span');
-        mark.className = 'craft-mystery';
-        mark.textContent = '✦';
-        face.appendChild(mark);
-        return;
-      }
+      if (!gift) return;
 
       face.style.background = craftSurface(gift);
       const art = document.createElement('div');
@@ -5070,24 +5068,40 @@
 
     cancelAnimationFrame(craft.frame);
     if (!odds) {
-      craft.shown = { rare: 0, black: 0 };
+      craft.shown = { rare: 0, black: 0, success: 0 };
       rareBox.textContent = '—';
       blackBox.textContent = '—';
+      paintDial(0);
       return;
     }
 
-    const from = { rare: craft.shown.rare, black: craft.shown.black };
+    const from = { rare: craft.shown.rare, black: craft.shown.black, success: craft.shown.success };
     const started = performance.now();
     const step = (now) => {
       const part = prefersStill() ? 1 : Math.min(1, (now - started) / 450);
       const ease = 1 - Math.pow(1 - part, 3);
       craft.shown.rare = from.rare + (odds.rare - from.rare) * ease;
       craft.shown.black = from.black + (odds.black - from.black) * ease;
+      craft.shown.success = from.success + (odds.success - from.success) * ease;
       rareBox.textContent = craftPercent(craft.shown.rare, 1);
       blackBox.textContent = craftPercent(craft.shown.black, 1);
+      paintDial(craft.shown.success);
       if (part < 1) craft.frame = requestAnimationFrame(step);
     };
     craft.frame = requestAnimationFrame(step);
+  }
+
+  /* В круге стоит шанс удачи — главное число крафта; редкая модель и
+     чёрный фон остаются в сводке под сценой. Дуга нарисована в три
+     четверти круга (путь длиной 1, видно 0,75), поэтому и доля
+     отмеряется от этих трёх четвертей */
+  function paintDial(percent) {
+    const fill = document.getElementById('craft-dial-fill');
+    const value = document.getElementById('craft-dial-value');
+    const part = Math.max(0, Math.min(100, Number(percent) || 0)) / 100;
+    if (fill) fill.setAttribute('stroke-dashoffset', String(1 - 0.75 * part));
+    // В круге процент стоит без пробела и без дробной части — там тесно
+    if (value) value.textContent = Math.round(Number(percent) || 0) + '%';
   }
 
   function paintOddsList(odds) {
@@ -5158,6 +5172,12 @@
     const subtitle = document.getElementById('craft-subtitle');
 
     const over = Boolean(craft.done);
+
+    /* Этап сцены. Пока набирают подарки, в середине стоит шкала шанса; на
+       время броска и на итог её сменяет куб */
+    const stage = document.getElementById('craft-stage');
+    if (stage) stage.dataset.phase = craft.busy ? 'busy' : over ? 'done' : 'idle';
+
     if (oddsBox) oddsBox.hidden = over;
     if (button) button.hidden = over;
     if (result) result.hidden = !over;
@@ -5512,7 +5532,7 @@
     craft.picked = [null, null, null, null];
     craft.done = null;
     craft.table = null;
-    craft.shown = { rare: 0, black: 0 };
+    craft.shown = { rare: 0, black: 0, success: 0 };
     craft.x = CUBE_X;
     craft.y = CUBE_Y;
     cubeSpin(false);
