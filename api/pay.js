@@ -271,9 +271,13 @@ export default {
       return json(result);
     } catch (error) {
       // Понятные человеку отказы — отдельно от поломок: их приложение
-      // показывает как есть
-      if (error instanceof InputError || error instanceof BotError) {
+      // показывает как есть. У своей ошибки к тексту может прилагаться
+      // ключ перевода, у отказа Telegram есть только текст
+      if (error instanceof InputError) {
         return json({ error: 'input', code: error.code, vars: error.vars, message: error.message }, 400);
+      }
+      if (error instanceof BotError) {
+        return json({ error: 'input', message: error.message }, 400);
       }
       console.error('pay:', error);
       return json({ error: 'server' }, 502);

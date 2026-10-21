@@ -12,7 +12,11 @@ const HOST = process.env.TELEGRAM_API || 'https://api.telegram.org';
 // Telegram отвечает быстро; дольше ждать нечего — человек стоит у экрана
 const TIMEOUT = 8000;
 
-export class BotError extends Error {}
+/* Отказ Telegram. В `payload` лежит его ответ целиком: рассылке нужен не
+   только текст, но и parameters.retry_after */
+export class BotError extends Error {
+  /** @type {any} */ payload = null;
+}
 
 export function hasBot() {
   return Boolean(process.env.BOT_TOKEN);

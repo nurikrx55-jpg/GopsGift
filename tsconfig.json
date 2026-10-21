@@ -1,0 +1,17 @@
+{
+  "//": "Проверка типов без сборки: файлы остаются обычным js, tsc только смотрит",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["api/**/*.js", "server.mjs", "types/**/*.d.ts"]
+}

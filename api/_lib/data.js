@@ -81,7 +81,13 @@ const MGET_CHUNK = 500;
 
 let contentCache = null;
 
-export class InputError extends Error {}
+/* Ошибка, которую показывают человеку. Рядом с текстом может ехать `code`
+   — ключ перевода, по которому приложение покажет свою фразу, и `vars` —
+   числа для подстановки в неё */
+export class InputError extends Error {
+  /** @type {string} */ code = '';
+  /** @type {Record<string, string | number> | null} */ vars = null;
+}
 
 // --- Мелочи проверки входа ---
 
