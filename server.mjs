@@ -10,6 +10,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { check } from './api/_lib/pass.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // api/_lib/data.js читает запасное содержимое от текущей папки
@@ -44,8 +45,28 @@ const STABLE = ['gifts/', 'home/', 'fonts/'];
 
 // Наружу уходит только то, что нужно странице. Исходники сервера, зависимости
 // и настройки под раздачу не попадают, даже если кто-то угадает имя
-const HIDDEN = ['api/', 'node_modules/', 'data/', 'deploy/', '.git/', '.claude/'];
-const PRIVATE = ['server.mjs', 'package.json', 'package-lock.json', 'vercel.json', 'README.md'];
+const HIDDEN = ['api/', 'node_modules/', 'data/', 'deploy/', 'types/', '.git/', '.claude/'];
+const PRIVATE = [
+  'server.mjs', 'package.json', 'package-lock.json', 'vercel.json', 'README.md', 'tsconfig.json'
+];
+
+/* Само приложение: стили и скрипты отдаём только по пропуску. Пропуск
+   выдаёт api/enter в обмен на свежие initData, и страница сама
+   подставляет его в адрес (boot.js). Без него файла как будто нет, и
+   сайт-качалка забирает одну оболочку — копировать в ней нечего.
+
+   Отдаём по обычному пути, а не отдельной ручкой: внутри style.css лежат
+   относительные ссылки на шрифты и узоры, и они должны считаться от
+   корня сайта, как раньше. */
+const GATED = ['style.css', 'i18n.js', 'local.js', 'store.js', 'app.js'];
+const GATED_ADMIN = ['admin.css', 'admin.js'];
+
+/* Качалки сайтов. Заголовок подделывается в одну строку, поэтому это не
+   защита, а отсев: названные ходят за страницей сами и своим именем. */
+const COPIERS = [
+  'httrack', 'webcopier', 'web2zip', 'webzip', 'teleport', 'offline explorer',
+  'sitesucker', 'cyotek', 'wget', 'scrapy', 'python-requests', 'go-http-client', 'libwww'
+];
 
 // Запасное содержимое приложению всё-таки нужно: по нему витрина
 // поднимается, пока база не ответила
@@ -77,7 +98,7 @@ function hidden(rel) {
   return HIDDEN.some((dir) => rel === dir.slice(0, -1) || rel.startsWith(dir));
 }
 
-function serveFile(req, res, rel) {
+function serveFile(req, res, rel, gated) {
   const file = path.join(ROOT, rel);
 
   let stat;
@@ -96,7 +117,8 @@ function serveFile(req, res, rel) {
     'Content-Length': String(stat.size),
     'ETag': tag,
     'Last-Modified': stat.mtime.toUTCString(),
-    'Cache-Control': stable ? 'public, max-age=604800' : 'no-cache'
+    // private — чтобы ответ по пропуску не осел на общем прокси по дороге
+    'Cache-Control': gated ? 'private, no-cache' : (stable ? 'public, max-age=604800' : 'no-cache')
   };
 
   // Манифест TON Connect и иконку из него кошельки читают со своих
@@ -155,6 +177,17 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, 'ok', { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
     }
 
+    // Приложение живёт в Telegram, в поиске ему делать нечего
+    if (url.pathname === '/robots.txt') {
+      return send(res, 200, 'User-agent: *\nDisallow: /\n',
+        { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
+    }
+
+    const agent = String(req.headers['user-agent'] || '').toLowerCase();
+    if (COPIERS.some((one) => agent.includes(one))) {
+      return send(res, 403, 'Forbidden', { 'Content-Type': 'text/plain; charset=utf-8' });
+    }
+
     const api = /^\/api\/([a-z][a-z0-9-]*)$/.exec(url.pathname);
     if (api) return await serveApi(req, res, api[1], url, Buffer.concat(chunks));
 
@@ -173,6 +206,16 @@ const server = http.createServer(async (req, res) => {
 
     rel = path.relative(ROOT, target).split(path.sep).join('/');
     if (hidden(rel)) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain; charset=utf-8' });
+
+    const admin = GATED_ADMIN.includes(rel);
+    if (admin || GATED.includes(rel)) {
+      const pass = check(url.searchParams.get('t'));
+      // Без пропуска такого файла для внешнего мира просто нет
+      if (!pass || (admin && !pass.admin)) {
+        return send(res, 404, 'Not found', { 'Content-Type': 'text/plain; charset=utf-8' });
+      }
+      return serveFile(req, res, rel, true);
+    }
 
     serveFile(req, res, rel);
   } catch (error) {

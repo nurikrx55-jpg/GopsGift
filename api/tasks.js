@@ -11,7 +11,7 @@ import { readContent, startTask, claimTask, findTask, channelName, getUser, invi
 import { call, BotError } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
 
-const MAX_AGE = 30 * 24 * 60 * 60;
+const MAX_AGE = 24 * 60 * 60;
 const MEMBER = ['creator', 'administrator', 'member'];
 
 /* strict — задание «Подписка на канал»: не смогли проверить — не даём.

@@ -8,7 +8,7 @@ import { listReferrals, isBanned } from './_lib/data.js';
 import { call, hasBot } from './_lib/bot.js';
 import { json, body } from './_lib/http.js';
 
-const MAX_AGE = 30 * 24 * 60 * 60;
+const MAX_AGE = 24 * 60 * 60;
 const PAGE = 20;
 
 let botName = '';

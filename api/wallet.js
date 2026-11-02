@@ -9,7 +9,7 @@ import { verify } from './_lib/telegram.js';
 import { bindWallet, tonState, checkDeposits, requestWithdraw, InputError, isBanned } from './_lib/data.js';
 import { json, body } from './_lib/http.js';
 
-const MAX_AGE = 30 * 24 * 60 * 60;
+const MAX_AGE = 24 * 60 * 60;
 
 export default {
   async fetch(request) {

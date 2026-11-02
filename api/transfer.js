@@ -11,7 +11,7 @@ import { call, hasBot } from './_lib/bot.js';
 import { giftReceived } from './_lib/notify.js';
 import { json, body } from './_lib/http.js';
 
-const MAX_AGE = 30 * 24 * 60 * 60;
+const MAX_AGE = 24 * 60 * 60;
 
 async function invoice(user, input, stars) {
   const giftId = await checkTransfer(user.id, input.to, input.gift, input.nft);

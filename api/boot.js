@@ -8,7 +8,7 @@ import { json, body } from './_lib/http.js';
 
 // Подпись Telegram живёт всю сессию Mini App; месяц — с запасом на тех,
 // кто держит приложение открытым неделями
-const MAX_AGE = 30 * 24 * 60 * 60;
+const MAX_AGE = 24 * 60 * 60;
 
 export default {
   async fetch(request) {
