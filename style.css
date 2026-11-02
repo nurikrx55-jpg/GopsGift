@@ -3252,9 +3252,11 @@ body {
 }
 
 /* Название раздела стоит на одном месте во всех разделах — меняется
-   только текст, поэтому шапка не дёргается при переходах */
+   только текст, поэтому шапка не дёргается при переходах. Размер и вес —
+   как у заголовков memgift («Заработок»): 24px полужирным */
 .hdr__section {
-  font-size: 17px;
+  font-size: 24px;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
@@ -6615,9 +6617,10 @@ body {
   opacity: .4;
 }
 
+/* Значок шириной со значок memgift: их самолётик 28px в ширину */
 .mkt-logotype svg {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   fill: #f5f5f7;
 }
 
@@ -6661,7 +6664,8 @@ body {
 .mkt-tabs__item h4 {
   margin: 0;
   color: #f5f5f7;
-  font-size: 22px;
+  /* Как у memgift: «Подарки» там 96px в ширину, это наш шрифт в 24px */
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: -.5px;
   white-space: nowrap;
