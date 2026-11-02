@@ -940,6 +940,51 @@ export async function upgradeNow(userId, giftId, content) {
   return rollUpgrade(userId, slug(giftId), content);
 }
 
+/* Выдача улучшенного подарка из админки. Улучшение бросает кости, а здесь
+   всё выбрано руками: подарок, модель, фон и узор. Номер всё равно берём
+   из общего счётчика — выданный встаёт в тот же ряд, что и выпавшие, и
+   двух одинаковых номеров не будет.
+
+   Счёт человека читаем и пишем в очереди: он в это время может покупать
+   или продавать, и правка админа не должна затереть его покупку. */
+export async function grantNft(userId, input, content) {
+  const id = String(userId);
+  if (!/^\d{1,20}$/.test(id)) throw new InputError('Неверный id');
+
+  const gift = (content.gifts || []).find((one) => one.id === slug(input.gift));
+  if (!gift) throw new InputError('Такого подарка нет на витрине');
+  if (!canUpgrade(gift)) throw new InputError('У этого подарка нет моделей');
+
+  const model = (gift.models || []).find((one) => one.name === str(input.model, 32));
+  if (!model) throw new InputError('Выберите модель');
+
+  const attrs = readAttrs();
+  const backdrop = attrs.backdrops.find((one) => one.name === str(input.backdrop, 32));
+  if (!backdrop) throw new InputError('Выберите фон');
+
+  const symbol = attrs.symbols.find((one) => one.name === str(input.symbol, 32));
+  if (!symbol) throw new InputError('Выберите узор');
+
+  const num = await nextNumber(gift);
+
+  return queued(id, async () => {
+    const acct = normalAccount(await command('GET', K.acct(id)));
+    const nft = {
+      id: newId('nft'),
+      gift: gift.id,
+      model: { name: model.name, art: model.art, artType: model.artType, rate: model.rate },
+      backdrop: backdrop.name,
+      symbol: symbol.name,
+      num: int(num, 1, 1e9),
+      at: Date.now()
+    };
+
+    acct.nfts.push(nft);
+    await command('SET', K.acct(id), JSON.stringify(acct));
+    return nft;
+  });
+}
+
 /* --- Крафт ---
 
    Из двух-четырёх улучшенных подарков одного вида делается один новый.

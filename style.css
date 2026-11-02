@@ -3465,6 +3465,19 @@ body {
   white-space: nowrap;
 }
 
+/* Плашка раздела, который ещё не открыли: нажимать нечего, и видом она
+   это показывает — приглушена целиком, под названием строка про «скоро» */
+.task--soon {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.task__soon {
+  font-size: 12px;
+  line-height: 1.2;
+  color: #8a8a92;
+}
+
 /* Награда — купоны, тем же глифом, что в шапке */
 .task__reward {
   box-sizing: border-box;

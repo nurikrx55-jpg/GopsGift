@@ -6,7 +6,7 @@ import { configured } from './_lib/db.js';
 import { verify, isAdmin, authMode } from './_lib/telegram.js';
 import {
   readContent, writeContent, cleanGift, cleanBanner, cleanTasks, cleanTon, cleanMarket, cleanFees, TON_RECEIVER, InputError,
-  listUsers, getUser, readRig, saveAccount, setBan, stats, saveLottie, saveSvg, saveImage, dropFile,
+  listUsers, getUser, readRig, saveAccount, grantNft, setBan, stats, saveLottie, saveSvg, saveImage, dropFile,
   listWithdrawals, resolveWithdraw, openWithdrawals, userLang, marketLog, lotCount, clearMarketLog, listLots, removeLot
 } from './_lib/data.js';
 import { withdrawClosed } from './_lib/notify.js';
@@ -278,6 +278,18 @@ const actions = {
     const user = await getUser(id);
     user.rigBackdrop = await readRig(id);
     return { user: user };
+  },
+
+  /* Выдача улучшенного подарка руками. Сам по себе такой подарок
+     появляется только улучшением, с выпавшими моделью, фоном и узором;
+     здесь всё выбрано в админке */
+  async 'user.grant'(payload) {
+    const id = String(payload.id || '');
+    const content = await readContent(true);
+    const nft = await grantNft(id, payload.nft || {}, content);
+    const user = await getUser(id);
+    user.rigBackdrop = await readRig(id);
+    return { user: user, nft: nft };
   },
 
   /* Бан и снятие бана. Забаненного не пускает ни заход в приложение, ни

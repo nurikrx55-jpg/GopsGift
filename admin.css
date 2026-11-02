@@ -681,6 +681,23 @@
   color: #5f5f67;
 }
 
+/* Выбор из списка. Своя стрелка: у поля снята стандартная отрисовка,
+   иначе рядом с нашими полями он выглядел бы чужим */
+.ad-select {
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%238a8a92' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 12px 8px;
+  cursor: pointer;
+}
+
+/* Список раскрывается силами системы — он светлый по умолчанию */
+.ad-select option {
+  background: #1c1c1e;
+  color: var(--text);
+}
+
 .ad-input:focus {
   border-color: var(--accent);
 }

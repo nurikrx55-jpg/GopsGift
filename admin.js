@@ -476,6 +476,33 @@
     return node;
   }
 
+  // Выбор из готового списка: выглядит как поле, стрелку рисует admin.css
+  function select(items) {
+    const node = el('select', 'ad-input ad-select');
+    items.forEach((item) => {
+      const option = el('option', null, item.label);
+      option.value = item.value;
+      node.appendChild(option);
+    });
+    return node;
+  }
+
+  /* Фоны и узоры лежат в том же файле, что читает приложение, и меняются
+     только с выкладкой — читаем один раз за сеанс */
+  let attrsCache = null;
+
+  async function attributes() {
+    if (!attrsCache) {
+      try {
+        const data = await fetch('gifts/attributes.json').then((response) => response.json());
+        attrsCache = { backdrops: data.backdrops || [], symbols: data.symbols || [] };
+      } catch (_) {
+        attrsCache = { backdrops: [], symbols: [] };
+      }
+    }
+    return attrsCache;
+  }
+
   function affix(control, iconName) {
     const wrap = el('span', 'ad-affix');
     if (iconName === 'star-img') {
@@ -1729,6 +1756,9 @@
 
     const catalog = content.gifts || [];
     const byId = new Map(catalog.map((gift) => [gift.id, gift]));
+    // Фоны и узоры — для ручной выдачи улучшенного; лист строится сразу,
+    // поэтому читаем их до его открытия
+    const attrs = await attributes();
     // Снятые с витрины подарки в счёте не показываем: при сохранении сервер
     // их всё равно отбросит, а сырой id в списке только путает
     const gifts = (person.gifts || []).filter((id) => byId.has(id));
@@ -1951,6 +1981,74 @@
       drawOwned();
       owned.append(giveBtn, picker);
       body.appendChild(owned);
+
+      /* Выдать улучшенный подарок руками. Обычным путём такой появляется
+         только улучшением, где модель, фон и узор выпадают сами; здесь их
+         выбирает админ. Уходит сразу, а не по «Сохранить»: это новый
+         подарок, а не правка списка */
+      const upgradable = catalog.filter((gift) => (gift.models || []).length);
+      const grantCard = el('section', 'ad-card');
+      grantCard.appendChild(el('h3', null, 'Выдать улучшенный'));
+
+      if (!upgradable.length) {
+        grantCard.appendChild(el('p', 'ad-note', 'Ни у одного подарка на витрине нет моделей — выдавать нечего.'));
+      } else {
+        grantCard.appendChild(el('p', 'ad-note',
+          'Подарок появится у человека сразу, со следующим номером — как после улучшения, только модель, фон и узор выбираете вы.'));
+
+        const giftSel = select(upgradable.map((one) => ({ value: one.id, label: one.name })));
+        const modelSel = select([]);
+        const backSel = select(attrs.backdrops.map((one) => ({ value: one.name, label: one.name })));
+        const symSel = select(attrs.symbols.map((one) => ({ value: one.name, label: one.name })));
+
+        // Модели у каждого подарка свои — список пересобирается под выбранный
+        const fillModels = () => {
+          const gift = byId.get(giftSel.value) || upgradable[0];
+          modelSel.textContent = '';
+          (gift.models || []).forEach((model) => {
+            const option = el('option', null, model.name);
+            option.value = model.name;
+            modelSel.appendChild(option);
+          });
+        };
+        giftSel.addEventListener('change', fillModels);
+        fillModels();
+
+        const grantForm = el('div', 'ad-form');
+        grantForm.append(
+          field('Подарок', giftSel),
+          field('Модель', modelSel),
+          field('Фон', backSel),
+          field('Узор', symSel)
+        );
+        grantCard.appendChild(grantForm);
+
+        grantCard.appendChild(button('Выдать', {
+          icon: 'gift',
+          onClick: async (event) => {
+            await run(event.currentTarget, 'user.grant', {
+              id: person.id,
+              nft: {
+                gift: giftSel.value,
+                model: modelSel.value,
+                backdrop: backSel.value,
+                symbol: symSel.value
+              }
+            }, (data) => {
+              // Новый подарок кладём и в местный список: иначе «Сохранить»
+              // отправит прежний и только что выданное заберёт обратно
+              nfts.push(data.nft);
+              nftValues[data.nft.id] = data.nft.value || 0;
+              haptic('ok');
+              drawOwned();
+              toast('Подарок выдан, номер #' + data.nft.num);
+              if (onSaved) onSaved(data.user);
+            });
+          }
+        }));
+      }
+
+      body.appendChild(grantCard);
 
       /* Подкрутка: следующее улучшение этого человека выпадет на чёрном
          фоне Eclipse. Срабатывает один раз и снимается сама; человек о ней
