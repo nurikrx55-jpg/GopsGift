@@ -3394,6 +3394,51 @@ body {
   padding: 0 16px;
 }
 
+/* Стейкинг над заданиями. Скругление и отступы те же, что у блоков
+   ниже, — колонка читается одной; кромка общая стеклянная, чтобы плита
+   стояла чуть выше плоских блоков и не сливалась с ними */
+.stake-soon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 72px;
+  padding: 0 16px 0 22px;
+  border-radius: 29px;
+  background: #171717;
+  box-shadow: var(--glass-edge);
+  cursor: default;
+}
+
+.stake-soon__title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: #f5f5f7;
+}
+
+/* Метка «Скоро»: часы и слово в одной капсуле, приглушённо — это
+   пометка, а не кнопка, и спорить с заголовком ей незачем */
+.stake-soon__pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  background: rgba(245, 245, 247, 0.06);
+  box-shadow: var(--glass-edge-tight);
+  color: #8e8e93;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.stake-soon__pill svg {
+  width: 15px;
+  height: 15px;
+}
+
 /* Блок из образца: тёмная плита с крупным скруглением */
 .tasks__block {
   margin-bottom: 15px;
@@ -3463,19 +3508,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Плашка раздела, который ещё не открыли: нажимать нечего, и видом она
-   это показывает — приглушена целиком, под названием строка про «скоро» */
-.task--soon {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.task__soon {
-  font-size: 12px;
-  line-height: 1.2;
-  color: #8a8a92;
 }
 
 /* Награда — купоны, тем же глифом, что в шапке */

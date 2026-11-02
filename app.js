@@ -4074,31 +4074,25 @@
   // --- Задания ---
 
   // Строка задания: иконка, название с наградой под ним и счётчик справа
-  /* Стейкинг стоит первой плашкой, над одноразовыми заданиями. Раздела
-     ещё нет, поэтому она не нажимается: вместо значка задания — часы, и
-     под названием сказано, что это впереди */
+  /* Стейкинг — отдельная плита над заданиями: название крупно, справа
+     метка «Скоро» с часами. Раздела ещё нет, поэтому плита не нажимается */
   function buildStaking() {
-    const row = document.createElement('div');
-    row.className = 'task task--soon';
+    const card = document.createElement('div');
+    card.className = 'stake-soon';
 
-    const avatar = document.createElement('div');
-    avatar.className = 'task__avatar';
-    avatar.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><use href="#clock"></use></svg>';
+    const title = document.createElement('h4');
+    title.className = 'stake-soon__title';
+    title.textContent = t('stake.title');
 
-    const info = document.createElement('div');
-    info.className = 'task__info';
+    const pill = document.createElement('span');
+    pill.className = 'stake-soon__pill';
+    pill.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><use href="#clock"></use></svg>';
+    const label = document.createElement('span');
+    label.textContent = t('stake.soon');
+    pill.appendChild(label);
 
-    const name = document.createElement('h4');
-    name.className = 'task__name';
-    name.textContent = t('stake.title');
-
-    const note = document.createElement('span');
-    note.className = 'task__soon';
-    note.textContent = t('stake.wait');
-
-    info.append(name, note);
-    row.append(avatar, info);
-    return row;
+    card.append(title, pill);
+    return card;
   }
 
   function buildTask(task) {

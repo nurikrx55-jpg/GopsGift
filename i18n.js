@@ -253,6 +253,7 @@
       'lang.title': 'Язык',
 
       'stake.title': 'Стейкинг',
+      'stake.soon': 'Скоро',
       'stake.total': 'В стейкинге',
       'stake.day': 'Доход за день',
       'stake.earned': 'Заработано',
@@ -549,6 +550,7 @@
       'lang.title': 'Language',
 
       'stake.title': 'Staking',
+      'stake.soon': 'Soon',
       'stake.total': 'Staked',
       'stake.day': 'Per day',
       'stake.earned': 'Earned',
