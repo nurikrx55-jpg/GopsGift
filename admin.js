@@ -251,6 +251,45 @@
     wait();
   }
 
+  /* Доиграв, анимация замирает на последнем кадре, а он у .tgs сплошь и
+     рядом пустой: подарок улетает из кадра, и превью становится пустым
+     квадратом. Поэтому по окончании отходим на кадр, где закрашено
+     больше всего. */
+  const REST_TRIES = 7;
+
+  function restOnFullest(player, box) {
+    const canvas = box.querySelector('canvas');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const last = Math.max(player.totalFrames - 1, 0);
+    let best = last;
+    let bestFill = -1;
+
+    for (let i = 0; i < REST_TRIES; i += 1) {
+      const frame = Math.round((last * i) / (REST_TRIES - 1));
+      player.goToAndStop(frame, true);
+
+      let fill = 0;
+      try {
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        // Считаем только заметные пиксели: у краёв фигур альфа почти нулевая
+        for (let p = 3; p < data.length; p += 4) if (data[p] > 24) fill += 1;
+      } catch (_) {
+        // Холст закрыт чужой картинкой изнутри композиции — читать нечем
+        player.goToAndStop(last, true);
+        return;
+      }
+
+      if (fill > bestFill) {
+        bestFill = fill;
+        best = frame;
+      }
+    }
+
+    player.goToAndStop(best, true);
+  }
+
   // Карточку оживляем, только когда она на экране: у скрытой нулевой размер
   function animate(box, source, loop) {
     whenLottie(() => {
@@ -265,7 +304,10 @@
         };
         if (source && typeof source === 'object') config.animationData = JSON.parse(JSON.stringify(source));
         else config.path = source;
-        players.set(box, window.lottie.loadAnimation(config));
+
+        const player = window.lottie.loadAnimation(config);
+        if (!loop) player.addEventListener('complete', () => restOnFullest(player, box));
+        players.set(box, player);
       };
 
       const watch = new IntersectionObserver((entries, obs) => {

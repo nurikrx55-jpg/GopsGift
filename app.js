@@ -967,6 +967,42 @@
     });
   }
 
+  /* Какой кадр снимать. Крайние кадры у .tgs чаще всего пустые: подарок
+     влетает в кадр и улетает из него, а у «конфетти» пусты и первый, и
+     последний. Снимок с такого кадра — прозрачный квадрат вместо подарка,
+     и цвет подложки тогда брать не с чего. Поэтому проходим по композиции
+     и берём кадр, где закрашено больше всего. */
+  const SHOT_TRIES = 7;
+
+  function fullestFrame(player, canvas) {
+    const last = Math.max(player.totalFrames - 1, 0);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let best = last;
+    let bestFill = -1;
+
+    for (let i = 0; i < SHOT_TRIES; i += 1) {
+      const frame = Math.round((last * i) / (SHOT_TRIES - 1));
+      player.goToAndStop(frame, true);
+
+      let fill = 0;
+      try {
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        // Считаем только заметные пиксели: у краёв фигур альфа почти нулевая
+        for (let p = 3; p < data.length; p += 4) if (data[p] > 24) fill += 1;
+      } catch (_) {
+        // Холст закрыт чужой картинкой изнутри композиции — читать нечем
+        return last;
+      }
+
+      if (fill > bestFill) {
+        bestFill = fill;
+        best = frame;
+      }
+    }
+
+    return best;
+  }
+
   function shotFromLottie(path) {
     return new Promise((done) => {
       whenLottieReady(() => {
@@ -1000,10 +1036,9 @@
         };
 
         probe.addEventListener('DOMLoaded', () => {
-          // Последний кадр: у многих композиций первый пустой
-          probe.goToAndStop(probe.totalFrames - 1, true);
-
           const canvas = box.querySelector('canvas');
+          if (canvas) probe.goToAndStop(fullestFrame(probe, canvas), true);
+
           let still = '';
           try {
             still = canvas ? canvas.toDataURL('image/png') : '';
