@@ -252,19 +252,20 @@
   }
 
   /* Доиграв, анимация замирает на последнем кадре, а он у .tgs сплошь и
-     рядом пустой: подарок улетает из кадра, и превью становится пустым
-     квадратом. Поэтому по окончании отходим на кадр, где закрашено
-     больше всего. */
+     рядом пустой: подарок улетает из кадра, и превью гаснет. Отходим на
+     первый кадр — там подарок целый; если он пустой, берём самый ранний,
+     на котором закрашено почти столько же, сколько на самом полном.
+     Правило то же, что у снимков на витрине (app.js). */
   const REST_TRIES = 7;
+  const REST_ENOUGH = 0.6;
 
-  function restOnFullest(player, box) {
+  function restOnStill(player, box) {
     const canvas = box.querySelector('canvas');
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const last = Math.max(player.totalFrames - 1, 0);
-    let best = last;
-    let bestFill = -1;
+    const fills = [];
 
     for (let i = 0; i < REST_TRIES; i += 1) {
       const frame = Math.round((last * i) / (REST_TRIES - 1));
@@ -277,17 +278,16 @@
         for (let p = 3; p < data.length; p += 4) if (data[p] > 24) fill += 1;
       } catch (_) {
         // Холст закрыт чужой картинкой изнутри композиции — читать нечем
-        player.goToAndStop(last, true);
+        player.goToAndStop(0, true);
         return;
       }
 
-      if (fill > bestFill) {
-        bestFill = fill;
-        best = frame;
-      }
+      fills.push({ frame: frame, fill: fill });
     }
 
-    player.goToAndStop(best, true);
+    const best = fills.reduce((top, one) => (one.fill > top.fill ? one : top), fills[0]);
+    const early = fills.find((one) => one.fill >= best.fill * REST_ENOUGH);
+    player.goToAndStop((early || best).frame, true);
   }
 
   // Карточку оживляем, только когда она на экране: у скрытой нулевой размер
@@ -306,7 +306,7 @@
         else config.path = source;
 
         const player = window.lottie.loadAnimation(config);
-        if (!loop) player.addEventListener('complete', () => restOnFullest(player, box));
+        if (!loop) player.addEventListener('complete', () => restOnStill(player, box));
         players.set(box, player);
       };
 

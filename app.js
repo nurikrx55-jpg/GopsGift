@@ -967,18 +967,19 @@
     });
   }
 
-  /* Какой кадр снимать. Крайние кадры у .tgs чаще всего пустые: подарок
-     влетает в кадр и улетает из него, а у «конфетти» пусты и первый, и
-     последний. Снимок с такого кадра — прозрачный квадрат вместо подарка,
-     и цвет подложки тогда брать не с чего. Поэтому проходим по композиции
-     и берём кадр, где закрашено больше всего. */
+  /* Какой кадр снимать. Нужен первый: на нём подарок стоит целым, как на
+     витрине, а в середине композиции он разлетается — снимок оттуда
+     выглядит поломанным. Но у .tgs первый кадр сплошь и рядом пустой:
+     подарок только влетает в кадр. Поэтому проходим по композиции и берём
+     самый ранний кадр, на котором закрашено почти столько же, сколько на
+     самом полном. */
   const SHOT_TRIES = 7;
+  const SHOT_ENOUGH = 0.6;
 
-  function fullestFrame(player, canvas) {
+  function stillFrame(player, canvas) {
     const last = Math.max(player.totalFrames - 1, 0);
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    let best = last;
-    let bestFill = -1;
+    const fills = [];
 
     for (let i = 0; i < SHOT_TRIES; i += 1) {
       const frame = Math.round((last * i) / (SHOT_TRIES - 1));
@@ -991,16 +992,15 @@
         for (let p = 3; p < data.length; p += 4) if (data[p] > 24) fill += 1;
       } catch (_) {
         // Холст закрыт чужой картинкой изнутри композиции — читать нечем
-        return last;
+        return 0;
       }
 
-      if (fill > bestFill) {
-        bestFill = fill;
-        best = frame;
-      }
+      fills.push({ frame: frame, fill: fill });
     }
 
-    return best;
+    const best = fills.reduce((top, one) => (one.fill > top.fill ? one : top), fills[0]);
+    const early = fills.find((one) => one.fill >= best.fill * SHOT_ENOUGH);
+    return (early || best).frame;
   }
 
   function shotFromLottie(path) {
@@ -1037,7 +1037,7 @@
 
         probe.addEventListener('DOMLoaded', () => {
           const canvas = box.querySelector('canvas');
-          if (canvas) probe.goToAndStop(fullestFrame(probe, canvas), true);
+          if (canvas) probe.goToAndStop(stillFrame(probe, canvas), true);
 
           let still = '';
           try {
