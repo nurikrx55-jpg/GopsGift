@@ -69,7 +69,7 @@ const K = {
   mktlog: 'gg:mktlog',
   refEarn: (id) => 'gg:refearn:' + id,
   refEarned: 'gg:refearned',
-  buyersFilled: 'gg:buyers:filled'
+  buyersFilled: 'gg:buyers:filled:v2'
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -1880,11 +1880,17 @@ export async function clearInbox(userId, until) {
 
 // --- Топ покупателей ---
 
-/* Счётчик покупок завёлся позже самих покупок. Прошлые сосчитаем один раз
-   по счетам: сколько штук каждого подарка у кого лежит. Отметку ставим
-   первой и только если её ещё нет — два одновременных запроса не посчитают
-   дважды. ZADD ставит число, а не прибавляет, так что покупка, прошедшая
-   в ту же секунду, тоже не задвоится. */
+/* Счётчик покупок завёлся позже самих покупок, а выданное из админки до
+   2026-11-04 он и вовсе не видел. Один раз сверяем топ со счетами: у кого
+   подарок лежит в профиле, тот в топе своего подарка стоит — улучшенный
+   считается за тот же подарок, из которого вырос.
+
+   Счёт в топе бывает больше, чем подарков на руках: купленный потом ушёл
+   по передаче или через маркет, а покупку из топа не вычёркивают. Поэтому
+   не ставим число подряд, а только поднимаем до того, что в профиле.
+
+   Отметку ставим первой и только если её ещё нет — два одновременных
+   запроса не посчитают дважды. */
 // Сверку делаем один раз на жизнь процесса: дальше отметка в базе уже стоит,
 // и спрашивать её на каждый запрос — лишняя дорога до базы
 let buyersFilled = false;
@@ -1897,14 +1903,36 @@ async function fillBuyers() {
 
   const ids = await command('ZRANGE', K.seen, 0, -1);
   const accounts = await mgetJson((ids || []).map(K.acct));
-  const commands = [];
+
+  // Подарок → кто сколько штук его держит сейчас
+  const held = new Map();
+  const add = (gift, id) => {
+    if (!gift) return;
+    const counts = held.get(gift) || new Map();
+    counts.set(id, (counts.get(id) || 0) + 1);
+    held.set(gift, counts);
+  };
 
   (ids || []).forEach((id, index) => {
-    const counts = new Map();
-    normalAccount(accounts[index]).gifts.forEach((gift) => {
-      counts.set(gift, (counts.get(gift) || 0) + 1);
+    const acct = normalAccount(accounts[index]);
+    acct.gifts.forEach((gift) => add(gift, id));
+    acct.nfts.forEach((nft) => add(nft && nft.gift, id));
+  });
+
+  const gifts = Array.from(held.keys());
+  if (!gifts.length) return;
+
+  const known = await pipeline(gifts.map((gift) => ['ZREVRANGE', K.buyers(gift), 0, -1, 'WITHSCORES']));
+  const commands = [];
+
+  gifts.forEach((gift, index) => {
+    const flat = known[index] || [];
+    const scores = new Map();
+    for (let i = 0; i < flat.length; i += 2) scores.set(flat[i], Number(flat[i + 1]) || 0);
+
+    held.get(gift).forEach((n, id) => {
+      if (n > (scores.get(id) || 0)) commands.push(['ZADD', K.buyers(gift), n, id]);
     });
-    counts.forEach((n, gift) => commands.push(['ZADD', K.buyers(gift), n, id]));
   });
 
   if (commands.length) await pipeline(commands);
