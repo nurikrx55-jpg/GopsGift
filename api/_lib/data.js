@@ -633,6 +633,9 @@ export async function saveAccount(id, input, content) {
 
     await pipeline(commands);
 
+    // Выданное руками считается наравне с купленным, забранное — уходит
+    await shiftBuyers(key, giftShifts(before.gifts, acct.gifts));
+
     // Снятый вместе с подарком лот виден в «Активности», как и обычное снятие
     if (gone.length) {
       const rawProfile = await command('GET', K.user(key));
@@ -981,6 +984,7 @@ export async function grantNft(userId, input, content) {
 
     acct.nfts.push(nft);
     await command('SET', K.acct(id), JSON.stringify(acct));
+    await shiftBuyers(id, [{ gift: gift.id, delta: 1 }]);
     return nft;
   });
 }
@@ -1914,6 +1918,33 @@ const topCache = new Map();
 
 function dropTop(giftId) {
   topCache.delete(String(giftId));
+}
+
+/* Подарок, выданный из админки, в топе ничем не отличается от купленного:
+   человек с ним — такой же владелец, и прятать его из списка не за что.
+   Забранный подарок из топа уходит: иначе чистка счёта оставляла бы там
+   имя без подарков. */
+
+function giftShifts(before, after) {
+  const counted = new Map();
+  before.forEach((gift) => counted.set(gift, (counted.get(gift) || 0) - 1));
+  after.forEach((gift) => counted.set(gift, (counted.get(gift) || 0) + 1));
+
+  const shifts = [];
+  counted.forEach((delta, gift) => {
+    if (delta) shifts.push({ gift: gift, delta: delta });
+  });
+  return shifts;
+}
+
+// По одному подарку за раз: правка из админки редка, а счёт после сдвига
+// нужно увидеть — на нуле человека из топа убираем
+async function shiftBuyers(userId, shifts) {
+  for (const shift of shifts) {
+    const left = Number(await command('ZINCRBY', K.buyers(shift.gift), shift.delta, String(userId)));
+    if (!(left > 0)) await command('ZREM', K.buyers(shift.gift), String(userId));
+    dropTop(shift.gift);
+  }
 }
 
 export async function topBuyers(giftId, limit) {
